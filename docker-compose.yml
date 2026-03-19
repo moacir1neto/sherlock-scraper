@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  sherlock:
+    build: .
+    volumes:
+      - .:/app
+    # Evita que o Python crie arquivos de cache desnecessários na sua pasta
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+<<<<<<< HEAD
+      - PYTHONUNBUFFERED=1
+=======
+      - PYTHONUNBUFFERED=1
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "host=db user=postgres password=password dbname=crm port=5432 sslmode=disable TimeZone=America/Sao_Paulo"
+      JWT_SECRET: "my_dev_super_secret"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000/api/v1
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+>>>>>>> staging
