@@ -42,7 +42,7 @@ func (h *LeadHandler) UploadCSV(c *fiber.Ctx) error {
 
 	nicho := c.FormValue("nicho", "Geral")
 
-	err = h.service.ImportCSV(c.Context(), records, nicho)
+	err = h.service.ImportCSV(c.Context(), records, nicho, nil)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

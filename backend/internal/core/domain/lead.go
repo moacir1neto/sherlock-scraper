@@ -18,8 +18,28 @@ const (
 	StatusPerdido        KanbanStatus = "perdido"
 )
 
+type ScrapingStatus string
+
+const (
+	ScrapeRunning   ScrapingStatus = "running"
+	ScrapeCompleted ScrapingStatus = "completed"
+	ScrapeError     ScrapingStatus = "error"
+)
+
+type ScrapingJob struct {
+	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	Nicho       string         `gorm:"type:varchar(255);not null"`
+	Localizacao string         `gorm:"type:varchar(255);not null"`
+	Status      ScrapingStatus `gorm:"type:varchar(50);default:'running'"`
+	Logs        string         `gorm:"type:text"`
+	Leads       []Lead         `gorm:"foreignKey:ScrapingJobID"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Lead struct {
 	ID            uuid.UUID    `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	ScrapingJobID *uuid.UUID   `gorm:"type:uuid;index"`
 	Empresa       string       `gorm:"type:varchar(255);not null"`
 	Nicho         string       `gorm:"type:varchar(255)"`
 	Nota          string       `gorm:"type:varchar(50)"`

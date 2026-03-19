@@ -25,4 +25,17 @@ export interface Lead {
   TikTok: string;
   YouTube: string;
   KanbanStatus: KanbanStatus;
+  ScrapingJobID?: string;
+}
+
+export type ScrapingStatus = 'running' | 'completed' | 'error';
+
+export interface ScrapingJob {
+  ID: string;
+  Nicho: string;
+  Localizacao: string;
+  Status: ScrapingStatus;
+  Logs: string;
+  CreatedAt: string;
+  UpdatedAt: string;
 }

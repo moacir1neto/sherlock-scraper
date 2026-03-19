@@ -16,9 +16,9 @@ const DashboardLayout: React.FC = () => {
   };
 
   const navLinks = [
-    { name: 'Listas', path: '/dashboard/leads', icon: List },
-    { name: 'Kanban Board', path: '/dashboard/kanban', icon: LayoutDashboard },
-    { name: 'Import Leads', path: '/dashboard/import', icon: UploadCloud },
+    { name: 'Raspagens', path: '/dashboard/raspagens', icon: List },
+    { name: 'Kanban Geral', path: '/dashboard/leads', icon: LayoutDashboard },
+    { name: 'Importar Leads', path: '/dashboard/import', icon: UploadCloud },
   ];
 
   return (

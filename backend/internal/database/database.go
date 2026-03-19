@@ -24,8 +24,8 @@ func Connect() {
 
 	log.Println("Database connection successfully opened")
 
-	// Automigrate User and Lead
-	err = db.AutoMigrate(&domain.User{}, &domain.Lead{})
+	// Automigrate User, Lead and ScrapingJob
+	err = db.AutoMigrate(&domain.User{}, &domain.ScrapingJob{}, &domain.Lead{})
 	if err != nil {
 		log.Fatal("Failed to migrate database: \n", err)
 	}

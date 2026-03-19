@@ -8,38 +8,19 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 )
-
-type ScrapeStatus string
-
-const (
-	StatusRunning ScrapeStatus = "running"
-	StatusDone    ScrapeStatus = "done"
-	StatusError   ScrapeStatus = "error"
-)
-
-type ScrapeJob struct {
-	ID        string
-	Status    ScrapeStatus
-	Output    string
-	StartedAt time.Time
-}
 
 type ScrapeHandler struct {
-	mu      sync.RWMutex
-	jobs    map[string]*ScrapeJob
 	service ports.LeadService
 }
 
 func NewScrapeHandler(service ports.LeadService) *ScrapeHandler {
 	return &ScrapeHandler{
-		jobs:    make(map[string]*ScrapeJob),
 		service: service,
 	}
 }
@@ -59,25 +40,21 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "nicho and localizacao are required"})
 	}
 
-	jobID := uuid.New().String()
-	job := &ScrapeJob{
-		ID:        jobID,
-		Status:    StatusRunning,
-		StartedAt: time.Now(),
+	// 1. Cria o ScrapingJob no Banco de Dados
+	job, err := h.service.CreateJob(c.Context(), req.Nicho, req.Localizacao)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create scraping job"})
 	}
 
-	h.mu.Lock()
-	h.jobs[jobID] = job
-	h.mu.Unlock()
+	jobID := job.ID.String()
 
-	// Run in background
+	// 2. Executa em background
 	go func() {
-		var outBuf bytes.Buffer
-		var errBuf bytes.Buffer
+		var combinedBuf bytes.Buffer
 
 		// Run sherlock container with CLI args
 		cmd := exec.Command(
-			"docker", "compose",
+			"docker-compose",
 			"-f", "/workspace/docker-compose.yml",
 			"run", "--rm",
 			"-e", fmt.Sprintf("SHERLOCK_NICHO=%s", req.Nicho),
@@ -87,25 +64,24 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 			"--nicho", req.Nicho,
 			"--localizacao", req.Localizacao,
 		)
-		cmd.Stdout = &outBuf
-		cmd.Stderr = &errBuf
+		
+		// Captura stdout e stderr juntos para logs
+		cmd.Stdout = &combinedBuf
+		cmd.Stderr = &combinedBuf
 
-		err := cmd.Run()
+		cmdErr := cmd.Run()
 
-		h.mu.Lock()
-		defer h.mu.Unlock()
-
-		if err != nil {
-			job.Status = StatusError
-			job.Output = errBuf.String()
-			if job.Output == "" {
-				job.Output = err.Error()
+		// 3. Atualiza o status e logs no Banco
+		job.Logs = combinedBuf.String()
+		if cmdErr != nil {
+			job.Status = domain.ScrapeError
+			if job.Logs == "" {
+				job.Logs = cmdErr.Error()
 			}
 		} else {
-			job.Status = StatusDone
-			job.Output = outBuf.String()
-
-			// Insere automaticamente os leads CSV no PostgreSQL
+			job.Status = domain.ScrapeCompleted
+			
+			// 4. Insere automaticamente os leads CSV vinculados ao JobID
 			nichoFmt := strings.ReplaceAll(req.Nicho, " ", "_")
 			cidadeFmt := strings.ReplaceAll(req.Localizacao, " ", "_")
 			fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
@@ -117,16 +93,35 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 				reader.LazyQuotes = true
 				reader.FieldsPerRecord = -1
 				if records, errCsv := reader.ReadAll(); errCsv == nil {
-					h.service.ImportCSV(context.Background(), records, req.Nicho)
+					h.service.ImportCSV(context.Background(), records, req.Nicho, &jobID)
 				}
 			}
 		}
+		
+		h.service.UpdateJob(context.Background(), job)
 	}()
 
 	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
 		"job_id":  jobID,
-		"message": "Scraping job started successfully",
+		"message": "Scraping campaign started successfully",
 	})
+}
+
+func (h *ScrapeHandler) ListScrapes(c *fiber.Ctx) error {
+	jobs, err := h.service.ListJobs(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to list scraping jobs"})
+	}
+	return c.JSON(fiber.Map{"jobs": jobs})
+}
+
+func (h *ScrapeHandler) GetLeadsByJob(c *fiber.Ctx) error {
+	jobID := c.Params("id")
+	leads, err := h.service.GetLeadsByJob(c.Context(), jobID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch leads for this campaign"})
+	}
+	return c.JSON(fiber.Map{"leads": leads})
 }
 
 func (h *ScrapeHandler) Status(c *fiber.Ctx) error {
@@ -135,18 +130,15 @@ func (h *ScrapeHandler) Status(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "job_id query param is required"})
 	}
 
-	h.mu.RLock()
-	job, ok := h.jobs[jobID]
-	h.mu.RUnlock()
-
-	if !ok {
+	job, err := h.service.GetJob(c.Context(), jobID)
+	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "job not found"})
 	}
 
 	return c.JSON(fiber.Map{
 		"job_id":  job.ID,
 		"status":  job.Status,
-		"output":  job.Output,
-		"elapsed": time.Since(job.StartedAt).Round(time.Second).String(),
+		"logs":    job.Logs,
+		"elapsed": time.Since(job.CreatedAt).Round(time.Second).String(),
 	})
 }

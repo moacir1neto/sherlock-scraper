@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { LayoutList, Kanban, Zap } from 'lucide-react';
+import { LayoutList, Kanban, ChevronLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useLeads } from '@/hooks/useLeads';
 import ListView from '@/components/leads/ListView';
 import { KanbanBoard } from '@/pages/KanbanBoard';
-import ScrapeModal from '@/components/leads/ScrapeModal';
 
 type ViewMode = 'list' | 'kanban';
 
 const LeadsPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [view, setView] = useState<ViewMode>('list');
-  const [scrapeOpen, setScrapeOpen] = useState(false);
   const [nicheFilter, setNicheFilter] = useState('all');
   const { leads, loading, fetchLeads, updateStatus, setLeads } = useLeads();
 
@@ -22,23 +23,33 @@ const LeadsPage: React.FC = () => {
     ? leads 
     : leads.filter(l => l.Nicho === nicheFilter);
 
-  useEffect(() => { fetchLeads(); }, [fetchLeads]);
-
-  const handleScrapeComplete = () => {
-    setScrapeOpen(false);
-    // Give a small delay for the DB to persist the new leads
-    setTimeout(fetchLeads, 2000);
-  };
+  useEffect(() => { 
+    if (id) {
+        fetchLeads(id); 
+    } else {
+        fetchLeads();
+    }
+  }, [fetchLeads, id]);
 
   return (
     <div className="h-full flex flex-col">
       {/* Page Header */}
       <div className="mb-6 shrink-0 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Leads</h1>
-          <p className="text-gray-400 mt-1">
-            {loading ? 'Carregando...' : `${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''} na base${nicheFilter !== 'all' ? ` (${nicheFilter})` : ''}`}
-          </p>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/dashboard/raspagens')}
+            className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white border border-white/5"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+                {id ? 'Leads da Campanha' : 'Todos os Leads'}
+            </h1>
+            <p className="text-gray-400 mt-1">
+              {loading ? 'Carregando...' : `${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''} encontrados${nicheFilter !== 'all' ? ` (${nicheFilter})` : ''}`}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -62,7 +73,6 @@ const LeadsPage: React.FC = () => {
             <button
               id="btn-view-list"
               onClick={() => setView('list')}
-              title="Visualização em Lista"
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 view === 'list'
                   ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
@@ -75,7 +85,6 @@ const LeadsPage: React.FC = () => {
             <button
               id="btn-view-kanban"
               onClick={() => setView('kanban')}
-              title="Visualização Kanban"
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 view === 'kanban'
                   ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
@@ -86,16 +95,6 @@ const LeadsPage: React.FC = () => {
               <span className="hidden sm:inline">Kanban</span>
             </button>
           </div>
-
-          {/* Scrape Button */}
-          <button
-            id="btn-nova-raspagem"
-            onClick={() => setScrapeOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_0_20px_rgba(59,130,246,0.25)] hover:shadow-[0_0_30px_rgba(59,130,246,0.4)]"
-          >
-            <Zap size={15} />
-            Nova Raspagem
-          </button>
         </div>
       </div>
 
@@ -105,7 +104,6 @@ const LeadsPage: React.FC = () => {
           <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full" />
         </div>
       ) : (
-        /* Content Area - animated transition between views */
         <div className="flex-1 min-h-0 overflow-hidden">
           {view === 'list' ? (
             <motion.div
@@ -130,13 +128,6 @@ const LeadsPage: React.FC = () => {
           )}
         </div>
       )}
-
-      {/* Scrape Modal */}
-      <ScrapeModal
-        isOpen={scrapeOpen}
-        onClose={() => setScrapeOpen(false)}
-        onComplete={handleScrapeComplete}
-      />
     </div>
   );
 };

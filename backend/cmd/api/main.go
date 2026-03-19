@@ -63,7 +63,9 @@ func main() {
 
 	// Scrape Routes
 	protected.Post("/scrape", scrapeHandler.Start)
-	protected.Get("/scrape/status", scrapeHandler.Status)
+	protected.Get("/scrapes", scrapeHandler.ListScrapes)
+	protected.Get("/scrapes/status", scrapeHandler.Status)
+	protected.Get("/scrapes/:id/leads", scrapeHandler.GetLeadsByJob)
 
 	log.Println("Server is running on port 3000...")
 	log.Fatal(app.Listen(":3000"))
