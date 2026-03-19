@@ -36,6 +36,8 @@ func main() {
 	leadService := services.NewLeadService(leadRepo)
 	leadHandler := handlers.NewLeadHandler(leadService)
 
+	scrapeHandler := handlers.NewScrapeHandler(leadService)
+
 	// 4. API Routes
 	api := app.Group("/api/v1")
 
@@ -58,6 +60,10 @@ func main() {
 	leads.Get("", leadHandler.GetLeads)
 	leads.Post("/upload", leadHandler.UploadCSV)
 	leads.Patch("/:id/status", leadHandler.UpdateStatus)
+
+	// Scrape Routes
+	protected.Post("/scrape", scrapeHandler.Start)
+	protected.Get("/scrape/status", scrapeHandler.Status)
 
 	log.Println("Server is running on port 3000...")
 	log.Fatal(app.Listen(":3000"))

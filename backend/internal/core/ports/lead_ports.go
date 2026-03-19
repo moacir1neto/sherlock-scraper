@@ -13,7 +13,7 @@ type LeadRepository interface {
 }
 
 type LeadService interface {
-	ImportCSV(ctx context.Context, csvData [][]string) error
+	ImportCSV(ctx context.Context, csvData [][]string, nicho string) error
 	GetLeads(ctx context.Context) ([]*domain.Lead, error)
 	ChangeStatus(ctx context.Context, id string, status domain.KanbanStatus) error
 }

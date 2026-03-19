@@ -1,6 +1,7 @@
 import time
 import re
 import csv
+import argparse
 from playwright.sync_api import sync_playwright
 
 print(r"""
@@ -11,6 +12,12 @@ print(r"""
  |____/|_| |_|\___|_|  |_|\___/ \___|_|\_\
     FASE 10: O CAÇADOR DE ELEMENTOS 🎯
 """)
+
+parser = argparse.ArgumentParser(description="Sherlock - Caçador de Leads no Google Maps")
+parser.add_argument('--nicho', required=True, help='Nicho de negócio (ex: Dentista, Advogado)')
+parser.add_argument('--localizacao', required=True, help='Cidade/região (ex: Florianópolis SC)')
+args = parser.parse_args()
+
 
 def processar_telefone(telefone_extraido):
     numeros = re.sub(r'\D', '', telefone_extraido)
@@ -88,8 +95,9 @@ def investigar_site(context, url_site):
 
 def run(playwright):
     print("="*50)
-    nicho = input("🎯 Que nicho quer prospectar? (Ex: Dentista, Advogado, Contabilidade): ")
-    cidade = input("📍 Em que cidade/região? (Ex: São Paulo SP, Centro Florianópolis): ")
+    nicho = args.nicho
+    cidade = args.localizacao
+    print(f"🎯 Nicho: {nicho} | 📍 Localização: {cidade}")
     print("="*50)
     
     termo_busca = f"{nicho} em {cidade}"

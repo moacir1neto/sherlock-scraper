@@ -17,8 +17,8 @@ func NewLeadService(repo ports.LeadRepository) ports.LeadService {
 	return &leadService{repo: repo}
 }
 
-func (s *leadService) ImportCSV(ctx context.Context, csvData [][]string) error {
-	leads := csvparser.MapToLeads(csvData)
+func (s *leadService) ImportCSV(ctx context.Context, csvData [][]string, nicho string) error {
+	leads := csvparser.MapToLeads(csvData, nicho)
 	if len(leads) == 0 {
 		return errors.New("no valid leads found in CSV")
 	}

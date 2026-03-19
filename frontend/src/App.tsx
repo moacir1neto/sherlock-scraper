@@ -4,6 +4,7 @@ import Login from '@/pages/Login';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import KanbanBoard from '@/pages/KanbanBoard';
 import CsvImport from '@/pages/CsvImport';
+import LeadsPage from '@/pages/LeadsPage';
 import { useAuth } from '@/contexts/AuthContext';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -27,7 +28,8 @@ const App = () => {
           </ProtectedRoute>
         } 
       >
-        <Route index element={<Navigate to="/dashboard/kanban" replace />} />
+        <Route index element={<Navigate to="/dashboard/leads" replace />} />
+        <Route path="leads" element={<LeadsPage />} />
         <Route path="kanban" element={<KanbanBoard />} />
         <Route path="import" element={<CsvImport />} />
       </Route>

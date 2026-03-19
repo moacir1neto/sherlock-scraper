@@ -21,6 +21,7 @@ const (
 type Lead struct {
 	ID            uuid.UUID    `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 	Empresa       string       `gorm:"type:varchar(255);not null"`
+	Nicho         string       `gorm:"type:varchar(255)"`
 	Nota          string       `gorm:"type:varchar(50)"`
 	QtdAvaliacoes string       `gorm:"type:varchar(50)"`
 	ResumoNegocio string       `gorm:"type:text"`

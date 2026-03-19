@@ -9,6 +9,7 @@ export type KanbanStatus =
 export interface Lead {
   ID: string;
   Empresa: string;
+  Nicho: string;
   Nota: string;
   QtdAvaliacoes: string;
   ResumoNegocio: string;

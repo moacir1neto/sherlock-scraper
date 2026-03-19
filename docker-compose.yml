@@ -4,7 +4,7 @@ services:
   sherlock:
     build: .
     volumes:
-      - .:/app
+      - ${HOST_PROJECT_PATH:-.}:/app
     environment:
       PYTHONDONTWRITEBYTECODE: 1
       PYTHONUNBUFFERED: 1
@@ -29,8 +29,12 @@ services:
     environment:
       DATABASE_URL: "host=db user=postgres password=password dbname=crm port=5432 sslmode=disable TimeZone=America/Sao_Paulo"
       JWT_SECRET: "my_dev_super_secret"
+      COMPOSE_FILE: "/workspace/docker-compose.yml"
+      HOST_PROJECT_PATH: "${PWD:-.}"
     volumes:
       - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace
     depends_on:
       - db
 

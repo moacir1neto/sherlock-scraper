@@ -3,7 +3,7 @@ FROM golang:alpine
 WORKDIR /app
 
 # Install necessary OS tools
-RUN apk add --no-cache gcc musl-dev
+RUN apk add --no-cache gcc musl-dev docker-cli docker-cli-compose
 
 # We do not copy go mod here directly assuming the host volume will be mounted
 # Dependencies will be installed via entrypoint
