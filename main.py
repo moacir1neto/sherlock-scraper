@@ -167,24 +167,31 @@ def run(playwright):
                 nota = "-"
                 qtd_avaliacoes = "-"
                 try:
-                    # Captura TODO o texto visível no painel do mapa
-                    texto_painel = page.locator('div[role="main"]').first.inner_text()
-                    
-                    # Procura exatamente o padrão "4,8 (120)" ou "5,0(35)"
-                    match = re.search(r'([1-5][.,]\d)\s*\(([\d.]+)\)', texto_painel)
-                    if match:
-                        nota = match.group(1)
-                        qtd_avaliacoes = match.group(2).replace('.', '') # Remove o ponto se tiver mais de mil avaliações
-                    else:
-                        # Fallback de segurança
-                        reputacao_loc = page.locator('[aria-label*="estrelas"]')
-                        if reputacao_loc.count() > 0:
-                            texto_rep = reputacao_loc.first.get_attribute("aria-label")
+                    # Tenta capturar pelo aria-label do link de avaliações (mais estável)
+                    reputacao_loc = page.locator('button[aria-label*="estrelas"], span[aria-label*="estrelas"]').first
+                    if reputacao_loc.count() > 0:
+                        texto_rep = reputacao_loc.get_attribute("aria-label")
+                        # Ex: "4,8 estrelas 123 avaliações"
+                        match_rep = re.search(r'([1-5][.,]\d)\s*estrelas\s*([\d.]+)', texto_rep)
+                        if match_rep:
+                            nota = match_rep.group(1).replace(',', '.')
+                            qtd_avaliacoes = match_rep.group(2).replace('.', '')
+                        else:
+                            # Fallback 1: Só a nota
                             if "estrelas" in texto_rep:
-                                nota = texto_rep.split(" ")[0] 
+                                nota = texto_rep.split(" ")[0].replace(',', '.')
+                            # Fallback 2: Só os números das avaliações
                             nums = re.findall(r'\d+', texto_rep.split("estrelas")[-1]) if "estrelas" in texto_rep else re.findall(r'\d+', texto_rep)
                             if nums:
                                 qtd_avaliacoes = "".join(nums)
+
+                    # Fallback de Força Bruta: Procura no texto visível do painel
+                    if nota == "-" or qtd_avaliacoes == "-":
+                        texto_painel = page.locator('div[role="main"]').first.inner_text()
+                        match_bruto = re.search(r'([1-5][.,]\d)\s*\(([\d.]+)\)', texto_painel)
+                        if match_bruto:
+                            if nota == "-": nota = match_bruto.group(1).replace(',', '.')
+                            if qtd_avaliacoes == "-": qtd_avaliacoes = match_bruto.group(2).replace('.', '')
                 except Exception as e:
                     pass
 
