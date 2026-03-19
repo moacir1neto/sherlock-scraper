@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useLeads } from '@/hooks/useLeads';
-import { Play, Database, Calendar, MapPin, ChevronRight, Zap, X, Terminal as TerminalIcon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Database, Calendar, MapPin, Zap, X, Terminal as TerminalIcon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { ScrapingJob } from '@/types';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -19,7 +18,6 @@ const ScrapingsPage: React.FC = () => {
     const [showTerminal, setShowTerminal] = useState(false);
     const [jobLogs, setJobLogs] = useState("");
     const [jobStatus, setJobStatus] = useState<string>("running");
-    const navigate = useNavigate();
     const pollInterval = useRef<NodeJS.Timeout | null>(null);
     const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -70,8 +68,8 @@ const ScrapingsPage: React.FC = () => {
         <div className="h-full flex flex-col space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Central de Raspagens</h1>
-                    <p className="text-gray-400 mt-1">Gerencie suas campanhas de extração de leads</p>
+                    <h1 className="text-3xl font-bold tracking-tight">Raspagens</h1>
+                    <p className="text-gray-400 mt-1">Inicie novos jobs e monitore o status em tempo real</p>
                 </div>
                 <button
                     onClick={() => setScrapeOpen(true)}
@@ -152,13 +150,6 @@ const ScrapingsPage: React.FC = () => {
                                                     <TerminalIcon size={18} />
                                                 </button>
                                             )}
-                                            <button
-                                                onClick={() => navigate(`/dashboard/raspagens/${job.ID}/leads`)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs font-bold rounded-lg transition-all border border-white/10"
-                                            >
-                                                Ver Leads
-                                                <ChevronRight size={14} />
-                                            </button>
                                         </div>
                                     </td>
                                 </tr>

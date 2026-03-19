@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { LayoutList, Kanban, ChevronLeft } from 'lucide-react';
+import { LayoutList, Kanban, ChevronLeft, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useLeads } from '@/hooks/useLeads';
 import ListView from '@/components/leads/ListView';
 import { KanbanBoard } from '@/pages/KanbanBoard';
@@ -11,63 +11,74 @@ type ViewMode = 'list' | 'kanban';
 const LeadsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [view, setView] = useState<ViewMode>('list');
-  const [nicheFilter, setNicheFilter] = useState('all');
-  const { leads, loading, fetchLeads, updateStatus, setLeads } = useLeads();
+  const { leads, scrapeJobs, loading, fetchLeads, fetchScrapeJobs, updateStatus, setLeads } = useLeads();
 
-  // Extract unique niches from leads
-  const uniqueNiches = Array.from(new Set(leads.map(l => l.Nicho).filter(Boolean))).sort();
+  // Determine origin module from URL
+  const fromListas = location.pathname.includes('/listas/');
+  const backPath = fromListas ? '/dashboard/listas' : '/dashboard/raspagens';
+  const backLabel = fromListas ? 'Minhas Listas' : 'Raspagens';
 
-  // Filter leads based on selected niche
-  const filteredLeads = nicheFilter === 'all' 
-    ? leads 
-    : leads.filter(l => l.Nicho === nicheFilter);
+  // Find the campaign that matches this route's :id
+  const currentJob = id ? scrapeJobs.find((j) => j.ID === id) : undefined;
 
-  useEffect(() => { 
+  // Build a readable page title from the campaign data
+  const campaignTitle = currentJob
+    ? `${currentJob.Nicho} em ${currentJob.Localizacao}`
+    : 'Leads da Campanha';
+
+  useEffect(() => {
+    // Always fetch the campaigns list so we can resolve the campaign name
+    fetchScrapeJobs();
     if (id) {
-        fetchLeads(id); 
-    } else {
-        fetchLeads();
+      fetchLeads(id);
     }
-  }, [fetchLeads, id]);
+  }, [fetchLeads, fetchScrapeJobs, id]);
 
   return (
     <div className="h-full flex flex-col">
       {/* Page Header */}
       <div className="mb-6 shrink-0 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate('/dashboard/raspagens')}
+          <button
+            onClick={() => navigate(backPath)}
             className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white border border-white/5"
+            title={`Voltar para ${backLabel}`}
           >
             <ChevronLeft size={20} />
           </button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-                {id ? 'Leads da Campanha' : 'Todos os Leads'}
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-2 text-xs text-gray-500 mb-1 font-medium uppercase tracking-wider">
+              <span
+                onClick={() => navigate(backPath)}
+                className="cursor-pointer hover:text-gray-300 transition-colors"
+              >
+                {backLabel}
+              </span>
+              <span>/</span>
+              <span className="text-blue-400">Leads</span>
+            </div>
+            {/* Title */}
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              {campaignTitle}
+              {currentJob && (
+                <span className="flex items-center gap-1 text-sm font-normal text-gray-400 mt-1">
+                  <MapPin size={14} />
+                  {currentJob.Localizacao}
+                </span>
+              )}
             </h1>
             <p className="text-gray-400 mt-1">
-              {loading ? 'Carregando...' : `${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''} encontrados${nicheFilter !== 'all' ? ` (${nicheFilter})` : ''}`}
+              {loading
+                ? 'Carregando...'
+                : `${leads.length} lead${leads.length !== 1 ? 's' : ''} encontrados`}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Niche Filter Dropdown */}
-          <div className="flex items-center gap-2">
-            <select
-              id="select-nicho"
-              value={nicheFilter}
-              onChange={(e) => setNicheFilter(e.target.value)}
-              className="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm font-medium text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all cursor-pointer hover:border-white/20"
-            >
-              <option value="all">Todos os Nichos</option>
-              {uniqueNiches.map(niche => (
-                <option key={niche} value={niche!}>{niche}</option>
-              ))}
-            </select>
-          </div>
-
           {/* View Toggle */}
           <div className="flex items-center bg-black/40 border border-white/10 rounded-xl p-1 gap-1">
             <button
@@ -113,7 +124,7 @@ const LeadsPage: React.FC = () => {
               exit={{ opacity: 0, x: -10 }}
               className="h-full overflow-auto custom-scrollbar bg-black/20 border border-white/5 rounded-2xl"
             >
-              <ListView leads={filteredLeads} onStatusChange={updateStatus} />
+              <ListView leads={leads} onStatusChange={updateStatus} />
             </motion.div>
           ) : (
             <motion.div
@@ -123,7 +134,7 @@ const LeadsPage: React.FC = () => {
               exit={{ opacity: 0, x: 10 }}
               className="h-full flex flex-col"
             >
-              <KanbanBoard leads={filteredLeads} onStatusChange={updateStatus} setLeads={setLeads} />
+              <KanbanBoard leads={leads} onStatusChange={updateStatus} setLeads={setLeads} />
             </motion.div>
           )}
         </div>
