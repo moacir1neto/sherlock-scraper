@@ -1,19 +1,15 @@
-version: '3.8'
+version: "3.8"
 
-services:
+services:   
   sherlock:
     build: .
     volumes:
       - .:/app
-    # Evita que o Python crie arquivos de cache desnecessários na sua pasta
     environment:
-      - PYTHONDONTWRITEBYTECODE=1
-<<<<<<< HEAD
-      - PYTHONUNBUFFERED=1
-=======
-      - PYTHONUNBUFFERED=1
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
 
-  db:
+  db: 
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: postgres
@@ -45,7 +41,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:3000/api/v1
+      VITE_API_URL: "http://localhost:3000/api/v1"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -55,4 +51,3 @@ services:
 
 volumes:
   pgdata:
->>>>>>> staging

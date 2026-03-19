@@ -111,11 +111,7 @@ def run(playwright):
         search_box.first.fill(termo_busca, force=True)
         search_box.first.press("Enter")
 
-<<<<<<< HEAD
-        page.wait_for_selector("a[href*='/maps/place/']", timeout=15000)
-=======
         page.wait_for_selector("a[href*='/maps/place/']", timeout=60000)
->>>>>>> staging
         time.sleep(2)
 
         print("🖱️ A fazer scroll para carregar os Leads...")
