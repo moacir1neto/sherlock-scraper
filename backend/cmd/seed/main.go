@@ -17,10 +17,10 @@ func main() {
 	adminPass := os.Getenv("ADMIN_PASSWORD")
 
 	if adminEmail == "" {
-		adminEmail = "admin@sherlock.com"
+		adminEmail = "admin@admin.com"
 	}
 	if adminPass == "" {
-		adminPass = "premium_saas_2026"
+		adminPass = "admin123"
 	}
 
 	// Check if admin already exists

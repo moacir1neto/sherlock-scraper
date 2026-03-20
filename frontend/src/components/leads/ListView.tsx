@@ -23,7 +23,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, onStatusChange }) => 
   const cfg = STATUS_CONFIG[status];
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
       <button
         onClick={() => setOpen(!open)}
         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${cfg.bg} ${cfg.color} hover:brightness-125 cursor-pointer`}
@@ -58,9 +58,10 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, onStatusChange }) => 
 interface ListViewProps {
   leads: Lead[];
   onStatusChange: (leadId: string, newStatus: KanbanStatus) => void;
+  onLeadClick?: (lead: Lead) => void;
 }
 
-const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange }) => {
+const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange, onLeadClick }) => {
   if (leads.length === 0) {
     return (
       <div className="h-64 flex flex-col items-center justify-center text-gray-500">
@@ -90,7 +91,8 @@ const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange }) => {
             return (
               <tr
                 key={lead.ID}
-                className={`border-b border-white/5 hover:bg-white/[0.03] transition-colors ${i % 2 === 0 ? '' : 'bg-white/[0.015]'}`}
+                onClick={() => onLeadClick?.(lead)}
+                className={`border-b border-white/5 hover:bg-white/[0.05] transition-colors ${onLeadClick ? 'cursor-pointer' : ''} ${i % 2 === 0 ? '' : 'bg-white/[0.015]'}`}
               >
                 {/* Empresa */}
                 <td className="py-3.5 px-4 w-1/4">
@@ -112,12 +114,12 @@ const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange }) => {
                   />
                 </td>
 
-                {/* Nota */}
+                {/* Rating */}
                 <td className="py-3.5 px-4">
-                  {lead.Nota ? (
+                  {lead.Rating ? (
                     <div className="flex items-center gap-1 text-yellow-400">
                       <Star size={12} className="fill-yellow-400 shrink-0" />
-                      <span className="text-xs font-medium">{lead.Nota.split(' ')[0]}</span>
+                      <span className="text-xs font-medium">{lead.Rating.split(' ')[0]}</span>
                       {lead.QtdAvaliacoes && (
                         <span className="text-gray-600 text-[10px]">({lead.QtdAvaliacoes.split(' ')[0]})</span>
                       )}

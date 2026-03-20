@@ -10,7 +10,7 @@ export interface Lead {
   ID: string;
   Empresa: string;
   Nicho: string;
-  Nota: string;
+  Rating: string;
   QtdAvaliacoes: string;
   ResumoNegocio: string;
   Endereco: string;
@@ -25,6 +25,7 @@ export interface Lead {
   TikTok: string;
   YouTube: string;
   KanbanStatus: KanbanStatus;
+  NotasProspeccao?: string;
   ScrapingJobID?: string;
 }
 

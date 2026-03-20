@@ -6,6 +6,7 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type LeadHandler struct {
@@ -85,4 +86,29 @@ func (h *LeadHandler) UpdateStatus(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"message": "status updated successfully"})
+}
+
+func (h *LeadHandler) UpdateLead(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "id parameter is required"})
+	}
+
+	var lead domain.Lead
+	if err := c.BodyParser(&lead); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id format"})
+	}
+	lead.ID = parsedID
+
+	err = h.service.UpdateLead(c.Context(), &lead)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"message": "lead updated successfully", "lead": lead})
 }

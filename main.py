@@ -167,31 +167,53 @@ def run(playwright):
                 nota = "-"
                 qtd_avaliacoes = "-"
                 try:
-                    # Tenta capturar pelo aria-label do link de avaliações (mais estável)
-                    reputacao_loc = page.locator('button[aria-label*="estrelas"], span[aria-label*="estrelas"]').first
+                    # Estratégia 1: aria-label do botão/span de reputação (mais estável)
+                    reputacao_loc = page.locator('button[aria-label*="estrelas"], span[aria-label*="estrelas"], button[aria-label*="stars"], span[aria-label*="stars"], [role="img"][aria-label*="estrelas"], [role="img"][aria-label*="stars"]')
+                    
                     if reputacao_loc.count() > 0:
-                        texto_rep = reputacao_loc.get_attribute("aria-label")
-                        # Ex: "4,8 estrelas 123 avaliações"
-                        match_rep = re.search(r'([1-5][.,]\d)\s*estrelas\s*([\d.]+)', texto_rep)
+                        texto_rep = reputacao_loc.first.get_attribute("aria-label") or ""
+                        # Ex: "4,8 estrelas 123 avaliações" ou "4.8 stars 123 reviews"
+                        match_rep = re.search(r'([1-5][.,]\d)', texto_rep)
                         if match_rep:
                             nota = match_rep.group(1).replace(',', '.')
-                            qtd_avaliacoes = match_rep.group(2).replace('.', '')
-                        else:
-                            # Fallback 1: Só a nota
-                            if "estrelas" in texto_rep:
-                                nota = texto_rep.split(" ")[0].replace(',', '.')
-                            # Fallback 2: Só os números das avaliações
-                            nums = re.findall(r'\d+', texto_rep.split("estrelas")[-1]) if "estrelas" in texto_rep else re.findall(r'\d+', texto_rep)
-                            if nums:
-                                qtd_avaliacoes = "".join(nums)
+                        
+                        match_qtd = re.search(r'(\d+[\d.,]*)\s*(?:avaliações|reviews|ratings)', texto_rep, re.IGNORECASE)
+                        if match_qtd:
+                            qtd_avaliacoes = match_qtd.group(1).replace('.', '').replace(',', '')
 
-                    # Fallback de Força Bruta: Procura no texto visível do painel
+                    # Estratégia 2: Se ainda não tiver os dois, busca por spans específicos que costumam conter estes dados
                     if nota == "-" or qtd_avaliacoes == "-":
-                        texto_painel = page.locator('div[role="main"]').first.inner_text()
-                        match_bruto = re.search(r'([1-5][.,]\d)\s*\(([\d.]+)\)', texto_painel)
-                        if match_bruto:
-                            if nota == "-": nota = match_bruto.group(1).replace(',', '.')
-                            if qtd_avaliacoes == "-": qtd_avaliacoes = match_bruto.group(2).replace('.', '')
+                        try:
+                            # Tenta encontrar o span que contém a nota numérica visível (ex: "4.8")
+                            span_nota = page.locator('span.ceNzR[aria-hidden="true"], span.ceNzR')
+                            if span_nota.count() > 0:
+                                txt = span_nota.first.inner_text().strip()
+                                if re.match(r'^[1-5][.,]\d$', txt):
+                                    nota = txt.replace(',', '.')
+                            
+                            # Tenta encontrar o botão/span de avaliações (ex: "(123)")
+                            span_qtd = page.locator('button[aria-label*="avaliações"], button[aria-label*="reviews"]')
+                            if span_qtd.count() > 0:
+                                txt = span_qtd.first.get_attribute("aria-label") or ""
+                                match_qtd = re.search(r'(\d+[\d.,]*)', txt)
+                                if match_qtd:
+                                    qtd_avaliacoes = match_qtd.group(1).replace('.', '').replace(',', '')
+                        except:
+                            pass
+
+                    # Estratégia 3: Força bruta no texto visível do painel (fallback final)
+                    if nota == "-" or qtd_avaliacoes == "-":
+                        try:
+                            texto_painel = page.locator('div[role="main"]').first.inner_text()
+                            # Formato comum: "4,8(123)" ou "4.8  123 avaliações"
+                            match_bruto = re.search(r'([1-5][.,]\d)\s*\(?([\d.,]+)\)?', texto_painel)
+                            if match_bruto:
+                                if nota == "-":
+                                    nota = match_bruto.group(1).replace(',', '.')
+                                if qtd_avaliacoes == "-":
+                                    qtd_avaliacoes = match_bruto.group(2).replace('.', '').replace(',', '')
+                        except Exception:
+                            pass
                 except Exception as e:
                     pass
 

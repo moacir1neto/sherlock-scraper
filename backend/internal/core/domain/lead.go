@@ -42,7 +42,7 @@ type Lead struct {
 	ScrapingJobID *uuid.UUID   `gorm:"type:uuid;index"`
 	Empresa       string       `gorm:"type:varchar(255);not null"`
 	Nicho         string       `gorm:"type:varchar(255)"`
-	Nota          string       `gorm:"type:varchar(50)"`
+	Rating        string       `gorm:"type:varchar(50)"`
 	QtdAvaliacoes string       `gorm:"type:varchar(50)"`
 	ResumoNegocio string       `gorm:"type:text"`
 	Endereco      string       `gorm:"type:varchar(500)"`
@@ -57,6 +57,7 @@ type Lead struct {
 	TikTok        string       `gorm:"type:varchar(255)"`
 	YouTube       string       `gorm:"type:varchar(255)"`
 	KanbanStatus  KanbanStatus `gorm:"type:varchar(50);default:'prospeccao'"`
+	NotasProspeccao string       `gorm:"type:text"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

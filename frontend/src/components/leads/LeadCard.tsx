@@ -5,25 +5,27 @@ import { Star, MapPin, Phone, ExternalLink, MessageCircle } from 'lucide-react';
 interface LeadCardProps {
   lead: Lead;
   isDragging?: boolean;
+  onLeadClick?: (lead: Lead) => void;
 }
 
-const LeadCard: React.FC<LeadCardProps> = ({ lead, isDragging }) => {
+const LeadCard: React.FC<LeadCardProps> = ({ lead, isDragging, onLeadClick }) => {
   const whatsappUrl = lead.LinkWhatsapp || (lead.Telefone ? `https://wa.me/55${lead.Telefone.replace(/\\D/g, '')}` : null);
 
   return (
     <div
-      className={`relative p-4 rounded-xl bg-glass border border-glass-border shadow-lg backdrop-blur-md transition-all ${
-        isDragging ? 'shadow-[0_20px_40px_rgba(0,0,0,0.4)] ring-2 ring-blue-500/50 scale-105 z-50' : 'hover:border-white/20 hover:shadow-xl'
+      onClick={() => onLeadClick?.(lead)}
+      className={`relative p-4 rounded-xl bg-glass border border-glass-border shadow-lg backdrop-blur-md transition-all ${onLeadClick ? 'cursor-pointer' : ''} ${
+        isDragging ? 'shadow-[0_20px_40px_rgba(0,0,0,0.4)] ring-2 ring-blue-500/50 scale-105 z-50' : 'hover:border-white/20 hover:shadow-xl hover:bg-white/[0.04]'
       }`}
     >
       <div className="flex items-start justify-between mb-3">
         <h4 className="font-semibold text-white leading-tight break-words pr-2 line-clamp-2">
           {lead.Empresa || 'Unknown Company'}
         </h4>
-        {lead.Nota && (
+        {lead.Rating && (
           <div className="flex items-center gap-1 text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-md text-xs font-medium shrink-0 shadow-[0_0_10px_rgba(250,204,21,0.1)]">
             <Star size={12} className="fill-yellow-400" />
-            {lead.Nota.split(' ')[0]} {/* Extract note number if it's mixed with words */}
+            {lead.Rating.split(' ')[0]} {/* Extract note number if it's mixed with words */}
           </div>
         )}
       </div>

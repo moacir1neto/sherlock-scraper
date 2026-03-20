@@ -55,6 +55,10 @@ func (s *leadService) ChangeStatus(ctx context.Context, id string, status domain
 	}
 }
 
+func (s *leadService) UpdateLead(ctx context.Context, lead *domain.Lead) error {
+	return s.repo.Update(ctx, lead)
+}
+
 func (s *leadService) CreateJob(ctx context.Context, nicho, localizacao string) (*domain.ScrapingJob, error) {
 	job := &domain.ScrapingJob{
 		Nicho:       nicho,

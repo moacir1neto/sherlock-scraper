@@ -59,5 +59,25 @@ export function useLeads() {
     }
   }, [leads]);
 
-  return { leads, scrapeJobs, loading, fetchLeads, fetchScrapeJobs, updateStatus, setLeads };
+  const updateLead = useCallback(async (updatedLead: Lead) => {
+    const originalLeads = [...leads];
+    
+    // Optimistic update
+    setLeads(prev =>
+      prev.map(l => (l.ID === updatedLead.ID ? updatedLead : l))
+    );
+
+    try {
+      await axios.put(
+        `${API_URL()}/protected/leads/${updatedLead.ID}`,
+        updatedLead,
+        { headers: authHeaders() }
+      );
+    } catch {
+      toast.error('Falha ao salvar alterações. Revertendo...');
+      setLeads(originalLeads);
+    }
+  }, [leads]);
+
+  return { leads, scrapeJobs, loading, fetchLeads, fetchScrapeJobs, updateStatus, updateLead, setLeads };
 }

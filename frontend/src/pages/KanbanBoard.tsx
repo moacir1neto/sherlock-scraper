@@ -18,9 +18,10 @@ interface KanbanBoardProps {
   leads: Lead[];
   onStatusChange: (leadId: string, newStatus: KanbanStatus) => void;
   setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
+  onLeadClick?: (lead: Lead) => void;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ leads, onStatusChange, setLeads }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({ leads, onStatusChange, setLeads, onLeadClick }) => {
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
@@ -77,7 +78,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ leads, onStatusChange, setLea
                               style={{ ...provided.draggableProps.style }}
                               className={`mb-3 last:mb-0 transform transition-transform ${snapshot.isDragging ? 'rotate-2' : ''}`}
                             >
-                              <LeadCard lead={lead} isDragging={snapshot.isDragging} />
+                              <LeadCard lead={lead} isDragging={snapshot.isDragging} onLeadClick={onLeadClick} />
                             </div>
                           )}
                         </Draggable>

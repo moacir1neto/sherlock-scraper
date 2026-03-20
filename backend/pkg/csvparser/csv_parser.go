@@ -38,7 +38,7 @@ func MapToLeads(records [][]string, nicho string) []*domain.Lead {
 
 		lead := &domain.Lead{
 			Empresa:       row[0],
-			Nota:          row[1],
+			Rating:        row[1],
 			QtdAvaliacoes: row[2],
 			ResumoNegocio: row[3],
 			Endereco:      row[4],

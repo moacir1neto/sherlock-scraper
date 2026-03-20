@@ -60,6 +60,7 @@ func main() {
 	leads.Get("", leadHandler.GetLeads)
 	leads.Post("/upload", leadHandler.UploadCSV)
 	leads.Patch("/:id/status", leadHandler.UpdateStatus)
+	leads.Put("/:id", leadHandler.UpdateLead)
 
 	// Scrape Routes
 	protected.Post("/scrape", scrapeHandler.Start)

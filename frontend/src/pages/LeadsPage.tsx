@@ -5,6 +5,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useLeads } from '@/hooks/useLeads';
 import ListView from '@/components/leads/ListView';
 import { KanbanBoard } from '@/pages/KanbanBoard';
+import LeadDetailsModal from '@/components/leads/LeadDetailsModal';
+import { Lead } from '@/types';
 
 type ViewMode = 'list' | 'kanban';
 
@@ -13,7 +15,18 @@ const LeadsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [view, setView] = useState<ViewMode>('list');
-  const { leads, scrapeJobs, loading, fetchLeads, fetchScrapeJobs, updateStatus, setLeads } = useLeads();
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { leads, scrapeJobs, loading, fetchLeads, fetchScrapeJobs, updateStatus, updateLead, setLeads } = useLeads();
+
+  const handleLeadClick = (lead: Lead) => {
+    setSelectedLead(lead);
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+  };
 
   // Determine origin module from URL
   const fromListas = location.pathname.includes('/listas/');
@@ -37,6 +50,7 @@ const LeadsPage: React.FC = () => {
   }, [fetchLeads, fetchScrapeJobs, id]);
 
   return (
+    <>
     <div className="h-full flex flex-col">
       {/* Page Header */}
       <div className="mb-6 shrink-0 flex items-center justify-between gap-4">
@@ -124,7 +138,7 @@ const LeadsPage: React.FC = () => {
               exit={{ opacity: 0, x: -10 }}
               className="h-full overflow-auto custom-scrollbar bg-black/20 border border-white/5 rounded-2xl"
             >
-              <ListView leads={leads} onStatusChange={updateStatus} />
+              <ListView leads={leads} onStatusChange={updateStatus} onLeadClick={handleLeadClick} />
             </motion.div>
           ) : (
             <motion.div
@@ -134,12 +148,33 @@ const LeadsPage: React.FC = () => {
               exit={{ opacity: 0, x: 10 }}
               className="h-full flex flex-col"
             >
-              <KanbanBoard leads={leads} onStatusChange={updateStatus} setLeads={setLeads} />
+              <KanbanBoard leads={leads} onStatusChange={updateStatus} setLeads={setLeads} onLeadClick={handleLeadClick} />
             </motion.div>
           )}
         </div>
       )}
     </div>
+
+      {/* Lead Details Modal */}
+      <LeadDetailsModal
+        lead={selectedLead}
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        onStatusChange={(leadId, newStatus) => {
+          updateStatus(leadId, newStatus);
+          // Keep selectedLead in sync so the badge updates immediately
+          if (selectedLead && selectedLead.ID === leadId) {
+            setSelectedLead({ ...selectedLead, KanbanStatus: newStatus });
+          }
+        }}
+        onUpdateLead={(updatedLead) => {
+          updateLead(updatedLead);
+          if (selectedLead && selectedLead.ID === updatedLead.ID) {
+            setSelectedLead(updatedLead);
+          }
+        }}
+      />
+    </>
   );
 };
 
