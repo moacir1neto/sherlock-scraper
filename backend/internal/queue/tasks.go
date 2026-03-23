@@ -115,17 +115,82 @@ func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
 		log.Printf("📈 Google Tag Manager detectado!")
 	}
 
-	// F. Marcar como ENRIQUECIDO
+	// F. DEEP ENRICHMENT - Scrape social media profiles
+	log.Printf("🕵️  Iniciando Deep Enrichment para: %s", payload.CompanyName)
+
+	// Initialize DeepData structure
+	deepData := &DeepDataStructure{}
+
+	// Scrape Instagram if available
+	if lead.Instagram != "" && strings.HasPrefix(lead.Instagram, "http") {
+		log.Printf("🔍 Extraindo inteligência do Instagram...")
+		socialData := ScrapeInstagramProfile(lead.Instagram)
+
+		if socialData.Success {
+			deepData.Instagram = &SocialPlatformData{
+				Bio:          socialData.Bio,
+				LastPostDate: socialData.LastPostDate,
+				Posts:        socialData.RecentPosts,
+			}
+			log.Printf("✨ Deep intelligence extraída do Instagram!")
+		} else {
+			log.Printf("⚠️  Instagram: %s", socialData.ErrorMessage)
+		}
+	}
+
+	// Scrape Facebook if available (parallel to Instagram)
+	if lead.Facebook != "" && strings.HasPrefix(lead.Facebook, "http") {
+		log.Printf("🔍 Extraindo inteligência do Facebook...")
+		socialData := ScrapeFacebookPage(lead.Facebook)
+
+		if socialData.Success {
+			deepData.Facebook = &SocialPlatformData{
+				Bio:          socialData.Bio,
+				LastPostDate: socialData.LastPostDate,
+				Posts:        socialData.RecentPosts,
+			}
+			log.Printf("✨ Deep intelligence extraída do Facebook!")
+		} else {
+			log.Printf("⚠️  Facebook: %s", socialData.ErrorMessage)
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// GOOGLE REVIEWS EXTRACTION
+	// ═══════════════════════════════════════════════════════════════
+	log.Printf("🔍 Iniciando extração de avaliações do Google para: %s", lead.Empresa)
+	googleData, errGoogle := ScrapeGoogleReviews(lead.Empresa)
+
+	if errGoogle != nil {
+		log.Printf("⚠️  Aviso: Não foi possível extrair dados do Google: %v", errGoogle)
+	} else if googleData != nil {
+		deepData.Google = googleData
+		log.Printf("✨ Google Reviews extraído com sucesso! (Nota: %s, Avaliações: %s, Comentários: %d)",
+			googleData.NotaGeral, googleData.TotalAvaliacoes, len(googleData.ComentariosRecentes))
+	}
+
+	// Save DeepData as JSONB
+	if deepData.Instagram != nil || deepData.Facebook != nil {
+		deepDataJSON, err := json.Marshal(deepData)
+		if err != nil {
+			log.Printf("⚠️  Erro ao serializar DeepData: %v", err)
+		} else {
+			lead.DeepData = deepDataJSON
+			log.Printf("💾 DeepData salvo em JSONB")
+		}
+	}
+
+	// G. Marcar como ENRIQUECIDO
 	lead.Status = domain.StatusEnriquecido
 
-	// G. Salvar no banco de dados
+	// H. Salvar no banco de dados
 	if err := database.DB.Save(&lead).Error; err != nil {
 		log.Printf("⚠️  Erro ao salvar dados enriquecidos: %v", err)
 		return err
 	}
 
-	log.Printf("✨ Enriquecimento concluído para: %s (Pixel: %v, GTM: %v)",
-		payload.CompanyName, lead.TemPixel, lead.TemGTM)
+	log.Printf("✨ Enriquecimento concluído para: %s (Pixel: %v, GTM: %v, Google Reviews: %v)",
+		payload.CompanyName, lead.TemPixel, lead.TemGTM, deepData.Google != nil)
 
 	return nil
 }

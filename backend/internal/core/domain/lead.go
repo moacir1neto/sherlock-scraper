@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -66,6 +67,7 @@ type Lead struct {
 	YouTube          string           `gorm:"type:varchar(255)"`
 	TemPixel         bool             `gorm:"default:false"`
 	TemGTM           bool             `gorm:"default:false"`
+	DeepData         datatypes.JSON   `gorm:"type:jsonb"`
 	Status           EnrichmentStatus `gorm:"type:varchar(50);default:'CAPTURADO'"`
 	KanbanStatus     KanbanStatus     `gorm:"type:varchar(50);default:'prospeccao'"`
 	NotasProspeccao  string           `gorm:"type:text"`
