@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Lead, KanbanStatus } from '@/types';
-import { Star, MapPin, Phone, ExternalLink, MessageCircle, ChevronDown } from 'lucide-react';
+import { Lead, KanbanStatus, EnrichmentStatus } from '@/types';
+import { Star, MapPin, Phone, ExternalLink, MessageCircle, ChevronDown, Loader2, Sparkles, Database } from 'lucide-react';
 
 const STATUS_CONFIG: Record<KanbanStatus, { label: string; color: string; bg: string }> = {
   prospeccao:      { label: 'Prospecção',        color: 'text-blue-400',   bg: 'bg-blue-500/15 border-blue-500/30' },
@@ -11,7 +11,63 @@ const STATUS_CONFIG: Record<KanbanStatus, { label: string; color: string; bg: st
   perdido:         { label: 'Perdido',            color: 'text-red-400',    bg: 'bg-red-500/15 border-red-500/30' },
 };
 
+const ENRICHMENT_CONFIG: Record<EnrichmentStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  CAPTURADO: {
+    label: 'Capturado',
+    color: 'text-gray-400',
+    bg: 'bg-gray-500/15 border-gray-500/30',
+    icon: <Database size={11} />
+  },
+  ENRIQUECENDO: {
+    label: 'Enriquecendo',
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-500/15 border-indigo-500/30',
+    icon: <Loader2 size={11} className="animate-spin" />
+  },
+  ENRIQUECIDO: {
+    label: 'Enriquecido',
+    color: 'text-cyan-400',
+    bg: 'bg-cyan-500/15 border-cyan-500/30',
+    icon: <Sparkles size={11} />
+  },
+};
+
 const ALL_STATUSES = Object.keys(STATUS_CONFIG) as KanbanStatus[];
+
+interface EnrichmentBadgeProps {
+  status: EnrichmentStatus;
+  hasPixel?: boolean;
+  hasGTM?: boolean;
+}
+
+const EnrichmentBadge: React.FC<EnrichmentBadgeProps> = ({ status, hasPixel, hasGTM }) => {
+  const cfg = ENRICHMENT_CONFIG[status];
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.bg} ${cfg.color}`}
+      >
+        {cfg.icon}
+        {cfg.label}
+      </div>
+      {status === 'ENRIQUECIDO' && (hasPixel || hasGTM) && (
+        <div className="flex items-center gap-1">
+          {hasPixel && (
+            <div className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30" title="Facebook Pixel detectado">
+              FB
+            </div>
+          )}
+          {hasGTM && (
+            <div className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30" title="Google Tag Manager detectado">
+              GTM
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface StatusBadgeProps {
   status: KanbanStatus;
@@ -77,6 +133,7 @@ const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange, onLeadClick 
         <thead>
           <tr className="text-xs text-gray-500 uppercase tracking-wider border-b border-white/5">
             <th className="text-left py-3 px-4 font-semibold">Empresa</th>
+            <th className="text-left py-3 px-4 font-semibold">Enriquecimento</th>
             <th className="text-left py-3 px-4 font-semibold">Status</th>
             <th className="text-left py-3 px-4 font-semibold">Nota</th>
             <th className="text-left py-3 px-4 font-semibold">Endereço</th>
@@ -106,6 +163,15 @@ const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange, onLeadClick 
                   )}
                 </td>
 
+                {/* Enrichment Status Badge */}
+                <td className="py-3.5 px-4">
+                  <EnrichmentBadge
+                    status={lead.Status || 'CAPTURADO'}
+                    hasPixel={lead.TemPixel}
+                    hasGTM={lead.TemGTM}
+                  />
+                </td>
+
                 {/* Status Badge com Dropdown */}
                 <td className="py-3.5 px-4">
                   <StatusBadge
@@ -116,15 +182,17 @@ const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange, onLeadClick 
 
                 {/* Rating */}
                 <td className="py-3.5 px-4">
-                  {lead.Rating ? (
-                    <div className="flex items-center gap-1 text-yellow-400">
+                  {lead.Rating && lead.Rating !== '-' ? (
+                    <div className="flex items-center gap-1.5 text-yellow-400">
                       <Star size={12} className="fill-yellow-400 shrink-0" />
-                      <span className="text-xs font-medium">{lead.Rating.split(' ')[0]}</span>
-                      {lead.QtdAvaliacoes && (
-                        <span className="text-gray-600 text-[10px]">({lead.QtdAvaliacoes.split(' ')[0]})</span>
+                      <span className="text-xs font-bold">{lead.Rating.includes(' ') ? lead.Rating.split(' ')[0] : lead.Rating}</span>
+                      {lead.QtdAvaliacoes && lead.QtdAvaliacoes !== '-' && (
+                        <span className="text-gray-600 text-[10px] font-medium">({lead.QtdAvaliacoes.includes(' ') ? lead.QtdAvaliacoes.split(' ')[0] : lead.QtdAvaliacoes})</span>
                       )}
                     </div>
-                  ) : '—'}
+                  ) : (
+                    <span className="text-gray-700 font-medium">—</span>
+                  )}
                 </td>
 
                 {/* Endereço */}

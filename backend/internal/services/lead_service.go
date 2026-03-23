@@ -3,11 +3,12 @@ package services
 import (
 	"context"
 	"errors"
-
+	"log"
 	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
 	"github.com/digitalcombo/sherlock-scraper/backend/pkg/csvparser"
 	"github.com/google/uuid"
 )
@@ -35,7 +36,28 @@ func (s *leadService) ImportCSV(ctx context.Context, csvData [][]string, nicho s
 		}
 	}
 
-	return s.repo.CreateBatch(ctx, leads)
+	// Salva os leads no banco de dados
+	if err := s.repo.CreateBatch(ctx, leads); err != nil {
+		return err
+	}
+
+	// Enfileira cada lead para enriquecimento
+	for _, lead := range leads {
+		task, err := queue.NewEnrichLeadTask(lead.ID.String(), lead.Empresa)
+		if err != nil {
+			log.Printf("⚠️  Erro ao criar tarefa para lead %s: %v", lead.Empresa, err)
+			continue
+		}
+
+		if _, err := queue.Client.Enqueue(task); err != nil {
+			log.Printf("⚠️  Erro ao enfileirar lead %s: %v", lead.Empresa, err)
+			continue
+		}
+
+		log.Printf("✅ Lead '%s' (ID: %s) enviado para fila de enriquecimento", lead.Empresa, lead.ID.String())
+	}
+
+	return nil
 }
 
 func (s *leadService) GetLeadsByJob(ctx context.Context, jobID string) ([]*domain.Lead, error) {
@@ -80,4 +102,8 @@ func (s *leadService) GetJob(ctx context.Context, id string) (*domain.ScrapingJo
 
 func (s *leadService) ListJobs(ctx context.Context) ([]*domain.ScrapingJob, error) {
 	return s.repo.ListScrapeJobs(ctx)
+}
+
+func (s *leadService) DeleteJob(ctx context.Context, id string) error {
+	return s.repo.DeleteScrapeJob(ctx, id)
 }

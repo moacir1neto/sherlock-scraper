@@ -1,6 +1,18 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useLeads } from '@/hooks/useLeads';
-import { Database, Calendar, MapPin, Zap, X, Terminal as TerminalIcon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { 
+    Database, 
+    Calendar, 
+    MapPin, 
+    Zap, 
+    X, 
+    Terminal as TerminalIcon, 
+    CheckCircle2, 
+    AlertCircle, 
+    Loader2,
+    Trash2,
+    AlertTriangle
+} from 'lucide-react';
 import { ScrapingJob } from '@/types';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -12,12 +24,17 @@ const API_URL = () => import.meta.env.VITE_API_URL || 'http://localhost:3000/api
 const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
 const ScrapingsPage: React.FC = () => {
-    const { scrapeJobs, fetchScrapeJobs } = useLeads();
+    const { scrapeJobs, fetchScrapeJobs, deleteScrapeJob } = useLeads();
     const [scrapeOpen, setScrapeOpen] = useState(false);
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const [showTerminal, setShowTerminal] = useState(false);
     const [jobLogs, setJobLogs] = useState("");
     const [jobStatus, setJobStatus] = useState<string>("running");
+    
+    // Delete Confirmation State
+    const [jobToDelete, setJobToDelete] = useState<ScrapingJob | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const pollInterval = useRef<NodeJS.Timeout | null>(null);
     const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +79,14 @@ const ScrapingsPage: React.FC = () => {
     const closeTerminal = () => {
         setShowTerminal(false);
         if (pollInterval.current) clearInterval(pollInterval.current);
+    };
+
+    const handleDelete = async () => {
+        if (!jobToDelete) return;
+        setIsDeleting(true);
+        await deleteScrapeJob(jobToDelete.ID);
+        setIsDeleting(false);
+        setJobToDelete(null);
     };
 
     return (
@@ -141,15 +166,20 @@ const ScrapingsPage: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            {(job.Status === 'running' || job.Status === 'completed' || job.Status === 'error') && (
-                                                <button 
-                                                    onClick={() => { setActiveJobId(job.ID); setShowTerminal(true); setJobLogs(job.Logs); setJobStatus(job.Status); }}
-                                                    className="p-2 hover:bg-white/10 rounded-lg text-gray-400 transition-colors"
-                                                    title="Ver Logs"
-                                                >
-                                                    <TerminalIcon size={18} />
-                                                </button>
-                                            )}
+                                            <button 
+                                                onClick={() => { setActiveJobId(job.ID); setShowTerminal(true); setJobLogs(job.Logs); setJobStatus(job.Status); }}
+                                                className="p-2 hover:bg-white/10 rounded-lg text-gray-400 transition-colors"
+                                                title="Ver Logs"
+                                            >
+                                                <TerminalIcon size={18} />
+                                            </button>
+                                            <button 
+                                                onClick={() => setJobToDelete(job)}
+                                                className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg text-gray-400 transition-colors"
+                                                title="Excluir Raspagem"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -198,6 +228,56 @@ const ScrapingsPage: React.FC = () => {
                             <div className="px-6 py-3 border-t border-white/10 bg-white/[0.02] flex items-center justify-between text-[11px] text-gray-500 uppercase tracking-widest font-bold">
                                 <span>Status: {jobStatus}</span>
                                 <span>Press ESC to close</span>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Delete Confirmation Modal (AlertDialog style) */}
+            <AnimatePresence>
+                {jobToDelete && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
+                        >
+                            <div className="p-8">
+                                <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500 mb-6">
+                                    <AlertTriangle size={32} />
+                                </div>
+                                <h2 className="text-xl font-bold text-white mb-3">Excluir Raspagem?</h2>
+                                <p className="text-gray-400 leading-relaxed mb-8">
+                                    Deseja excluir a raspagem de <strong className="text-white">"{jobToDelete.Nicho}"</strong> em <strong className="text-white">{jobToDelete.Localizacao}</strong> e todos os seus leads vinculados? 
+                                    <br /><br />
+                                    <span className="text-red-400/80 font-semibold text-sm">Esta ação não pode ser desfeita.</span>
+                                </p>
+                                
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setJobToDelete(null)}
+                                        disabled={isDeleting}
+                                        className="flex-1 px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold transition-all disabled:opacity-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleDelete}
+                                        disabled={isDeleting}
+                                        className="flex-1 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold transition-all shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {isDeleting ? (
+                                            <>
+                                                <Loader2 size={18} className="animate-spin" />
+                                                Excluindo...
+                                            </>
+                                        ) : (
+                                            'Confirmar Exclusão'
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
                     </div>

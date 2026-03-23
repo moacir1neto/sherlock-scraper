@@ -22,10 +22,10 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, isDragging, onLeadClick }) =>
         <h4 className="font-semibold text-white leading-tight break-words pr-2 line-clamp-2">
           {lead.Empresa || 'Unknown Company'}
         </h4>
-        {lead.Rating && (
-          <div className="flex items-center gap-1 text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-md text-xs font-medium shrink-0 shadow-[0_0_10px_rgba(250,204,21,0.1)]">
-            <Star size={12} className="fill-yellow-400" />
-            {lead.Rating.split(' ')[0]} {/* Extract note number if it's mixed with words */}
+        {lead.Rating && lead.Rating !== '-' && (
+          <div className="flex items-center gap-1 text-yellow-500 bg-yellow-400/5 border border-yellow-400/20 px-2 py-1 rounded-md text-[10px] font-black shrink-0 shadow-sm">
+            <Star size={10} className="fill-yellow-500" />
+            {lead.Rating.includes(' ') ? lead.Rating.split(' ')[0] : lead.Rating}
           </div>
         )}
       </div>

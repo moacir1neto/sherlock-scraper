@@ -26,6 +26,14 @@ const (
 	ScrapeError     ScrapingStatus = "error"
 )
 
+type EnrichmentStatus string
+
+const (
+	StatusCapturado    EnrichmentStatus = "CAPTURADO"
+	StatusEnriquecendo EnrichmentStatus = "ENRIQUECENDO"
+	StatusEnriquecido  EnrichmentStatus = "ENRIQUECIDO"
+)
+
 type ScrapingJob struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 	Nicho       string         `gorm:"type:varchar(255);not null"`
@@ -51,13 +59,16 @@ type Lead struct {
 	LinkWhatsapp  string       `gorm:"type:varchar(255)"`
 	Site          string       `gorm:"type:varchar(255)"`
 	Email         string       `gorm:"type:varchar(255)"`
-	Instagram     string       `gorm:"type:varchar(255)"`
-	Facebook      string       `gorm:"type:varchar(255)"`
-	LinkedIn      string       `gorm:"type:varchar(255)"`
-	TikTok        string       `gorm:"type:varchar(255)"`
-	YouTube       string       `gorm:"type:varchar(255)"`
-	KanbanStatus  KanbanStatus `gorm:"type:varchar(50);default:'prospeccao'"`
-	NotasProspeccao string       `gorm:"type:text"`
+	Instagram        string           `gorm:"type:varchar(255)"`
+	Facebook         string           `gorm:"type:varchar(255)"`
+	LinkedIn         string           `gorm:"type:varchar(255)"`
+	TikTok           string           `gorm:"type:varchar(255)"`
+	YouTube          string           `gorm:"type:varchar(255)"`
+	TemPixel         bool             `gorm:"default:false"`
+	TemGTM           bool             `gorm:"default:false"`
+	Status           EnrichmentStatus `gorm:"type:varchar(50);default:'CAPTURADO'"`
+	KanbanStatus     KanbanStatus     `gorm:"type:varchar(50);default:'prospeccao'"`
+	NotasProspeccao  string           `gorm:"type:text"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -68,6 +79,9 @@ func (l *Lead) BeforeCreate(tx *gorm.DB) (err error) {
 	}
 	if l.KanbanStatus == "" {
 		l.KanbanStatus = StatusProspeccao
+	}
+	if l.Status == "" {
+		l.Status = StatusCapturado
 	}
 	return
 }

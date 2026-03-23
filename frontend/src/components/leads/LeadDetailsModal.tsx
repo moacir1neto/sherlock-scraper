@@ -11,7 +11,6 @@ import {
   Facebook,
   Linkedin,
   Youtube,
-  FileText,
   Building2,
   ChevronDown,
   ExternalLink,
@@ -69,7 +68,7 @@ const StarRating = ({ nota }: { nota: string }) => {
           />
         ))}
       </div>
-      <span className="text-yellow-400 font-bold text-sm">{val.toFixed(1)}</span>
+      <span className="text-yellow-400 font-bold text-sm tracking-tight">{val.toFixed(1)}</span>
     </div>
   );
 };
@@ -85,7 +84,7 @@ const SocialLink = ({ href, icon, label, color }: { href: string; icon: React.Re
       target="_blank"
       rel="noopener noreferrer"
       title={label}
-      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-110 ${color}`}
+      className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-90 ${color}`}
     >
       {icon}
     </a>
@@ -93,7 +92,7 @@ const SocialLink = ({ href, icon, label, color }: { href: string; icon: React.Re
 };
 
 // ──────────────────────────────────────────────
-// Main Modal
+// Main Modal (Slide-over)
 // ──────────────────────────────────────────────
 const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead }: LeadDetailsModalProps) => {
   const [statusOpen, setStatusOpen] = useState(false);
@@ -157,58 +156,67 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
             onClick={onClose}
           />
 
-          {/* Modal panel */}
+          {/* Modal panel (Slide-over) */}
           <motion.div
             key="modal"
-            initial={{ opacity: 0, scale: 0.96, y: 16 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 16 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            initial={{ x: '100%', opacity: 0.5 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0.5 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed inset-y-0 right-0 z-50 w-full max-w-lg flex pointer-events-none"
           >
             <div
-              className="w-full max-w-2xl bg-[#0f0f11] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] pointer-events-auto overflow-hidden"
+              className="w-full bg-[#0a0a0c] border-l border-white/10 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] flex flex-col h-full pointer-events-auto overflow-hidden relative"
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >
+              {/* Background Decoration */}
+              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-600/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-indigo-600/5 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+              
               {/* ── Header ── */}
-              <div className="relative px-6 pt-6 pb-5 border-b border-white/8 shrink-0">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-24 bg-blue-600/10 blur-[60px] rounded-full pointer-events-none" />
-
-                <div className="flex items-start justify-between gap-4 relative">
+              <div className="relative px-8 py-10 border-b border-white/5 shrink-0">
+                <div className="flex items-start justify-between gap-6 relative">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-violet-600 flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-lg">
+                    <div className="flex items-center gap-5 mb-6">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-600 to-violet-700 flex items-center justify-center text-white font-bold text-3xl shrink-0 shadow-[0_8px_30px_rgba(37,99,235,0.4)] border border-white/20">
                         {lead.Empresa?.charAt(0)?.toUpperCase() || '?'}
                       </div>
                       <div className="min-w-0">
-                        <h2 className="text-xl font-bold text-white leading-tight truncate">
+                        <h2 className="text-2xl font-black text-white leading-tight tracking-tight break-words">
                           {lead.Empresa || 'Empresa sem nome'}
                         </h2>
                         {lead.Nicho && (
-                          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">
-                            {lead.Nicho}
-                          </span>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-gray-400 font-black uppercase tracking-[0.15em]">
+                              {lead.Nicho}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-4 flex-wrap">
                       <div className="relative" ref={dropdownRef}>
                         <button
                           onClick={() => setStatusOpen((v) => !v)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ring-1 transition-all hover:brightness-125 ${cfg.color} ${cfg.bg} ${cfg.ring}`}
+                          className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs font-black border transition-all hover:scale-105 active:scale-95 shadow-lg ${cfg.color} ${cfg.bg} border-current/20`}
                         >
+                          <div className={`w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] ${cfg.color.replace('text-', 'bg-')}`} />
                           {cfg.label}
-                          <ChevronDown size={11} className={`transition-transform ${statusOpen ? 'rotate-180' : ''}`} />
+                          <ChevronDown size={14} className={`transition-transform duration-500 ${statusOpen ? 'rotate-180' : ''}`} />
                         </button>
 
                         {statusOpen && (
-                          <div className="absolute top-full left-0 mt-1.5 z-20 bg-[#18181b] border border-white/10 rounded-xl shadow-2xl py-1.5 min-w-[180px]">
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            className="absolute top-full left-0 mt-3 z-20 bg-[#121214] border border-white/10 rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.7)] py-2 min-w-[220px] backdrop-blur-2xl"
+                          >
                             {ALL_STATUSES.map((s) => {
                               const c = STATUS_CONFIG[s];
                               return (
@@ -218,25 +226,25 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead 
                                     onStatusChange(lead.ID, s);
                                     setStatusOpen(false);
                                   }}
-                                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs text-left hover:bg-white/5 transition-colors ${
-                                    s === lead.KanbanStatus ? c.color + ' font-semibold' : 'text-gray-300'
+                                  className={`w-full flex items-center gap-3 px-4 py-3 text-xs text-left hover:bg-white/5 transition-all ${
+                                    s === lead.KanbanStatus ? c.color + ' font-black bg-white/5' : 'text-gray-400 hover:text-gray-100'
                                   }`}
                                 >
-                                  <span className={`w-2 h-2 rounded-full ${c.bg.replace('/15', '')}`} />
+                                  <span className={`w-2 h-2 rounded-full ${c.color.replace('text-', 'bg-')}`} />
                                   {c.label}
                                 </button>
                               );
                             })}
-                          </div>
+                          </motion.div>
                         )}
                       </div>
 
                       {hasRating && (
-                        <div className="flex items-center gap-1 bg-yellow-400/10 px-2.5 py-1 rounded-full text-yellow-400">
+                        <div className="flex items-center gap-2.5 bg-yellow-400/5 border border-yellow-400/20 px-4 py-2 rounded-xl text-yellow-500 shadow-sm backdrop-blur-sm">
                           <StarRating nota={lead.Rating} />
                           {lead.QtdAvaliacoes && lead.QtdAvaliacoes !== '-' && (
-                            <span className="text-gray-500 text-[11px] ml-1">
-                              ({lead.QtdAvaliacoes})
+                            <span className="text-gray-500 text-[11px] font-bold border-l border-white/10 pl-2.5">
+                              {lead.QtdAvaliacoes} avaliações
                             </span>
                           )}
                         </div>
@@ -246,120 +254,144 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead 
 
                   <button
                     onClick={onClose}
-                    className="p-2 rounded-xl text-gray-500 hover:text-white hover:bg-white/10 transition-colors shrink-0 mt-1"
+                    className="p-3 rounded-2xl text-gray-500 hover:text-white hover:bg-white/10 transition-all shrink-0 mt-1 border border-transparent hover:border-white/10 group"
                   >
-                    <X size={20} />
+                    <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
                   </button>
                 </div>
               </div>
 
               {/* ── Scrollable Body ── */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5">
-                <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-10">
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-4">
                   {whatsappUrl && (
                     <a
                       href={whatsappUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-4 py-2.5 bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/20 rounded-xl text-sm font-semibold transition-all hover:scale-105"
+                      className="group flex flex-col items-center justify-center gap-3 p-5 bg-[#25D366]/5 hover:bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20 rounded-2xl text-sm font-black transition-all hover:-translate-y-1 shadow-sm active:scale-95"
                     >
-                      <MessageCircle size={16} />
-                      Abrir WhatsApp
+                      <MessageCircle size={32} className="group-hover:scale-110 transition-transform" />
+                      WhatsApp
                     </a>
                   )}
                   {phoneUrl && (
                     <a
                       href={phoneUrl}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-xl text-sm font-semibold transition-all hover:scale-105"
+                      className="group flex flex-col items-center justify-center gap-3 p-5 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-2xl text-sm font-black transition-all hover:-translate-y-1 shadow-sm active:scale-95"
                     >
-                      <Phone size={16} />
+                      <Phone size={32} className="group-hover:scale-110 transition-transform" />
                       Ligar
                     </a>
                   )}
-                  {lead.Site && lead.Site !== '-' && (
-                    <a
-                      href={lead.Site.startsWith('http') ? lead.Site : `https://${lead.Site}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 rounded-xl text-sm font-semibold transition-all hover:scale-105"
-                    >
-                      <ExternalLink size={16} />
-                      Site
-                    </a>
-                  )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3">
-                  {lead.Endereco && lead.Endereco !== 'Não encontrado' && (
-                    <div className="flex items-start gap-3 p-3.5 bg-white/[0.03] border border-white/5 rounded-xl">
-                      <MapPin size={16} className="text-gray-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold mb-0.5">Endereço</p>
-                        <p className="text-sm text-gray-200">{lead.Endereco}</p>
+                {/* Main Information Section */}
+                <div className="space-y-6">
+                  <h3 className="text-[10px] text-gray-500 uppercase tracking-[0.25em] font-black px-1 border-l-2 border-blue-500 ml-1 pl-3">Informações de Contato</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {lead.Endereco && lead.Endereco !== 'Não encontrado' && (
+                      <div className="group flex items-start gap-5 p-6 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 rounded-2xl transition-all">
+                        <div className="w-12 h-12 rounded-xl bg-gray-500/10 flex items-center justify-center text-gray-400 shrink-0 group-hover:text-blue-400 group-hover:bg-blue-500/10 transition-all">
+                          <MapPin size={24} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-gray-500 uppercase tracking-wider font-black mb-1.5 opacity-60">Endereço Completo</p>
+                          <p className="text-sm text-gray-200 leading-relaxed font-semibold">{lead.Endereco}</p>
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.Endereco)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-xs text-blue-400 mt-3 hover:text-blue-300 font-bold transition-colors"
+                          >
+                            Ver no Google Maps <ExternalLink size={14} />
+                          </a>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {lead.Telefone && lead.Telefone !== 'Não encontrado' && (
-                    <div className="flex items-start gap-3 p-3.5 bg-white/[0.03] border border-white/5 rounded-xl">
-                      <Phone size={16} className="text-gray-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold mb-0.5">Telefone</p>
-                        <p className="text-sm text-gray-200">
-                          {lead.Telefone}
-                          {lead.TipoTelefone && lead.TipoTelefone !== 'Sem número' && (
-                            <span className="ml-2 text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-gray-500">
-                              {lead.TipoTelefone}
-                            </span>
-                          )}
+                    {lead.Telefone && lead.Telefone !== 'Não encontrado' && (
+                      <div className="flex items-start gap-5 p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
+                        <div className="w-12 h-12 rounded-xl bg-gray-500/10 flex items-center justify-center text-gray-400 shrink-0">
+                          <Phone size={24} />
+                        </div>
+                        <div>
+                          <p className="text-[11px] text-gray-500 uppercase tracking-wider font-black mb-1.5 opacity-60">Telefone Principal</p>
+                          <div className="flex items-center gap-3">
+                            <p className="text-xl text-white font-black tracking-tight">{lead.Telefone}</p>
+                            {lead.TipoTelefone && lead.TipoTelefone !== 'Sem número' && (
+                              <span className="px-2.5 py-0.5 text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg font-black uppercase tracking-wider">
+                                {lead.TipoTelefone}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Company Summary */}
+                {lead.ResumoNegocio && lead.ResumoNegocio !== '-' && (
+                  <div className="space-y-6">
+                    <h3 className="text-[10px] text-gray-500 uppercase tracking-[0.25em] font-black px-1 border-l-2 border-indigo-500 ml-1 pl-3">Sobre a Empresa</h3>
+                    <div className="p-8 bg-gradient-to-br from-white/[0.04] to-transparent border border-white/5 rounded-3xl relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <Building2 size={80} />
+                      </div>
+                      <div className="flex items-start gap-4 mb-3 relative z-10">
+                        <p className="text-base text-gray-300 leading-relaxed font-medium italic">
+                          "{lead.ResumoNegocio}"
                         </p>
                       </div>
-                    </div>
-                  )}
-
-                  {lead.ResumoNegocio && lead.ResumoNegocio !== '-' && (
-                    <div className="flex items-start gap-3 p-3.5 bg-white/[0.03] border border-white/5 rounded-xl">
-                      <Building2 size={16} className="text-gray-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold mb-0.5">Resumo da Empresa</p>
-                        <p className="text-sm text-gray-300 leading-relaxed">{lead.ResumoNegocio}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {(lead.Instagram || lead.Facebook || lead.LinkedIn || lead.TikTok || lead.YouTube || lead.Site) && (
-                  <div>
-                    <p className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold mb-2.5">Redes Sociais</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <SocialLink href={lead.Instagram} icon={<Instagram size={16} />} label="Instagram" color="bg-pink-500/10 text-pink-400 hover:bg-pink-500/20" />
-                      <SocialLink href={lead.Facebook} icon={<Facebook size={16} />} label="Facebook" color="bg-blue-600/10 text-blue-400 hover:bg-blue-600/20" />
-                      <SocialLink href={lead.LinkedIn} icon={<Linkedin size={16} />} label="LinkedIn" color="bg-sky-600/10 text-sky-400 hover:bg-sky-600/20" />
-                      <SocialLink href={lead.YouTube} icon={<Youtube size={16} />} label="YouTube" color="bg-red-500/10 text-red-400 hover:bg-red-500/20" />
-                      <SocialLink href={lead.Site} icon={<Globe size={16} />} label="Site" color="bg-white/5 text-gray-400 hover:bg-white/10" />
                     </div>
                   </div>
                 )}
 
-                <div>
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <FileText size={14} className="text-blue-400" />
-                    <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">
-                      Notas de Prospecção
-                    </p>
+                {/* CRM Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-[10px] text-gray-500 uppercase tracking-[0.25em] font-black border-l-2 border-violet-500 pl-3">Notas de Prospecção</h3>
+                    <span className="flex items-center gap-2 text-[10px] text-emerald-500/80 font-black uppercase tracking-widest">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                      Auto-save
+                    </span>
                   </div>
-                  <textarea
-                    value={notes}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
-                    onBlur={handleNotesBlur}
-                    placeholder="Registre observações sobre este lead: histórico de contato, objeções, próximos passos..."
-                    rows={4}
-                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/30 transition-all custom-scrollbar"
-                  />
-                  <p className="text-[10px] text-gray-600 mt-1.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60 inline-block" />
-                    As notas são salvas ao sair do campo ou fechar o modal.
-                  </p>
+                  <div className="relative group">
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/30 to-violet-500/30 rounded-3xl blur opacity-0 group-focus-within:opacity-100 transition duration-700" />
+                    <textarea
+                      value={notes}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
+                      onBlur={handleNotesBlur}
+                      placeholder="Registre o histórico de contato, objeções, próximos passos ou observações estratégicas..."
+                      rows={6}
+                      className="relative w-full bg-[#0d0d0f] border border-white/10 rounded-3xl px-6 py-5 text-sm text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500/40 transition-all custom-scrollbar leading-relaxed shadow-inner"
+                    />
+                  </div>
+                </div>
+
+                {/* Social Links */}
+                {(lead.Instagram || lead.Facebook || lead.LinkedIn || lead.TikTok || lead.YouTube || lead.Site) && (
+                  <div className="space-y-6">
+                    <h3 className="text-[10px] text-gray-500 uppercase tracking-[0.25em] font-black px-1 border-l-2 border-pink-500 ml-1 pl-3">Presença Digital</h3>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <SocialLink href={lead.Instagram} icon={<Instagram size={22} />} label="Instagram" color="bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white shadow-lg shadow-pink-500/10" />
+                      <SocialLink href={lead.Facebook} icon={<Facebook size={22} />} label="Facebook" color="bg-[#1877F2] text-white shadow-lg shadow-blue-500/10" />
+                      <SocialLink href={lead.LinkedIn} icon={<Linkedin size={22} />} label="LinkedIn" color="bg-[#0A66C2] text-white shadow-lg shadow-blue-600/10" />
+                      <SocialLink href={lead.YouTube} icon={<Youtube size={22} />} label="YouTube" color="bg-[#FF0000] text-white shadow-lg shadow-red-500/10" />
+                      <SocialLink href={lead.Site} icon={<Globe size={22} />} label="Website" color="bg-white/10 text-white border border-white/10 shadow-lg shadow-white/5" />
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer info */}
+              <div className="px-10 py-6 border-t border-white/5 bg-white/[0.01] flex items-center justify-between shrink-0">
+                <p className="text-[9px] text-gray-700 font-black uppercase tracking-[0.3em] opacity-50">Sherlock Intelligence System</p>
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500/40" />
+                  <p className="text-[10px] text-gray-700 font-mono tracking-tighter">REF: {lead.ID.substring(0, 8)}</p>
                 </div>
               </div>
             </div>

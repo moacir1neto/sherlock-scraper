@@ -79,5 +79,27 @@ export function useLeads() {
     }
   }, [leads]);
 
-  return { leads, scrapeJobs, loading, fetchLeads, fetchScrapeJobs, updateStatus, updateLead, setLeads };
+  const deleteScrapeJob = useCallback(async (jobId: string) => {
+    try {
+      await axios.delete(`${API_URL()}/protected/scrapes/${jobId}`, {
+        headers: authHeaders(),
+      });
+      setScrapeJobs(prev => prev.filter(job => job.ID !== jobId));
+      toast.success('Raspagem excluída com sucesso');
+    } catch {
+      toast.error('Falha ao excluir raspagem');
+    }
+  }, []);
+
+  return { 
+    leads, 
+    scrapeJobs, 
+    loading, 
+    fetchLeads, 
+    fetchScrapeJobs, 
+    updateStatus, 
+    updateLead, 
+    deleteScrapeJob,
+    setLeads 
+  };
 }

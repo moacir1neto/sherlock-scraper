@@ -16,6 +16,7 @@ print(r"""
 parser = argparse.ArgumentParser(description="Sherlock - Caçador de Leads no Google Maps")
 parser.add_argument('--nicho', required=True, help='Nicho de negócio (ex: Dentista, Advogado)')
 parser.add_argument('--localizacao', required=True, help='Cidade/região (ex: Florianópolis SC)')
+parser.add_argument('--limit', type=int, default=20, help='Quantidade máxima de leads a extrair')
 args = parser.parse_args()
 
 
@@ -146,7 +147,12 @@ def run(playwright):
                 "E-mail", "Instagram", "Facebook", "LinkedIn", "TikTok", "YouTube"
             ])
 
+            salvos = 0
             for i in range(quantidade):
+                if salvos >= args.limit:
+                    print(f"\n🎯 Limite de {args.limit} leads atingido. A finalizar...")
+                    break
+                
                 link_elemento = places.nth(i)
                 nome = link_elemento.get_attribute("aria-label")
                 
@@ -163,59 +169,47 @@ def run(playwright):
                 link_elemento.click(force=True)
                 time.sleep(2.5) 
                 
-                # --- NOVIDADE FASE 10: EXTRAÇÃO FORÇA BRUTA DE AVALIAÇÕES ---
+                # --- NOVIDADE FASE 13: SELETORES CIRÚRGICOS (NOTA + PIOR COMENTÁRIO) ---
                 nota = "-"
                 qtd_avaliacoes = "-"
+                pior_comentario = "-"
+                
                 try:
-                    # Estratégia 1: aria-label do botão/span de reputação (mais estável)
-                    reputacao_loc = page.locator('button[aria-label*="estrelas"], span[aria-label*="estrelas"], button[aria-label*="stars"], span[aria-label*="stars"], [role="img"][aria-label*="estrelas"], [role="img"][aria-label*="stars"]')
-                    
-                    if reputacao_loc.count() > 0:
-                        texto_rep = reputacao_loc.first.get_attribute("aria-label") or ""
-                        # Ex: "4,8 estrelas 123 avaliações" ou "4.8 stars 123 reviews"
-                        match_rep = re.search(r'([1-5][.,]\d)', texto_rep)
-                        if match_rep:
-                            nota = match_rep.group(1).replace(',', '.')
-                        
-                        match_qtd = re.search(r'(\d+[\d.,]*)\s*(?:avaliações|reviews|ratings)', texto_rep, re.IGNORECASE)
-                        if match_qtd:
-                            qtd_avaliacoes = match_qtd.group(1).replace('.', '').replace(',', '')
+                    # Opcional: Manter regex simples para qtd_avaliacoes não quebrar a coluna
+                    texto_card = link_elemento.get_attribute("aria-label") or ""
+                    m_card_qtd = re.search(r'[1-5][.,]\d\s*\((\d+[\d.,]*)\)', texto_card)
+                    if m_card_qtd:
+                        qtd_avaliacoes = m_card_qtd.group(1).replace('.', '').replace(',', '')
 
-                    # Estratégia 2: Se ainda não tiver os dois, busca por spans específicos que costumam conter estes dados
-                    if nota == "-" or qtd_avaliacoes == "-":
-                        try:
-                            # Tenta encontrar o span que contém a nota numérica visível (ex: "4.8")
-                            span_nota = page.locator('span.ceNzR[aria-hidden="true"], span.ceNzR')
-                            if span_nota.count() > 0:
-                                txt = span_nota.first.inner_text().strip()
-                                if re.match(r'^[1-5][.,]\d$', txt):
-                                    nota = txt.replace(',', '.')
-                            
-                            # Tenta encontrar o botão/span de avaliações (ex: "(123)")
-                            span_qtd = page.locator('button[aria-label*="avaliações"], button[aria-label*="reviews"]')
-                            if span_qtd.count() > 0:
-                                txt = span_qtd.first.get_attribute("aria-label") or ""
-                                match_qtd = re.search(r'(\d+[\d.,]*)', txt)
-                                if match_qtd:
-                                    qtd_avaliacoes = match_qtd.group(1).replace('.', '').replace(',', '')
-                        except:
-                            pass
+                    # 1. Captura da Nota com seletor cirúrgico e fallback
+                    try:
+                        nota_el = page.locator('.fontDisplayLarge').first
+                        nota_el.wait_for(state="attached", timeout=2500)
+                        nota = nota_el.inner_text().strip().replace(',', '.')
+                    except:
+                        # Fallback span[aria-hidden='true'] dentro da classe .F7nice
+                        fallback_el = page.locator('.F7nice span[aria-hidden="true"]').first
+                        if fallback_el.count() > 0:
+                            nota = fallback_el.inner_text().strip().replace(',', '.')
 
-                    # Estratégia 3: Força bruta no texto visível do painel (fallback final)
-                    if nota == "-" or qtd_avaliacoes == "-":
-                        try:
-                            texto_painel = page.locator('div[role="main"]').first.inner_text()
-                            # Formato comum: "4,8(123)" ou "4.8  123 avaliações"
-                            match_bruto = re.search(r'([1-5][.,]\d)\s*\(?([\d.,]+)\)?', texto_painel)
-                            if match_bruto:
-                                if nota == "-":
-                                    nota = match_bruto.group(1).replace(',', '.')
-                                if qtd_avaliacoes == "-":
-                                    qtd_avaliacoes = match_bruto.group(2).replace('.', '').replace(',', '')
-                        except Exception:
-                            pass
+                    # 2. Captura do Pior Comentário (Resumo da Dor)
+                    try:
+                        avaliacoes = page.locator('.jftiEf').all()
+                        for ava in avaliacoes:
+                            estrelas_el = ava.locator('.kvMYJc').first
+                            if estrelas_el.count() > 0:
+                                aria = estrelas_el.get_attribute("aria-label") or ""
+                                if "1 estrela" in aria or "2 estrelas" in aria:
+                                    texto_el = ava.locator('span.wiI7pd').first
+                                    if texto_el.count() > 0:
+                                        pior_comentario = texto_el.inner_text().strip()
+                                        break
+                    except: pass
                 except Exception as e:
-                    pass
+                    print(f"⚠️ Alerta na extração do lead {nome}: {e}")
+                
+                # Debug de Engenharia
+                print(f"💎 Lead: {nome[:30]:<30} | Nota: {nota:<4} | Avaliações: {qtd_avaliacoes}")
 
                 # 2. Endereço
                 endereco_locator = page.locator('button[data-item-id="address"]')
@@ -238,12 +232,17 @@ def run(playwright):
                     site = site_locator.first.get_attribute("href")
                     dados_sociais = investigar_site(context, site)
 
+                # Substitui o resumo pela dor se tivermos achado um comentário negativo
+                if pior_comentario != "-":
+                    dados_sociais["resumo"] = pior_comentario
+
                 # Salvar a linha do CSV!
                 escritor.writerow([
                     nome, nota, qtd_avaliacoes, dados_sociais["resumo"], endereco, tel_visual, tipo_num, link_wa, site,
                     dados_sociais["email"], dados_sociais["instagram"], dados_sociais["facebook"], 
                     dados_sociais["linkedin"], dados_sociais["tiktok"], dados_sociais["youtube"]
                 ])
+                salvos += 1
 
         print("\n" + "=" * 50)
         print(f"✅ SUCESSO! FICHEIRO '{nome_arquivo}' GUARDADO COM SUCESSO!")

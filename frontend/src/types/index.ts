@@ -6,6 +6,8 @@ export type KanbanStatus =
   | 'ganho'
   | 'perdido';
 
+export type EnrichmentStatus = 'CAPTURADO' | 'ENRIQUECENDO' | 'ENRIQUECIDO';
+
 export interface Lead {
   ID: string;
   Empresa: string;
@@ -24,6 +26,9 @@ export interface Lead {
   LinkedIn: string;
   TikTok: string;
   YouTube: string;
+  TemPixel: boolean;
+  TemGTM: boolean;
+  Status: EnrichmentStatus;
   KanbanStatus: KanbanStatus;
   NotasProspeccao?: string;
   ScrapingJobID?: string;

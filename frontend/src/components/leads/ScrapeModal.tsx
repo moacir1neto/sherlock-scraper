@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { X, Search, MapPin, Loader2, Zap, Play } from 'lucide-react';
+import { X, Search, MapPin, Loader2, Zap, Play, Hash } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = () => import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
@@ -15,6 +15,7 @@ interface ScrapeModalProps {
 const ScrapeModal: React.FC<ScrapeModalProps> = ({ isOpen, onClose, onComplete }) => {
   const [nicho, setNicho] = useState('');
   const [localizacao, setLocalizacao] = useState('');
+  const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -22,6 +23,7 @@ const ScrapeModal: React.FC<ScrapeModalProps> = ({ isOpen, onClose, onComplete }
     if (!isOpen) {
       setNicho('');
       setLocalizacao('');
+      setLimit(20);
       setLoading(false);
       setError('');
     }
@@ -36,7 +38,7 @@ const ScrapeModal: React.FC<ScrapeModalProps> = ({ isOpen, onClose, onComplete }
     try {
       const res = await axios.post(
         `${API_URL()}/protected/scrape`,
-        { nicho: nicho.trim(), localizacao: localizacao.trim() },
+        { nicho: nicho.trim(), localizacao: localizacao.trim(), limit: Number(limit) },
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
       onComplete(res.data.job_id);
@@ -108,6 +110,27 @@ const ScrapeModal: React.FC<ScrapeModalProps> = ({ isOpen, onClose, onComplete }
                 />
               </div>
 
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                  <Hash size={13} className="text-blue-400" />
+                  Quantidade de Leads (Máx 100)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={limit}
+                  onChange={(e) => {
+                    let val = parseInt(e.target.value);
+                    if (isNaN(val)) val = 1;
+                    if (val > 100) val = 100;
+                    if (val < 1) val = 1;
+                    setLimit(val);
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                />
+              </div>
+
               {error && (
                 <div className="p-3 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl">
                   {error}
@@ -129,7 +152,7 @@ const ScrapeModal: React.FC<ScrapeModalProps> = ({ isOpen, onClose, onComplete }
                 className="px-6 py-2.5 text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all flex items-center gap-2 disabled:bg-blue-600/50"
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                Iniciar Campanha
+                Iniciar Raspagem
               </button>
             </div>
           </motion.div>

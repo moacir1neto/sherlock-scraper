@@ -26,8 +26,9 @@ func NewScrapeHandler(service ports.LeadService) *ScrapeHandler {
 }
 
 type ScrapeRequest struct {
-	Nicho      string `json:"nicho"`
+	Nicho       string `json:"nicho"`
 	Localizacao string `json:"localizacao"`
+	Limit       int    `json:"limit"`
 }
 
 func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
@@ -38,6 +39,10 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 
 	if req.Nicho == "" || req.Localizacao == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "nicho and localizacao are required"})
+	}
+
+	if req.Limit <= 0 {
+		req.Limit = 20
 	}
 
 	// 1. Cria o ScrapingJob no Banco de Dados
@@ -63,6 +68,7 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 			"python", "main.py",
 			"--nicho", req.Nicho,
 			"--localizacao", req.Localizacao,
+			"--limit", fmt.Sprintf("%d", req.Limit),
 		)
 		
 		// Captura stdout e stderr juntos para logs
@@ -141,4 +147,17 @@ func (h *ScrapeHandler) Status(c *fiber.Ctx) error {
 		"logs":    job.Logs,
 		"elapsed": time.Since(job.CreatedAt).Round(time.Second).String(),
 	})
+}
+
+func (h *ScrapeHandler) DeleteJob(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "id is required"})
+	}
+
+	if err := h.service.DeleteJob(c.Context(), id); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete scraping job"})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
 }

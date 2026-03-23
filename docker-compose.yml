@@ -9,6 +9,11 @@ services:
       PYTHONDONTWRITEBYTECODE: 1
       PYTHONUNBUFFERED: 1
 
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
   db: 
     image: postgres:15-alpine
     environment:
@@ -29,6 +34,7 @@ services:
     environment:
       DATABASE_URL: "host=db user=postgres password=password dbname=crm port=5432 sslmode=disable TimeZone=America/Sao_Paulo"
       JWT_SECRET: "my_dev_super_secret"
+      REDIS_ADDR: "redis:6379"
       COMPOSE_FILE: "/workspace/docker-compose.yml"
       HOST_PROJECT_PATH: "${PWD:-.}"
     volumes:

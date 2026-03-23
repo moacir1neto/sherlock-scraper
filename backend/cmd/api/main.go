@@ -6,6 +6,7 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/handlers"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/middlewares"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/repositories"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/services"
 	"github.com/gofiber/fiber/v2"
@@ -17,7 +18,11 @@ func main() {
 	// 1. Initialize Database connection & Auto-migrations
 	database.Connect()
 
-	// 2. Initialize Fiber App
+	// 2. Initialize Redis Queue Client
+	queue.InitClient()
+	defer queue.CloseClient()
+
+	// 3. Initialize Fiber App
 	app := fiber.New()
 	app.Use(logger.New())
 
@@ -27,7 +32,7 @@ func main() {
 		AllowMethods: "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
 	}))
 
-	// 3. Dependency Injection (Injecting repos into services, and services into handlers)
+	// 4. Dependency Injection (Injecting repos into services, and services into handlers)
 	userRepo := repositories.NewUserRepository(database.DB)
 	authService := services.NewAuthService(userRepo)
 	authHandler := handlers.NewAuthHandler(authService)
@@ -38,15 +43,15 @@ func main() {
 
 	scrapeHandler := handlers.NewScrapeHandler(leadService)
 
-	// 4. API Routes
+	// 5. API Routes
 	api := app.Group("/api/v1")
 
-	// 4.1. Public Routes
+	// 5.1. Public Routes
 	auth := api.Group("/auth")
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
 
-	// 4.2. Protected Routes
+	// 5.2. Protected Routes
 	protected := api.Group("/protected", middlewares.Protected())
 	protected.Get("/me", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -67,7 +72,14 @@ func main() {
 	protected.Get("/scrapes", scrapeHandler.ListScrapes)
 	protected.Get("/scrapes/status", scrapeHandler.Status)
 	protected.Get("/scrapes/:id/leads", scrapeHandler.GetLeadsByJob)
+	protected.Delete("/scrapes/:id", scrapeHandler.DeleteJob)
+	protected.Delete("/scrapings/:id", scrapeHandler.DeleteJob) // Alias as requested
 
-	log.Println("Server is running on port 3000...")
+	// 6. Start Queue Worker in background
+	log.Println("🚀 Starting Queue Worker in background...")
+	go queue.StartServer()
+
+	// 7. Start HTTP Server
+	log.Println("🌐 Server is running on port 3000...")
 	log.Fatal(app.Listen(":3000"))
 }

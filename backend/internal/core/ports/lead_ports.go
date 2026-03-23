@@ -17,6 +17,7 @@ type LeadRepository interface {
 	UpdateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error
 	GetScrapeJob(ctx context.Context, id string) (*domain.ScrapingJob, error)
 	ListScrapeJobs(ctx context.Context) ([]*domain.ScrapingJob, error)
+	DeleteScrapeJob(ctx context.Context, id string) error
 }
 
 type LeadService interface {
@@ -30,4 +31,5 @@ type LeadService interface {
 	UpdateJob(ctx context.Context, job *domain.ScrapingJob) error
 	GetJob(ctx context.Context, id string) (*domain.ScrapingJob, error)
 	ListJobs(ctx context.Context) ([]*domain.ScrapingJob, error)
+	DeleteJob(ctx context.Context, id string) error
 }

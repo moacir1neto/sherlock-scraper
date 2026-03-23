@@ -67,3 +67,17 @@ func (r *leadRepository) ListScrapeJobs(ctx context.Context) ([]*domain.Scraping
 	err := r.db.WithContext(ctx).Order("created_at desc").Find(&jobs).Error
 	return jobs, err
 }
+
+func (r *leadRepository) DeleteScrapeJob(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Delete leads first
+		if err := tx.Where("scraping_job_id = ?", id).Delete(&domain.Lead{}).Error; err != nil {
+			return err
+		}
+		// Delete scraping job
+		if err := tx.Where("id = ?", id).Delete(&domain.ScrapingJob{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
