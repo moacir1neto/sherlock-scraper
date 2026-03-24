@@ -1,196 +1,101 @@
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Settings, Save, Loader2 } from 'lucide-react';
-import { useSettings } from '@/hooks/useSettings';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Settings, User, Bot, Plug } from 'lucide-react';
+import AISettingsTab from '@/components/settings/AISettingsTab';
+import GeneralSettingsTab from '@/components/settings/GeneralSettingsTab';
+import IntegrationsTab from '@/components/settings/IntegrationsTab';
 
-const NICHE_OPTIONS = [
-  'Software House',
-  'Agência de Marketing',
-  'Consultoria Empresarial',
-  'Agência de Tráfego Pago',
-  'Agência de Design',
-  'Contabilidade',
-  'Advocacia',
-  'Clínica de Saúde',
-  'E-commerce',
-  'SaaS',
-];
+const TABS = [
+  { id: 'general', name: 'Perfil Geral', icon: User },
+  { id: 'ai', name: 'Inteligência Artificial', icon: Bot },
+  { id: 'integrations', name: 'Integrações', icon: Plug },
+] as const;
 
-const TONE_OPTIONS = [
-  'Consultivo e Direto',
-  'Agressivo e Urgente',
-  'Irreverente e Criativo',
-  'Formal e Corporativo',
-  'Empático e Educativo',
-];
+type TabId = (typeof TABS)[number]['id'];
+
+const TAB_COMPONENTS: Record<TabId, React.FC> = {
+  general: GeneralSettingsTab,
+  ai: AISettingsTab,
+  integrations: IntegrationsTab,
+};
 
 const SettingsPage: React.FC = () => {
-  const { settings, loading, saving, fetchSettings, updateSettings } = useSettings();
+  const [activeTab, setActiveTab] = useState<TabId>('ai');
 
-  const [companyName, setCompanyName] = useState('');
-  const [niche, setNiche] = useState('');
-  const [mainOffer, setMainOffer] = useState('');
-  const [toneOfVoice, setToneOfVoice] = useState('');
-
-  useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
-
-  useEffect(() => {
-    if (settings) {
-      setCompanyName(settings.CompanyName);
-      setNiche(settings.Niche);
-      setMainOffer(settings.MainOffer);
-      setToneOfVoice(settings.ToneOfVoice);
-    }
-  }, [settings]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateSettings({
-      CompanyName: companyName,
-      Niche: niche,
-      MainOffer: mainOffer,
-      ToneOfVoice: toneOfVoice,
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
-      </div>
-    );
-  }
+  const ActiveComponent = TAB_COMPONENTS[activeTab];
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="max-w-2xl mx-auto"
     >
+      {/* Header */}
       <div className="flex items-center gap-3 mb-8">
         <div className="p-3 bg-blue-600/10 border border-blue-500/20 rounded-xl">
           <Settings className="w-6 h-6 text-blue-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Configurações da IA</h1>
+          <h1 className="text-2xl font-bold">Configurações</h1>
           <p className="text-sm text-gray-500">
-            Configure o contexto da sua empresa para personalizar a análise de IA.
+            Gerencie as configurações do sistema.
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-glass/50 border border-glass-border rounded-2xl p-6 space-y-6 backdrop-blur-sm">
-          {/* Company Name */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">
-              Nome da Empresa
-            </label>
-            <input
-              type="text"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              className="w-full px-4 py-3 bg-black/40 border border-glass-border rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all"
-              placeholder="Ex: Sherlock Scraper"
-            />
-          </div>
+      {/* Mobile: horizontal scrollable tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-4 mb-6 lg:hidden scrollbar-none">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all shrink-0 ${
+              activeTab === tab.id
+                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]'
+                : 'bg-glass/50 border border-glass-border text-gray-400 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <tab.icon size={18} />
+            {tab.name}
+          </button>
+        ))}
+      </div>
 
-          {/* Niche */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">
-              Nicho de Atuação
-            </label>
-            <select
-              value={niche}
-              onChange={(e) => setNiche(e.target.value)}
-              className="w-full px-4 py-3 bg-black/40 border border-glass-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all appearance-none"
+      {/* Desktop: two-column layout */}
+      <div className="flex gap-6">
+        {/* Sidebar nav (desktop only) */}
+        <nav className="hidden lg:flex flex-col w-64 shrink-0 space-y-1">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-left transition-all ${
+                activeTab === tab.id
+                  ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]'
+                  : 'text-gray-400 hover:bg-white/5 hover:text-white border border-transparent'
+              }`}
             >
-              {NICHE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt} className="bg-zinc-900">
-                  {opt}
-                </option>
-              ))}
-              {niche && !NICHE_OPTIONS.includes(niche) && (
-                <option value={niche} className="bg-zinc-900">
-                  {niche}
-                </option>
-              )}
-            </select>
-            <p className="text-xs text-gray-600">
-              Ou digite um valor customizado no campo abaixo:
-            </p>
-            <input
-              type="text"
-              value={niche}
-              onChange={(e) => setNiche(e.target.value)}
-              className="w-full px-4 py-3 bg-black/40 border border-glass-border rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all"
-              placeholder="Ou digite um nicho personalizado..."
-            />
-          </div>
+              <tab.icon size={20} className="shrink-0" />
+              {tab.name}
+            </button>
+          ))}
+        </nav>
 
-          {/* Main Offer */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">
-              Oferta Principal / Solução
-            </label>
-            <textarea
-              value={mainOffer}
-              onChange={(e) => setMainOffer(e.target.value)}
-              rows={5}
-              className="w-full px-4 py-3 bg-black/40 border border-glass-border rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all resize-none"
-              placeholder="Descreva detalhadamente o que sua empresa oferece. A IA usará esse texto para gerar pitches, icebreakers e identificar gaps nos leads analisados. Quanto mais específico, melhor será a personalização. Ex: Desenvolvimento de sistemas web e mobile sob medida, com foco em automação de processos e integrações inteligentes."
-            />
-            <p className="text-xs text-gray-600">
-              A IA vai basear os Gaps Críticos, Icebreakers e Pitches exclusivamente neste texto.
-            </p>
-          </div>
-
-          {/* Tone of Voice */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">
-              Tom de Voz
-            </label>
-            <select
-              value={toneOfVoice}
-              onChange={(e) => setToneOfVoice(e.target.value)}
-              className="w-full px-4 py-3 bg-black/40 border border-glass-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all appearance-none"
+        {/* Content area */}
+        <div className="flex-1 min-w-0">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -12 }}
+              transition={{ duration: 0.2 }}
             >
-              {TONE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt} className="bg-zinc-900">
-                  {opt}
-                </option>
-              ))}
-              {toneOfVoice && !TONE_OPTIONS.includes(toneOfVoice) && (
-                <option value={toneOfVoice} className="bg-zinc-900">
-                  {toneOfVoice}
-                </option>
-              )}
-            </select>
-          </div>
+              <ActiveComponent />
+            </motion.div>
+          </AnimatePresence>
         </div>
-
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={saving}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-600/20"
-        >
-          {saving ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Salvando...
-            </>
-          ) : (
-            <>
-              <Save className="w-5 h-5" />
-              Salvar Configurações
-            </>
-          )}
-        </button>
-      </form>
+      </div>
     </motion.div>
   );
 };
