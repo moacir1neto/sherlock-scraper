@@ -1,14 +1,19 @@
+import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { AIAnalysis } from '@/types';
 import {
   Brain,
-  TrendingUp,
+  TrendingDown,
   AlertTriangle,
   MessageCircle,
   Lightbulb,
   Target,
   CheckCircle2,
   Copy,
+  Check,
   DollarSign,
+  Shield,
+  Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -16,184 +21,256 @@ interface AIAnalysisViewProps {
   analysis: AIAnalysis;
 }
 
-export function AIAnalysisView({ analysis }: AIAnalysisViewProps) {
-  const copyToClipboard = (text: string, label: string) => {
+// Radial progress SVG component
+function RadialScore({ score }: { score: number }) {
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (score / 10) * circumference;
+  const offset = circumference - progress;
+
+  const getColor = (s: number) => {
+    if (s >= 8) return { stroke: '#22c55e', glow: 'rgba(34,197,94,0.3)', text: 'text-green-400', label: 'text-green-500' };
+    if (s >= 5) return { stroke: '#eab308', glow: 'rgba(234,179,8,0.3)', text: 'text-yellow-400', label: 'text-yellow-500' };
+    return { stroke: '#ef4444', glow: 'rgba(239,68,68,0.3)', text: 'text-red-400', label: 'text-red-500' };
+  };
+
+  const colors = getColor(score);
+
+  return (
+    <div className="relative w-32 h-32 shrink-0">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
+        {/* Background track */}
+        <circle cx="64" cy="64" r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
+        {/* Glow */}
+        <circle
+          cx="64" cy="64" r={radius} fill="none"
+          stroke={colors.glow}
+          strokeWidth="14"
+          strokeDasharray={`${progress} ${offset}`}
+          strokeLinecap="round"
+          style={{ filter: 'blur(6px)' }}
+        />
+        {/* Progress arc */}
+        <circle
+          cx="64" cy="64" r={radius} fill="none"
+          stroke={colors.stroke}
+          strokeWidth="8"
+          strokeDasharray={`${progress} ${offset}`}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={`text-3xl font-bold ${colors.text}`}>{score}</span>
+        <span className="text-[10px] text-gray-500 uppercase tracking-widest">/ 10</span>
+      </div>
+    </div>
+  );
+}
+
+// Copy button with "Copiado!" feedback
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
     navigator.clipboard.writeText(text);
-    toast.success(`${label} copiado para a área de transferência!`);
-  };
-
-  // Determina a cor do badge de score
-  const getScoreBadgeColor = (score: number) => {
-    if (score >= 8) return 'bg-green-100 text-green-800 border-green-300';
-    if (score >= 4) return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-    return 'bg-red-100 text-red-800 border-red-300';
-  };
-
-  // Determina a cor da probabilidade de fechamento
-  const getProbabilityColor = (prob: string) => {
-    const lower = prob.toLowerCase();
-    if (lower === 'alta') return 'text-green-600 font-semibold';
-    if (lower === 'média') return 'text-yellow-600 font-semibold';
-    return 'text-red-600 font-semibold';
+    toast.success(`${label} copiado!`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="space-y-6 p-6 bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg">
-      {/* Header - Score de Maturidade */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-purple-100 rounded-full">
-            <Brain className="w-6 h-6 text-purple-600" />
+    <button
+      onClick={handleCopy}
+      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all ${
+        copied
+          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+          : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white'
+      }`}
+    >
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+      {copied ? 'Copiado!' : 'Copiar'}
+    </button>
+  );
+}
+
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+};
+
+export function AIAnalysisView({ analysis }: AIAnalysisViewProps) {
+  const getProbColor = (prob: string) => {
+    const lower = prob.toLowerCase();
+    if (lower === 'alta') return 'text-green-400 bg-green-500/10 border-green-500/20';
+    if (lower === 'média') return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
+    return 'text-red-400 bg-red-500/10 border-red-500/20';
+  };
+
+  return (
+    <motion.div
+      variants={stagger}
+      initial="hidden"
+      animate="show"
+      className="space-y-5 p-6 bg-gradient-to-br from-[#0c0c14] to-[#0f1020] rounded-2xl border border-white/[0.06]"
+    >
+      {/* Header - Score + Classification */}
+      <motion.div variants={fadeUp} className="flex items-center gap-6">
+        <RadialScore score={analysis.score_maturidade} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span className="text-xs text-purple-400 font-semibold uppercase tracking-wider">
+              Análise de IA
+            </span>
           </div>
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              Análise de Inteligência Artificial
-            </h3>
-            <p className="text-sm text-gray-600">{analysis.classificacao}</p>
+          <h3 className="text-xl font-bold text-white mb-1">
+            {analysis.classificacao}
+          </h3>
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border ${getProbColor(analysis.probabilidade_fechamento)}`}>
+            <Target className="w-3 h-3" />
+            Prob. Fechamento: {analysis.probabilidade_fechamento}
           </div>
         </div>
+      </motion.div>
 
-        {/* Badge de Score */}
-        <div
-          className={`px-4 py-2 rounded-full border-2 ${getScoreBadgeColor(
-            analysis.score_maturidade
-          )}`}
-        >
-          <span className="text-2xl font-bold">
-            {analysis.score_maturidade}
-          </span>
-          <span className="text-sm">/10</span>
-        </div>
-      </div>
-
-      {/* Alerta Crítico - Gap e Perda */}
-      <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
-          <div className="flex-1">
-            <h4 className="font-semibold text-red-900 mb-2">Gap Crítico</h4>
-            <p className="text-red-800 mb-3">{analysis.gap_critico}</p>
-
-            <div className="flex items-center gap-2 bg-red-100 px-3 py-2 rounded-md">
-              <DollarSign className="w-5 h-5 text-red-700" />
-              <span className="text-sm font-semibold text-red-900">
-                Perda Estimada: {analysis.perda_estimada_mensal}
-              </span>
+      {/* Impact Grid - Gap + Perda */}
+      <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Gap Crítico */}
+        <div className="bg-black/40 border border-red-500/15 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <div className="p-1.5 bg-red-500/10 rounded-lg">
+              <AlertTriangle className="w-4 h-4 text-red-400" />
             </div>
+            <span className="text-xs font-semibold text-red-400 uppercase tracking-wider">
+              Gap Crítico
+            </span>
           </div>
+          <p className="text-sm text-gray-300 leading-relaxed">
+            {analysis.gap_critico}
+          </p>
         </div>
-      </div>
+
+        {/* Perda Estimada */}
+        <div className="bg-black/40 border border-orange-500/15 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <div className="p-1.5 bg-orange-500/10 rounded-lg">
+              <TrendingDown className="w-4 h-4 text-orange-400" />
+            </div>
+            <span className="text-xs font-semibold text-orange-400 uppercase tracking-wider">
+              Perda Estimada
+            </span>
+          </div>
+          <p className="text-lg font-bold text-white">
+            {analysis.perda_estimada_mensal}
+          </p>
+          <p className="text-[11px] text-gray-500">por mês</p>
+        </div>
+      </motion.div>
 
       {/* Icebreaker WhatsApp */}
-      <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <MessageCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-green-900">
-                Icebreaker WhatsApp
-              </h4>
-              <button
-                onClick={() =>
-                  copyToClipboard(analysis.icebreaker_whatsapp, 'Icebreaker')
-                }
-                className="flex items-center gap-1 text-xs px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-              >
-                <Copy className="w-3 h-3" />
-                Copiar
-              </button>
+      <motion.div variants={fadeUp} className="bg-emerald-950/20 border border-emerald-500/15 rounded-xl p-4 relative">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-emerald-500/10 rounded-lg">
+              <MessageCircle className="w-4 h-4 text-emerald-400" />
             </div>
-            <p className="text-green-800 whitespace-pre-line">
-              {analysis.icebreaker_whatsapp}
-            </p>
+            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+              Icebreaker WhatsApp
+            </span>
           </div>
+          <CopyButton text={analysis.icebreaker_whatsapp} label="Icebreaker" />
         </div>
-      </div>
+        <div className="bg-black/30 rounded-lg p-3.5 border border-white/[0.04]">
+          <p className="text-sm text-gray-300 whitespace-pre-line leading-relaxed">
+            {analysis.icebreaker_whatsapp}
+          </p>
+        </div>
+      </motion.div>
 
       {/* Pitch Comercial */}
-      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <TrendingUp className="w-6 h-6 text-blue-600 flex-shrink-0 mt-1" />
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-blue-900">Pitch Comercial</h4>
-              <button
-                onClick={() =>
-                  copyToClipboard(analysis.pitch_comercial, 'Pitch')
-                }
-                className="flex items-center gap-1 text-xs px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                <Copy className="w-3 h-3" />
-                Copiar
-              </button>
+      <motion.div variants={fadeUp} className="bg-blue-950/20 border border-blue-500/15 rounded-xl p-4 relative">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-blue-500/10 rounded-lg">
+              <Brain className="w-4 h-4 text-blue-400" />
             </div>
-            <p className="text-blue-800 whitespace-pre-line">
-              {analysis.pitch_comercial}
-            </p>
+            <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
+              Pitch Comercial
+            </span>
           </div>
+          <CopyButton text={analysis.pitch_comercial} label="Pitch" />
         </div>
-      </div>
+        <div className="bg-black/30 rounded-lg p-3.5 border border-white/[0.04]">
+          <p className="text-sm text-gray-300 whitespace-pre-line leading-relaxed">
+            {analysis.pitch_comercial}
+          </p>
+        </div>
+      </motion.div>
 
       {/* Objeção e Resposta */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {/* Objeção Prevista */}
-        <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4">
-          <div className="flex items-start gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-orange-600 flex-shrink-0" />
-            <h4 className="font-semibold text-orange-900 text-sm">
-              Objeção Prevista
-            </h4>
+      <motion.div variants={fadeUp} className="bg-black/40 border border-white/[0.06] rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 bg-amber-500/10 rounded-lg">
+            <Shield className="w-4 h-4 text-amber-400" />
           </div>
-          <p className="text-sm text-orange-800">{analysis.objecao_prevista}</p>
+          <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+            Estratégia de Objeção
+          </span>
         </div>
 
-        {/* Resposta à Objeção */}
-        <div className="bg-teal-50 border-2 border-teal-200 rounded-lg p-4">
-          <div className="flex items-start gap-2 mb-2">
-            <Lightbulb className="w-5 h-5 text-teal-600 flex-shrink-0" />
-            <h4 className="font-semibold text-teal-900 text-sm">
-              Resposta Sugerida
-            </h4>
+        <div className="space-y-3">
+          {/* Objeção */}
+          <div className="flex gap-3">
+            <div className="shrink-0 mt-0.5 w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center">
+              <span className="text-[10px] font-bold text-red-400">?</span>
+            </div>
+            <div>
+              <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-1">Objeção Prevista</p>
+              <p className="text-sm text-gray-300 leading-relaxed">{analysis.objecao_prevista}</p>
+            </div>
           </div>
-          <p className="text-sm text-teal-800">{analysis.resposta_objecao}</p>
+
+          <div className="border-t border-white/[0.04]" />
+
+          {/* Resposta */}
+          <div className="flex gap-3">
+            <div className="shrink-0 mt-0.5 w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center">
+              <Lightbulb className="w-3 h-3 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-1">Resposta Sugerida</p>
+              <p className="text-sm text-gray-300 leading-relaxed">{analysis.resposta_objecao}</p>
+            </div>
+          </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Próximos Passos */}
-      <div className="bg-white border-2 border-gray-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <Target className="w-6 h-6 text-purple-600 flex-shrink-0 mt-1" />
-          <div className="flex-1">
-            <h4 className="font-semibold text-gray-900 mb-3">
-              Próximos Passos
-            </h4>
-            <ul className="space-y-2">
-              {analysis.proximos_passos.map((passo, index) => (
-                <li key={index} className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm text-gray-700">{passo}</span>
-                </li>
-              ))}
-            </ul>
+      <motion.div variants={fadeUp} className="bg-black/40 border border-white/[0.06] rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 bg-purple-500/10 rounded-lg">
+            <Target className="w-4 h-4 text-purple-400" />
           </div>
-        </div>
-      </div>
-
-      {/* Footer - Probabilidade de Fechamento */}
-      <div className="bg-white border-2 border-gray-200 rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700">
-            Probabilidade de Fechamento:
-          </span>
-          <span
-            className={`text-lg ${getProbabilityColor(
-              analysis.probabilidade_fechamento
-            )}`}
-          >
-            {analysis.probabilidade_fechamento}
+          <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">
+            Próximos Passos
           </span>
         </div>
-      </div>
-    </div>
+        <ul className="space-y-2.5">
+          {analysis.proximos_passos.map((passo, index) => (
+            <li key={index} className="flex items-start gap-3">
+              <div className="shrink-0 mt-0.5 w-5 h-5 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-purple-400">{index + 1}</span>
+              </div>
+              <span className="text-sm text-gray-300 leading-relaxed">{passo}</span>
+            </li>
+          ))}
+        </ul>
+      </motion.div>
+    </motion.div>
   );
 }

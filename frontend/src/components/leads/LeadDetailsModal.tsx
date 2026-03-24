@@ -16,6 +16,8 @@ import {
   ExternalLink,
   Brain,
   Loader2,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { Lead, KanbanStatus } from '@/types';
 import { AIAnalysisView } from './AIAnalysisView';
@@ -102,6 +104,7 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead,
   const [statusOpen, setStatusOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [analyzingAI, setAnalyzingAI] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Sync notes with lead data
@@ -186,7 +189,7 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead,
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '100%', opacity: 0.5 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-y-0 right-0 z-50 w-full max-w-lg flex pointer-events-none"
+            className={`fixed inset-y-0 right-0 z-50 w-full flex pointer-events-none transition-[max-width] duration-300 ease-in-out ${isExpanded ? 'max-w-4xl' : 'max-w-lg'}`}
           >
             <div
               className="w-full bg-[#0a0a0c] border-l border-white/10 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] flex flex-col h-full pointer-events-auto overflow-hidden relative"
@@ -270,12 +273,21 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead,
                     </div>
                   </div>
 
-                  <button
-                    onClick={onClose}
-                    className="p-3 rounded-2xl text-gray-500 hover:text-white hover:bg-white/10 transition-all shrink-0 mt-1 border border-transparent hover:border-white/10 group"
-                  >
-                    <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0 mt-1">
+                    <button
+                      onClick={() => setIsExpanded((v) => !v)}
+                      title={isExpanded ? 'Recolher painel' : 'Expandir painel'}
+                      className="p-3 rounded-2xl text-gray-500 hover:text-white hover:bg-white/10 transition-all border border-transparent hover:border-white/10"
+                    >
+                      {isExpanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="p-3 rounded-2xl text-gray-500 hover:text-white hover:bg-white/10 transition-all border border-transparent hover:border-white/10 group"
+                    >
+                      <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
