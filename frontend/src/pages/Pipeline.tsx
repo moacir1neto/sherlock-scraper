@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import PipelineOnboardingModal from '@/components/pipeline/PipelineOnboardingModal';
 import LeadCreateModal from '@/components/pipeline/LeadCreateModal';
+import LeadDetailsModal from '@/components/pipeline/LeadDetails/LeadDetailsModal';
 import { AIPipelineResponse, Lead, CreateLeadPayload, PipelineSummary } from '@/types';
 import { usePipeline } from '@/hooks/usePipeline';
 import { useLeads } from '@/hooks/useLeads';
@@ -20,7 +21,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
 
 // ── Draggable Lead Card ──
-function DraggableLeadCard({ lead }: { lead: Lead }) {
+function DraggableLeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: lead.ID,
     data: { lead },
@@ -36,12 +37,13 @@ function DraggableLeadCard({ lead }: { lead: Lead }) {
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
       className="bg-[#1a1a1a] border border-white/5 p-4 rounded-2xl hover:border-white/10 transition-all group cursor-grab active:cursor-grabbing"
     >
       <div className="flex items-start justify-between gap-3 mb-2">
-        <div className="flex items-center gap-3 min-w-0">
+        <div
+          className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+          onClick={onClick}
+        >
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 font-bold shrink-0">
             {lead.Empresa.charAt(0).toUpperCase()}
           </div>
@@ -50,7 +52,11 @@ function DraggableLeadCard({ lead }: { lead: Lead }) {
             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{lead.Nicho}</p>
           </div>
         </div>
-        <div className="opacity-0 group-hover:opacity-50 transition-opacity shrink-0">
+        <div
+          {...listeners}
+          {...attributes}
+          className="opacity-0 group-hover:opacity-50 transition-opacity shrink-0 cursor-grab active:cursor-grabbing"
+        >
           <GripVertical size={14} className="text-gray-500" />
         </div>
       </div>
@@ -143,6 +149,7 @@ export default function Pipeline() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [activeDragLead, setActiveDragLead] = useState<Lead | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // DnD sensors
@@ -471,6 +478,15 @@ export default function Pipeline() {
         />
       )}
 
+      {pipelineState && (
+        <LeadDetailsModal
+          isOpen={!!selectedLead}
+          onClose={() => setSelectedLead(null)}
+          lead={selectedLead}
+          stages={pipelineState.stages}
+        />
+      )}
+
       {pipelineState ? (
         <DndContext
           sensors={sensors}
@@ -497,7 +513,7 @@ export default function Pipeline() {
                     {columnLeads.length > 0 ? (
                       <div className="space-y-3">
                         {columnLeads.map((lead: Lead) => (
-                          <DraggableLeadCard key={lead.ID} lead={lead} />
+                          <DraggableLeadCard key={lead.ID} lead={lead} onClick={() => setSelectedLead(lead)} />
                         ))}
                       </div>
                     ) : (
