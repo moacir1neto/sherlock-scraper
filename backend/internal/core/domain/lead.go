@@ -72,6 +72,10 @@ type Lead struct {
 	Status           EnrichmentStatus `gorm:"type:varchar(50);default:'CAPTURADO'"`
 	KanbanStatus     KanbanStatus     `gorm:"type:varchar(50);default:'prospeccao'"`
 	NotasProspeccao  string           `gorm:"type:text"`
+	EstimatedValue   float64          `json:"estimated_value" gorm:"type:decimal(12,2);default:0"`
+	DueDate          *time.Time       `json:"due_date" gorm:"type:date"`
+	Tags             string           `json:"tags" gorm:"type:varchar(500)"`
+	LinkedLeadID     *uuid.UUID       `json:"linked_lead_id" gorm:"type:uuid"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

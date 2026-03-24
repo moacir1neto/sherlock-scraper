@@ -23,7 +23,9 @@ func main() {
 	defer queue.CloseClient()
 
 	// 3. Initialize Fiber App
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		StrictRouting: false,
+	})
 	app.Use(logger.New())
 
 	app.Use(cors.New(cors.Config{
@@ -73,7 +75,8 @@ func main() {
 	
 	// Lead Routes
 	leads := protected.Group("/leads")
-	leads.Get("", leadHandler.GetLeads)
+	leads.Get("/", leadHandler.GetLeads)
+	leads.Post("/", leadHandler.CreateLead)
 	leads.Post("/upload", leadHandler.UploadCSV)
 	leads.Patch("/:id/status", leadHandler.UpdateStatus)
 	leads.Put("/:id", leadHandler.UpdateLead)
@@ -85,6 +88,7 @@ func main() {
 	// Pipeline routes
 	protected.Get("/pipeline", pipelineHandler.GetPipeline)
 	protected.Post("/pipeline", pipelineHandler.CreatePipeline)
+	protected.Post("/pipeline/stage", pipelineHandler.AddStage)
 	protected.Post("/pipeline/generate-ai", pipelineHandler.GenerateAIPipeline)
 	protected.Delete("/pipeline", pipelineHandler.DeletePipeline)
 

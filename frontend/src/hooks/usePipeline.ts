@@ -131,11 +131,31 @@ export function usePipeline() {
     }
   }, []);
 
+  const addStage = useCallback(async (pipelineId: string, name: string): Promise<any> => {
+    const headers = getAuthHeaders();
+    if (!headers.Authorization) return null;
+
+    try {
+      const res = await axios.post(
+        `${API_URL()}/protected/pipeline/stage`,
+        { pipeline_id: pipelineId, name },
+        { headers }
+      );
+      toast.success('Etapa adicionada com sucesso!');
+      return res.data;
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Falha ao adicionar etapa';
+      toast.error(errorMsg);
+      return null;
+    }
+  }, []);
+
   return {
     generatePipelineWithAI,
     fetchPipeline,
     deletePipeline,
     createPipeline,
+    addStage,
     loading
   };
 }

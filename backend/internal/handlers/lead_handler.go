@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/csv"
+	"fmt"
+	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
@@ -111,4 +113,71 @@ func (h *LeadHandler) UpdateLead(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"message": "lead updated successfully", "lead": lead})
+}
+
+func (h *LeadHandler) CreateLead(c *fiber.Ctx) error {
+	type Request struct {
+		CompanyName    string  `json:"company_name"`
+		StageID        string  `json:"stage_id"`
+		Nicho          string  `json:"nicho"`
+		EstimatedValue float64 `json:"estimated_value"`
+		DueDate        string  `json:"due_date"`
+		Tags           string  `json:"tags"`
+		LinkedLeadID   string  `json:"linked_lead_id"`
+	}
+
+	fmt.Printf("[CreateLead] Raw body: %s\n", string(c.Body()))
+	fmt.Printf("[CreateLead] Content-Type: %s\n", c.Get("Content-Type"))
+
+	var req Request
+	if err := c.BodyParser(&req); err != nil {
+		fmt.Printf("[CreateLead] BodyParser error: %v\n", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Invalid request body",
+			"details": err.Error(),
+		})
+	}
+
+	fmt.Printf("[CreateLead] Parsed request: company=%s stage=%s value=%.2f date=%s tags=%s\n",
+		req.CompanyName, req.StageID, req.EstimatedValue, req.DueDate, req.Tags)
+
+	if req.CompanyName == "" || req.StageID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Company Name and Stage ID are required"})
+	}
+
+	lead := &domain.Lead{
+		ID:             uuid.New(),
+		Empresa:        req.CompanyName,
+		KanbanStatus:   domain.KanbanStatus(req.StageID),
+		Nicho:          req.Nicho,
+		Status:         domain.StatusCapturado,
+		EstimatedValue: req.EstimatedValue,
+		Tags:           req.Tags,
+	}
+
+	if req.DueDate != "" {
+		parsed, err := time.Parse("2006-01-02", req.DueDate)
+		if err != nil {
+			fmt.Printf("[CreateLead] DueDate parse error: %v (input: %s)\n", err, req.DueDate)
+		} else {
+			lead.DueDate = &parsed
+		}
+	}
+
+	if req.LinkedLeadID != "" {
+		parsed, err := uuid.Parse(req.LinkedLeadID)
+		if err != nil {
+			fmt.Printf("[CreateLead] LinkedLeadID parse error: %v (input: %s)\n", err, req.LinkedLeadID)
+		} else {
+			lead.LinkedLeadID = &parsed
+		}
+	}
+
+	if err := h.service.CreateLead(c.Context(), lead); err != nil {
+		fmt.Printf("[CreateLead] Service error: %v\n", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create lead", "details": err.Error()})
+	}
+
+	fmt.Printf("[CreateLead] Lead created successfully: ID=%s Empresa=%s\n", lead.ID, lead.Empresa)
+	return c.Status(fiber.StatusCreated).JSON(lead)
 }

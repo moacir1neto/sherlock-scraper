@@ -182,3 +182,34 @@ func (h *PipelineHandler) CreatePipeline(c *fiber.Ctx) error {
 
 	return c.JSON(pipeline)
 }
+
+func (h *PipelineHandler) AddStage(c *fiber.Ctx) error {
+	type Request struct {
+		PipelineID string `json:"pipeline_id"`
+		Name       string `json:"name"`
+		Color      string `json:"color"`
+	}
+
+	var req Request
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if req.PipelineID == "" || req.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Pipeline ID and Name are required"})
+	}
+
+	stage := &domain.PipelineStage{
+		Name:  req.Name,
+		Color: req.Color,
+	}
+	if stage.Color == "" {
+		stage.Color = "#3b82f6" // Default blue
+	}
+
+	if err := h.pipelineRepo.AddStage(req.PipelineID, stage); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to add stage", "details": err.Error()})
+	}
+
+	return c.JSON(stage)
+}

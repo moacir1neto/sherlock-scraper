@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Lead, KanbanStatus, ScrapingJob } from '@/types';
+import { Lead, KanbanStatus, ScrapingJob, CreateLeadPayload } from '@/types';
 
 const API_URL = () => import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 const getToken = () => localStorage.getItem('token');
@@ -43,8 +43,8 @@ export function useLeads() {
     const originalLeads = [...leads];
     
     // Optimistic update
-    setLeads(prev =>
-      prev.map(l => (l.ID === leadId ? { ...l, KanbanStatus: newStatus } : l))
+    setLeads((prev: Lead[]) =>
+      prev.map((l: Lead) => (l.ID === leadId ? { ...l, KanbanStatus: newStatus } : l))
     );
 
     try {
@@ -63,8 +63,8 @@ export function useLeads() {
     const originalLeads = [...leads];
     
     // Optimistic update
-    setLeads(prev =>
-      prev.map(l => (l.ID === updatedLead.ID ? updatedLead : l))
+    setLeads((prev: Lead[]) =>
+      prev.map((l: Lead) => (l.ID === updatedLead.ID ? updatedLead : l))
     );
 
     try {
@@ -84,7 +84,7 @@ export function useLeads() {
       await axios.delete(`${API_URL()}/protected/scrapes/${jobId}`, {
         headers: authHeaders(),
       });
-      setScrapeJobs(prev => prev.filter(job => job.ID !== jobId));
+      setScrapeJobs((prev: ScrapingJob[]) => prev.filter((job: ScrapingJob) => job.ID !== jobId));
       toast.success('Raspagem excluída com sucesso');
     } catch {
       toast.error('Falha ao excluir raspagem');
@@ -100,8 +100,8 @@ export function useLeads() {
       );
 
       // Atualiza o lead local com a análise recebida
-      setLeads(prev =>
-        prev.map(l =>
+      setLeads((prev: Lead[]) =>
+        prev.map((l: Lead) =>
           l.ID === leadId
             ? { ...l, AIAnalysis: res.data.analysis }
             : l
@@ -117,6 +117,38 @@ export function useLeads() {
     }
   }, [leads]);
 
+  const createLead = useCallback(async (data: CreateLeadPayload) => {
+    // Normalize: ensure estimated_value is a clean number, strip undefined fields
+    const payload: Record<string, unknown> = {
+      company_name: data.company_name,
+      stage_id: data.stage_id,
+    };
+    if (data.nicho) payload.nicho = data.nicho;
+    if (data.estimated_value && data.estimated_value > 0) {
+      payload.estimated_value = Number(data.estimated_value);
+    }
+    if (data.due_date) payload.due_date = data.due_date;
+    if (data.tags) payload.tags = data.tags;
+    if (data.linked_lead_id) payload.linked_lead_id = data.linked_lead_id;
+
+    try {
+      const url = `${API_URL()}/protected/leads`;
+      console.log('[createLead] POST', url, payload);
+      const res = await axios.post(url, payload, {
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      });
+      toast.success('Negócio criado com sucesso!');
+      const newLead = res.data;
+      setLeads((prev: Lead[]) => [newLead, ...prev]);
+      return newLead;
+    } catch (error: any) {
+      console.error('[createLead] Error:', error.response?.status, error.response?.data);
+      const errorMsg = error.response?.data?.error || 'Falha ao criar negócio';
+      toast.error(errorMsg);
+      return null;
+    }
+  }, []);
+
   return {
     leads,
     scrapeJobs,
@@ -125,6 +157,7 @@ export function useLeads() {
     fetchScrapeJobs,
     updateStatus,
     updateLead,
+    createLead,
     deleteScrapeJob,
     analyzeLead,
     setLeads

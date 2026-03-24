@@ -12,6 +12,7 @@ type LeadRepository interface {
 	GetByJobID(ctx context.Context, jobID string) ([]*domain.Lead, error)
 	UpdateStatus(ctx context.Context, id string, status domain.KanbanStatus) error
 	Update(ctx context.Context, lead *domain.Lead) error
+	Create(ctx context.Context, lead *domain.Lead) error
 
 	CreateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error
 	UpdateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error
@@ -22,6 +23,7 @@ type LeadRepository interface {
 
 type LeadService interface {
 	ImportCSV(ctx context.Context, csvData [][]string, nicho string, jobID *string) error
+	CreateLead(ctx context.Context, lead *domain.Lead) error
 	GetLeads(ctx context.Context) ([]*domain.Lead, error)
 	GetLeadsByJob(ctx context.Context, jobID string) ([]*domain.Lead, error)
 	ChangeStatus(ctx context.Context, id string, status domain.KanbanStatus) error

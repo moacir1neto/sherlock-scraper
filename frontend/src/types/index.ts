@@ -14,7 +14,8 @@ export type KanbanStatus =
   | 'reuniao_agendada'
   | 'negociacao'
   | 'ganho'
-  | 'perdido';
+  | 'perdido'
+  | string;
 
 export type EnrichmentStatus = 'CAPTURADO' | 'ENRIQUECENDO' | 'ENRIQUECIDO';
 
@@ -65,6 +66,20 @@ export interface Lead {
   NotasProspeccao?: string;
   ScrapingJobID?: string;
   AIAnalysis?: AIAnalysis;
+  estimated_value?: number;
+  due_date?: string;
+  tags?: string;
+  linked_lead_id?: string;
+}
+
+export interface CreateLeadPayload {
+  company_name: string;
+  stage_id: string;
+  nicho?: string;
+  estimated_value?: number;
+  due_date?: string;
+  tags?: string;
+  linked_lead_id?: string;
 }
 
 export type ScrapingStatus = 'running' | 'completed' | 'error';
@@ -80,12 +95,15 @@ export interface ScrapingJob {
 }
 
 export interface AIPipelineStage {
+  id: string;
   name: string;
   order: number;
   color: string;
 }
 
 export interface AIPipelineResponse {
-  pipeline_name: string;
+  id: string;
+  name: string;
+  pipeline_name?: string;
   stages: AIPipelineStage[];
 }

@@ -48,6 +48,10 @@ func (r *leadRepository) Update(ctx context.Context, lead *domain.Lead) error {
 	return r.db.WithContext(ctx).Save(lead).Error
 }
 
+func (r *leadRepository) Create(ctx context.Context, lead *domain.Lead) error {
+	return r.db.WithContext(ctx).Create(lead).Error
+}
+
 func (r *leadRepository) CreateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error {
 	return r.db.WithContext(ctx).Create(job).Error
 }

@@ -91,3 +91,15 @@ func (r *PipelineRepository) DeletePipeline(userID string) error {
 		return nil
 	})
 }
+
+func (r *PipelineRepository) AddStage(pipelineID string, stage *domain.PipelineStage) error {
+	var maxOrder int
+	// Get the current maximum order for stages in this pipeline
+	r.db.Model(&domain.PipelineStage{}).Where("pipeline_id = ?", pipelineID).Select("COALESCE(MAX(\"order\"), 0)").Scan(&maxOrder)
+
+	stage.ID = uuid.New().String()
+	stage.PipelineID = pipelineID
+	stage.Order = maxOrder + 1
+
+	return r.db.Create(stage).Error
+}
