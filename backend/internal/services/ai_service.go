@@ -252,9 +252,17 @@ IMPORTANTE:
 	return fmt.Sprintf("%s\n%s\n\n%s\n\n## OUTPUT ESPERADO (JSON):\n\nRetorne APENAS um JSON válido com esta estrutura exata:\n%s", baseContext, role, instructions, outputFormat)
 }
 
-// cleanJSONResponse remove markdown code blocks e espaços extras
+// cleanJSONResponse remove markdown code blocks e espaços extras, e garante que apenas o JSON seja processado
 func cleanJSONResponse(text string) string {
-	// Remove ```json e ``` se existirem
+	// Procura o primeiro '{' e o último '}' para isolar o objeto JSON
+	start := strings.Index(text, "{")
+	end := strings.LastIndex(text, "}")
+
+	if start != -1 && end != -1 && end > start {
+		return text[start : end+1]
+	}
+
+	// Fallback para remoção simples se não encontrar os delimitadores
 	text = strings.TrimPrefix(text, "```json")
 	text = strings.TrimPrefix(text, "```")
 	text = strings.TrimSuffix(text, "```")
@@ -332,11 +340,13 @@ Sua saída DEVE ser ESTRITAMENTE um JSON acompanhando exatamente o formato abaix
 		return nil, fmt.Errorf("resposta vazia da API Gemini")
 	}
 
+	log.Printf("[AIService] 📥 Resposta Bruta da Gemini: %s", resultText)
 	resultText = cleanJSONResponse(resultText)
+	fmt.Printf("[AIService] 🧹 Texto limpo para Unmarshal: %s\n", resultText)
 
 	var output AIPipelineResponse
 	if err := json.Unmarshal([]byte(resultText), &output); err != nil {
-		log.Printf("❌ Erro ao parsear resposta JSON: %v\nResposta bruta: %s", err, resultText)
+		log.Printf("[AIService] ❌ Erro ao parsear resposta JSON: %v", err)
 		return nil, fmt.Errorf("erro ao parsear resposta JSON: %w", err)
 	}
 

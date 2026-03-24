@@ -79,19 +79,29 @@ export default function DashboardHome() {
 
   useEffect(() => {
     const handleCheckPipeline = async () => {
-      // Prioritize checking the backend
-      const data = await fetchPipeline();
-      if (data) {
-        setHasPipeline(true);
-        localStorage.setItem('pipeline_generated', 'true');
-      } else {
-        // Fallback for visual mockup while DB is adjusting
+      try {
+        const data = await fetchPipeline();
+        if (data) {
+          setHasPipeline(true);
+          localStorage.setItem('pipeline_generated', 'true');
+        } else {
+          // Fallback for visual mockup while DB is adjusting
+          const local = localStorage.getItem('pipeline_generated') === 'true';
+          setHasPipeline(local);
+        }
+      } catch (error: any) {
+        if (error?.response?.status === 401) {
+          // Token inválido/expirado — redireciona para login
+          navigate('/login');
+          return;
+        }
+        // Para outros erros, fallback silencioso para localStorage
         const local = localStorage.getItem('pipeline_generated') === 'true';
         setHasPipeline(local);
       }
     };
     handleCheckPipeline();
-  }, [fetchPipeline]);
+  }, [fetchPipeline, navigate]);
 
   // Simple progress calculation based on mocked data
   const completedSteps = hasPipeline ? 1 : 0;

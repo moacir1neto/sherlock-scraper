@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -13,21 +14,35 @@ func NewPipelineRepository(db *gorm.DB) *PipelineRepository {
 	return &PipelineRepository{db: db}
 }
 
-// SavePipeline salva um Pipeline e as suas etapas usando Transaction (all or nothing)
+// SavePipeline deleta qualquer pipeline existente do usuário e salva o novo,
+// tudo dentro de uma única Transaction (all or nothing).
 func (r *PipelineRepository) SavePipeline(pipeline *domain.Pipeline) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Tenta criar o pipeline pai primeiro
-		if err := tx.Create(pipeline).Error; err != nil {
+		// 1. Busca pipeline existente para este user_id
+		var existing domain.Pipeline
+		err := tx.Where("user_id = ?", pipeline.UserID).First(&existing).Error
+		if err == nil {
+			// Pipeline encontrado — deletar stages primeiro, depois o pipeline
+			if err := tx.Where("pipeline_id = ?", existing.ID).Delete(&domain.PipelineStage{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Delete(&existing).Error; err != nil {
+				return err
+			}
+		} else if err != gorm.ErrRecordNotFound {
+			// Erro inesperado na consulta
 			return err
 		}
 
-		// Garante que o ID do pipeline recém-criado seja repassado para as etapas
+		// 2. Gera UUIDs explícitos para o pipeline e cada stage
+		pipeline.ID = uuid.New().String()
 		for i := range pipeline.Stages {
+			pipeline.Stages[i].ID = uuid.New().String()
 			pipeline.Stages[i].PipelineID = pipeline.ID
 		}
 
-		// Cria as etapas em lote baseadas na nova struct
-		if err := tx.Create(&pipeline.Stages).Error; err != nil {
+		// 3. Cria o novo pipeline com suas stages (insert único)
+		if err := tx.Create(pipeline).Error; err != nil {
 			return err
 		}
 
