@@ -78,3 +78,14 @@ export interface ScrapingJob {
   CreatedAt: string;
   UpdatedAt: string;
 }
+
+export interface AIPipelineStage {
+  name: string;
+  order: number;
+  color: string;
+}
+
+export interface AIPipelineResponse {
+  pipeline_name: string;
+  stages: AIPipelineStage[];
+}

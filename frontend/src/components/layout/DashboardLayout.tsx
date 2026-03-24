@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogOut, Menu, X, Zap, Database, Settings } from 'lucide-react';
+import { LogOut, Menu, X, Zap, Database, Settings, Home, Briefcase } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
 
@@ -16,8 +16,10 @@ const DashboardLayout: React.FC = () => {
   };
 
   const navLinks = [
+    { name: 'Início', path: '/dashboard', icon: Home },
     { name: 'Raspagens', path: '/dashboard/raspagens', icon: Zap },
     { name: 'Minhas Listas', path: '/dashboard/listas', icon: Database },
+    { name: 'Negócios', path: '/dashboard/pipeline', icon: Briefcase },
     { name: 'Configurações', path: '/dashboard/configuracoes', icon: Settings },
   ];
 
@@ -42,6 +44,7 @@ const DashboardLayout: React.FC = () => {
             <NavLink
               key={link.path}
               to={link.path}
+              end={link.path === '/dashboard'}
               className={({ isActive }) =>
                 `flex items-center px-3 py-3 rounded-xl transition-all whitespace-nowrap overflow-hidden ${
                   isActive
