@@ -84,7 +84,9 @@ func main() {
 
 	// Pipeline routes
 	protected.Get("/pipeline", pipelineHandler.GetPipeline)
+	protected.Post("/pipeline", pipelineHandler.CreatePipeline)
 	protected.Post("/pipeline/generate-ai", pipelineHandler.GenerateAIPipeline)
+	protected.Delete("/pipeline", pipelineHandler.DeletePipeline)
 
 	// Settings Routes
 	protected.Get("/settings", settingHandler.GetSettings)

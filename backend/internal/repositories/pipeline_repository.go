@@ -66,3 +66,28 @@ func (r *PipelineRepository) GetPipelineByUserID(userID string) (*domain.Pipelin
 	}
 	return &pipeline, nil
 }
+
+// DeletePipeline deleta em cascata as etapas e o pipeline de um usuário específico.
+func (r *PipelineRepository) DeletePipeline(userID string) error {
+	var pipeline domain.Pipeline
+	// Busca o pipeline do usuário primeiro
+	if err := r.db.Where("user_id = ?", userID).First(&pipeline).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil
+		}
+		return err
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Deleta as stages associadas a esse pipeline
+		if err := tx.Where("pipeline_id = ?", pipeline.ID).Delete(&domain.PipelineStage{}).Error; err != nil {
+			return err
+		}
+
+		// Deleta o pipeline
+		if err := tx.Delete(&pipeline).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}

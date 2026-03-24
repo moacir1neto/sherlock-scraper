@@ -79,9 +79,63 @@ export function usePipeline() {
     }
   }, []);
 
+  const deletePipeline = useCallback(async (): Promise<boolean> => {
+    const headers = getAuthHeaders();
+    if (!headers.Authorization) {
+      return false;
+    }
+
+    setLoading(true);
+    try {
+      await axios.delete(
+        `${API_URL()}/protected/pipeline`,
+        { headers }
+      );
+      localStorage.removeItem('pipeline_generated');
+      toast.success('Pipeline excluído com sucesso!');
+      return true;
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Falha ao excluir pipeline';
+      toast.error(errorMsg);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const createPipeline = useCallback(async (data: { name: string, stages: any[] }): Promise<AIPipelineResponse | null> => {
+    const headers = getAuthHeaders();
+    if (!headers.Authorization) {
+      return null;
+    }
+
+    setLoading(true);
+    try {
+      const res = await axios.post(
+        `${API_URL()}/protected/pipeline`,
+        data,
+        { headers }
+      );
+      localStorage.setItem('pipeline_generated', 'true');
+      toast.success('Pipeline criado com sucesso!');
+      return {
+        ...res.data,
+        pipeline_name: res.data.pipeline_name || res.data.name
+      };
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Falha ao criar pipeline';
+      toast.error(errorMsg);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     generatePipelineWithAI,
     fetchPipeline,
+    deletePipeline,
+    createPipeline,
     loading
   };
 }

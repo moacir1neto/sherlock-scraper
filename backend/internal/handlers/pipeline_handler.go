@@ -123,8 +123,61 @@ func (h *PipelineHandler) GetPipeline(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	if pipeline == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Pipeline not found"})
+	return c.JSON(pipeline)
+}
+
+func (h *PipelineHandler) DeletePipeline(c *fiber.Ctx) error {
+	userID := getUserIDFromToken(c)
+	if userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found in token"})
+	}
+
+	if err := h.pipelineRepo.DeletePipeline(userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete pipeline: " + err.Error()})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *PipelineHandler) CreatePipeline(c *fiber.Ctx) error {
+	type StageReq struct {
+		Name  string `json:"name"`
+		Order int    `json:"order"`
+		Color string `json:"color"`
+	}
+	type Request struct {
+		Name   string     `json:"name"`
+		Stages []StageReq `json:"stages"`
+	}
+
+	var req Request
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if req.Name == "" || len(req.Stages) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Name and at least one stage are required"})
+	}
+
+	userID := getUserIDFromToken(c)
+	if userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found in token"})
+	}
+
+	pipeline := &domain.Pipeline{
+		UserID: userID,
+		Name:   req.Name,
+	}
+	for _, s := range req.Stages {
+		pipeline.Stages = append(pipeline.Stages, domain.PipelineStage{
+			Name:  s.Name,
+			Order: s.Order,
+			Color: s.Color,
+		})
+	}
+
+	if err := h.pipelineRepo.SavePipeline(pipeline); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save pipeline", "details": err.Error()})
 	}
 
 	return c.JSON(pipeline)
