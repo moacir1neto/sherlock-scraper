@@ -91,10 +91,10 @@ export function useLeads() {
     }
   }, []);
 
-  const analyzeLead = useCallback(async (leadId: string) => {
+  const analyzeLead = useCallback(async (leadId: string, skill: string = 'raiox') => {
     try {
       const res = await axios.post(
-        `${API_URL()}/protected/leads/${leadId}/analyze`,
+        `${API_URL()}/protected/leads/${leadId}/analyze?skill=${skill}`,
         {},
         { headers: authHeaders() }
       );

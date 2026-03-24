@@ -18,17 +18,26 @@ export type KanbanStatus =
 
 export type EnrichmentStatus = 'CAPTURADO' | 'ENRIQUECENDO' | 'ENRIQUECIDO';
 
+export type AISkill = 'raiox' | 'email' | 'call';
+
 export interface AIAnalysis {
+  skill_used: AISkill;
   score_maturidade: number;
   classificacao: string;
-  gap_critico: string;
-  perda_estimada_mensal: string;
-  icebreaker_whatsapp: string;
-  pitch_comercial: string;
-  objecao_prevista: string;
-  resposta_objecao: string;
+  gap_critico?: string;
+  perda_estimada_mensal?: string;
+  icebreaker_whatsapp?: string;
+  pitch_comercial?: string;
+  objecao_prevista?: string;
+  resposta_objecao?: string;
   probabilidade_fechamento: string;
   proximos_passos: string[];
+  // Skill: email
+  email_subject?: string;
+  email_body?: string;
+  // Skill: call
+  call_script?: string;
+  gatekeeper_bypass?: string;
 }
 
 export interface Lead {

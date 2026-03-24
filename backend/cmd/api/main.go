@@ -47,6 +47,9 @@ func main() {
 	aiService := services.NewAIService()
 	aiHandler := handlers.NewAIHandler(aiService)
 
+	// Pipeline (CRM/Kanban)
+	pipelineHandler := handlers.NewPipelineHandler(aiService)
+
 	// Company Settings
 	settingHandler := handlers.NewSettingHandler()
 
@@ -77,6 +80,9 @@ func main() {
 	// AI Analysis Routes
 	leads.Post("/:id/analyze", aiHandler.AnalyzeLead)      // Gera análise de IA
 	leads.Get("/:id/analysis", aiHandler.GetAnalysis)      // Retorna análise salva
+
+	// Pipeline routes
+	protected.Post("/pipeline/generate-ai", pipelineHandler.GenerateAIPipeline)
 
 	// Settings Routes
 	protected.Get("/settings", settingHandler.GetSettings)

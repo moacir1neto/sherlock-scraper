@@ -18,6 +18,8 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
+  Target,
+  Mail,
 } from 'lucide-react';
 import { Lead, KanbanStatus } from '@/types';
 import { AIAnalysisView } from './AIAnalysisView';
@@ -31,7 +33,7 @@ interface LeadDetailsModalProps {
   onClose: () => void;
   onStatusChange: (leadId: string, newStatus: KanbanStatus) => void;
   onUpdateLead: (lead: Lead) => void;
-  onAnalyzeLead?: (leadId: string) => Promise<any>;
+  onAnalyzeLead?: (leadId: string, skill?: string) => Promise<any>;
 }
 
 // ──────────────────────────────────────────────
@@ -106,6 +108,8 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead,
   const [analyzingAI, setAnalyzingAI] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [strategyMenuOpen, setStrategyMenuOpen] = useState(false);
+  const strategyMenuRef = useRef<HTMLDivElement>(null);
 
   // Sync notes with lead data
   useEffect(() => {
@@ -120,12 +124,13 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead,
     }
   };
 
-  const handleAnalyzeLead = async () => {
+  const handleAnalyzeLead = async (skill: string) => {
     if (!lead || !onAnalyzeLead) return;
 
     setAnalyzingAI(true);
+    setStrategyMenuOpen(false);
     try {
-      await onAnalyzeLead(lead.ID);
+      await onAnalyzeLead(lead.ID, skill);
     } catch (error) {
       // Error já é tratado no hook com toast
     } finally {
@@ -140,11 +145,14 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead,
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
 
-  // Close status dropdown on outside click
+  // Close status & strategy dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setStatusOpen(false);
+      }
+      if (strategyMenuRef.current && !strategyMenuRef.current.contains(e.target as Node)) {
+        setStrategyMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -423,23 +431,59 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead,
                         Estratégia de IA
                       </h3>
                       {!lead.AIAnalysis && onAnalyzeLead && (
-                        <button
-                          onClick={handleAnalyzeLead}
-                          disabled={analyzingAI}
-                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20"
-                        >
-                          {analyzingAI ? (
-                            <>
-                              <Loader2 size={16} className="animate-spin" />
-                              Analisando...
-                            </>
-                          ) : (
-                            <>
-                              <Brain size={16} />
-                              Gerar Estratégia
-                            </>
-                          )}
-                        </button>
+                        <div className="relative" ref={strategyMenuRef}>
+                          <button
+                            onClick={() => setStrategyMenuOpen(!strategyMenuOpen)}
+                            disabled={analyzingAI}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20"
+                          >
+                            {analyzingAI ? (
+                              <>
+                                <Loader2 size={16} className="animate-spin" />
+                                Analisando...
+                              </>
+                            ) : (
+                              <>
+                                <Brain size={16} />
+                                Gerar Estratégia
+                                <ChevronDown size={14} className={`transition-transform ${strategyMenuOpen ? 'rotate-180' : ''}`} />
+                              </>
+                            )}
+                          </button>
+
+                          <AnimatePresence>
+                            {strategyMenuOpen && !analyzingAI && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                className="absolute right-0 bottom-[calc(100%+8px)] w-56 z-20 bg-[#121214] border border-white/10 rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.7)] py-2 backdrop-blur-2xl origin-bottom-right"
+                              >
+                                <button
+                                  onClick={() => handleAnalyzeLead('raiox')}
+                                  className="w-full flex items-center gap-3 px-4 py-3 text-xs text-left hover:bg-white/5 transition-all text-gray-300 hover:text-white group"
+                                >
+                                  <Target size={16} className="text-purple-400 group-hover:scale-110 transition-transform" />
+                                  Raio-X Comercial
+                                </button>
+                                <button
+                                  onClick={() => handleAnalyzeLead('email')}
+                                  className="w-full flex items-center gap-3 px-4 py-3 text-xs text-left hover:bg-white/5 transition-all text-gray-300 hover:text-white group"
+                                >
+                                  <Mail size={16} className="text-blue-400 group-hover:scale-110 transition-transform" />
+                                  Copy de E-mail Frio
+                                </button>
+                                <button
+                                  onClick={() => handleAnalyzeLead('call')}
+                                  className="w-full flex items-center gap-3 px-4 py-3 text-xs text-left hover:bg-white/5 transition-all text-gray-300 hover:text-white group"
+                                >
+                                  <Phone size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                                  Roteiro de Cold Call
+                                </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       )}
                     </div>
 

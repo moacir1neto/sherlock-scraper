@@ -18,7 +18,7 @@ const DashboardLayout: React.FC = () => {
   const navLinks = [
     { name: 'Raspagens', path: '/dashboard/raspagens', icon: Zap },
     { name: 'Minhas Listas', path: '/dashboard/listas', icon: Database },
-    { name: 'Configurações IA', path: '/dashboard/configuracoes', icon: Settings },
+    { name: 'Configurações', path: '/dashboard/configuracoes', icon: Settings },
   ];
 
   return (

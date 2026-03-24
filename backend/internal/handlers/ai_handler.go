@@ -29,7 +29,16 @@ func (h *AIHandler) AnalyzeLead(c *fiber.Ctx) error {
 		})
 	}
 
-	log.Printf("🤖 Recebido pedido de análise de IA para lead: %s", leadID)
+	// Ler skill da query string (default: raiox)
+	skill := c.Query("skill", "raiox")
+	if skill != "raiox" && skill != "email" && skill != "call" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "invalid skill",
+			"message": "Skills válidas: raiox, email, call",
+		})
+	}
+
+	log.Printf("🤖 Recebido pedido de análise de IA para lead: %s (skill: %s)", leadID, skill)
 
 	// A. Buscar o lead no banco
 	var lead domain.Lead
@@ -94,8 +103,8 @@ func (h *AIHandler) AnalyzeLead(c *fiber.Ctx) error {
 		}
 	}
 
-	// F. Chamar serviço de IA com contexto da empresa
-	analysis, err := h.aiService.GenerateLeadStrategy(input, settings)
+	// G. Chamar serviço de IA com contexto da empresa e skill selecionada
+	analysis, err := h.aiService.GenerateLeadStrategy(input, settings, skill)
 	if err != nil {
 		log.Printf("❌ Erro ao gerar análise de IA: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
