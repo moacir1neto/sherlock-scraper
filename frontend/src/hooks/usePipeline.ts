@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { AIPipelineResponse } from '@/types';
+import { AIPipelineResponse, PipelineSummary } from '@/types';
 
 const API_URL = () => import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
@@ -150,9 +150,47 @@ export function usePipeline() {
     }
   }, []);
 
+  const fetchAllPipelines = useCallback(async (): Promise<PipelineSummary[]> => {
+    const headers = getAuthHeaders();
+    if (!headers.Authorization) return [];
+
+    try {
+      const res = await axios.get(
+        `${API_URL()}/protected/pipeline/all`,
+        { headers }
+      );
+      return res.data.pipelines || [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const fetchPipelineById = useCallback(async (id: string): Promise<AIPipelineResponse | null> => {
+    const headers = getAuthHeaders();
+    if (!headers.Authorization) return null;
+
+    try {
+      const res = await axios.get(
+        `${API_URL()}/protected/pipeline?id=${id}`,
+        { headers }
+      );
+      if (res.data && res.data.name) {
+        return {
+          ...res.data,
+          pipeline_name: res.data.pipeline_name || res.data.name,
+        };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   return {
     generatePipelineWithAI,
     fetchPipeline,
+    fetchAllPipelines,
+    fetchPipelineById,
     deletePipeline,
     createPipeline,
     addStage,

@@ -107,3 +107,11 @@ export interface AIPipelineResponse {
   pipeline_name?: string;
   stages: AIPipelineStage[];
 }
+
+export interface PipelineSummary {
+  id: string;
+  name: string;
+  stages: AIPipelineStage[];
+  lead_count: number;
+  created_at: string;
+}

@@ -14,34 +14,15 @@ func NewPipelineRepository(db *gorm.DB) *PipelineRepository {
 	return &PipelineRepository{db: db}
 }
 
-// SavePipeline deleta qualquer pipeline existente do usuário e salva o novo,
-// tudo dentro de uma única Transaction (all or nothing).
+// SavePipeline creates a new pipeline (supports multiple pipelines per user).
 func (r *PipelineRepository) SavePipeline(pipeline *domain.Pipeline) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// 1. Busca pipeline existente para este user_id
-		var existing domain.Pipeline
-		err := tx.Where("user_id = ?", pipeline.UserID).First(&existing).Error
-		if err == nil {
-			// Pipeline encontrado — deletar stages primeiro, depois o pipeline
-			if err := tx.Where("pipeline_id = ?", existing.ID).Delete(&domain.PipelineStage{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Delete(&existing).Error; err != nil {
-				return err
-			}
-		} else if err != gorm.ErrRecordNotFound {
-			// Erro inesperado na consulta
-			return err
-		}
-
-		// 2. Gera UUIDs explícitos para o pipeline e cada stage
 		pipeline.ID = uuid.New().String()
 		for i := range pipeline.Stages {
 			pipeline.Stages[i].ID = uuid.New().String()
 			pipeline.Stages[i].PipelineID = pipeline.ID
 		}
 
-		// 3. Cria o novo pipeline com suas stages (insert único)
 		if err := tx.Create(pipeline).Error; err != nil {
 			return err
 		}
@@ -50,41 +31,98 @@ func (r *PipelineRepository) SavePipeline(pipeline *domain.Pipeline) error {
 	})
 }
 
-// GetPipelineByUserID retorna o pipeline (se existir) e já preenche as etapas em ordem
+// GetPipelineByUserID retorna o pipeline mais recente do usuário
 func (r *PipelineRepository) GetPipelineByUserID(userID string) (*domain.Pipeline, error) {
 	var pipeline domain.Pipeline
-	// Preload the stages and order them by the "order" column
 	err := r.db.Preload("Stages", func(db *gorm.DB) *gorm.DB {
-		return db.Order("pipeline_stages.order ASC")
-	}).Where("user_id = ?", userID).First(&pipeline).Error
+		return db.Order("pipeline_stages.\"order\" ASC")
+	}).Where("user_id = ?", userID).Order("created_at DESC").First(&pipeline).Error
 
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, nil // Return nil seamlessly if empty
+			return nil, nil
 		}
 		return nil, err
 	}
 	return &pipeline, nil
 }
 
-// DeletePipeline deleta em cascata as etapas e o pipeline de um usuário específico.
-func (r *PipelineRepository) DeletePipeline(userID string) error {
+// GetPipelineByID retorna um pipeline específico por ID
+func (r *PipelineRepository) GetPipelineByID(pipelineID string) (*domain.Pipeline, error) {
 	var pipeline domain.Pipeline
-	// Busca o pipeline do usuário primeiro
-	if err := r.db.Where("user_id = ?", userID).First(&pipeline).Error; err != nil {
+	err := r.db.Preload("Stages", func(db *gorm.DB) *gorm.DB {
+		return db.Order("pipeline_stages.\"order\" ASC")
+	}).Where("id = ?", pipelineID).First(&pipeline).Error
+
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
+	}
+	return &pipeline, nil
+}
+
+// GetAllPipelinesByUserID retorna todos os pipelines do usuário com contagem de leads
+func (r *PipelineRepository) GetAllPipelinesByUserID(userID string) ([]map[string]interface{}, error) {
+	var pipelines []domain.Pipeline
+	err := r.db.Preload("Stages", func(db *gorm.DB) *gorm.DB {
+		return db.Order("pipeline_stages.\"order\" ASC")
+	}).Where("user_id = ?", userID).Order("created_at DESC").Find(&pipelines).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]map[string]interface{}, 0, len(pipelines))
+	for _, p := range pipelines {
+		// Collect all stage IDs for this pipeline
+		stageIDs := make([]string, 0, len(p.Stages))
+		for _, s := range p.Stages {
+			stageIDs = append(stageIDs, s.ID)
+		}
+
+		var leadCount int64
+		if len(stageIDs) > 0 {
+			r.db.Model(&domain.Lead{}).Where("kanban_status IN ?", stageIDs).Count(&leadCount)
+		}
+
+		result = append(result, map[string]interface{}{
+			"id":         p.ID,
+			"name":       p.Name,
+			"stages":     p.Stages,
+			"lead_count": leadCount,
+			"created_at": p.CreatedAt,
+		})
+	}
+
+	return result, nil
+}
+
+// DeletePipeline deleta um pipeline específico por ID do pipeline.
+// Se pipelineID estiver vazio, deleta o mais recente do usuário (backwards compat).
+func (r *PipelineRepository) DeletePipeline(userID string, pipelineID ...string) error {
+	var pipeline domain.Pipeline
+
+	if len(pipelineID) > 0 && pipelineID[0] != "" {
+		if err := r.db.Where("id = ? AND user_id = ?", pipelineID[0], userID).First(&pipeline).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+	} else {
+		if err := r.db.Where("user_id = ?", userID).Order("created_at DESC").First(&pipeline).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
 	}
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Deleta as stages associadas a esse pipeline
 		if err := tx.Where("pipeline_id = ?", pipeline.ID).Delete(&domain.PipelineStage{}).Error; err != nil {
 			return err
 		}
-
-		// Deleta o pipeline
 		if err := tx.Delete(&pipeline).Error; err != nil {
 			return err
 		}

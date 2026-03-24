@@ -118,6 +118,16 @@ func (h *PipelineHandler) GetPipeline(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found in token"})
 	}
 
+	// Support fetching by specific ID via query param
+	pipelineID := c.Query("id")
+	if pipelineID != "" {
+		pipeline, err := h.pipelineRepo.GetPipelineByID(pipelineID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(pipeline)
+	}
+
 	pipeline, err := h.pipelineRepo.GetPipelineByUserID(userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -126,13 +136,28 @@ func (h *PipelineHandler) GetPipeline(c *fiber.Ctx) error {
 	return c.JSON(pipeline)
 }
 
+func (h *PipelineHandler) GetAllPipelines(c *fiber.Ctx) error {
+	userID := getUserIDFromToken(c)
+	if userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found in token"})
+	}
+
+	pipelines, err := h.pipelineRepo.GetAllPipelinesByUserID(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"pipelines": pipelines})
+}
+
 func (h *PipelineHandler) DeletePipeline(c *fiber.Ctx) error {
 	userID := getUserIDFromToken(c)
 	if userID == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found in token"})
 	}
 
-	if err := h.pipelineRepo.DeletePipeline(userID); err != nil {
+	pipelineID := c.Query("id")
+	if err := h.pipelineRepo.DeletePipeline(userID, pipelineID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete pipeline: " + err.Error()})
 	}
 

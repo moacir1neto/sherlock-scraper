@@ -87,6 +87,7 @@ func main() {
 
 	// Pipeline routes
 	protected.Get("/pipeline", pipelineHandler.GetPipeline)
+	protected.Get("/pipeline/all", pipelineHandler.GetAllPipelines)
 	protected.Post("/pipeline", pipelineHandler.CreatePipeline)
 	protected.Post("/pipeline/stage", pipelineHandler.AddStage)
 	protected.Post("/pipeline/generate-ai", pipelineHandler.GenerateAIPipeline)
