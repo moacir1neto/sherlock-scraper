@@ -27,6 +27,12 @@ func (r *leadRepository) GetAll(ctx context.Context) ([]*domain.Lead, error) {
 	return leads, err
 }
 
+func (r *leadRepository) GetByJobID(ctx context.Context, jobID string) ([]*domain.Lead, error) {
+	var leads []*domain.Lead
+	err := r.db.WithContext(ctx).Where("scraping_job_id = ?", jobID).Order("created_at desc").Find(&leads).Error
+	return leads, err
+}
+
 func (r *leadRepository) UpdateStatus(ctx context.Context, id string, status domain.KanbanStatus) error {
 	res := r.db.WithContext(ctx).Model(&domain.Lead{}).Where("id = ?", id).Update("kanban_status", status)
 	if res.Error != nil {
@@ -36,4 +42,42 @@ func (r *leadRepository) UpdateStatus(ctx context.Context, id string, status dom
 		return errors.New("lead not found")
 	}
 	return nil
+}
+
+func (r *leadRepository) Update(ctx context.Context, lead *domain.Lead) error {
+	return r.db.WithContext(ctx).Save(lead).Error
+}
+
+func (r *leadRepository) CreateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error {
+	return r.db.WithContext(ctx).Create(job).Error
+}
+
+func (r *leadRepository) UpdateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error {
+	return r.db.WithContext(ctx).Save(job).Error
+}
+
+func (r *leadRepository) GetScrapeJob(ctx context.Context, id string) (*domain.ScrapingJob, error) {
+	var job domain.ScrapingJob
+	err := r.db.WithContext(ctx).First(&job, "id = ?", id).Error
+	return &job, err
+}
+
+func (r *leadRepository) ListScrapeJobs(ctx context.Context) ([]*domain.ScrapingJob, error) {
+	var jobs []*domain.ScrapingJob
+	err := r.db.WithContext(ctx).Order("created_at desc").Find(&jobs).Error
+	return jobs, err
+}
+
+func (r *leadRepository) DeleteScrapeJob(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Delete leads first
+		if err := tx.Where("scraping_job_id = ?", id).Delete(&domain.Lead{}).Error; err != nil {
+			return err
+		}
+		// Delete scraping job
+		if err := tx.Where("id = ?", id).Delete(&domain.ScrapingJob{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, UploadCloud, LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, X, Zap, Database, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
 
@@ -16,8 +16,9 @@ const DashboardLayout: React.FC = () => {
   };
 
   const navLinks = [
-    { name: 'Kanban Board', path: '/dashboard/kanban', icon: LayoutDashboard },
-    { name: 'Import Leads', path: '/dashboard/import', icon: UploadCloud },
+    { name: 'Raspagens', path: '/dashboard/raspagens', icon: Zap },
+    { name: 'Minhas Listas', path: '/dashboard/listas', icon: Database },
+    { name: 'Configurações IA', path: '/dashboard/configuracoes', icon: Settings },
   ];
 
   return (

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -18,10 +19,39 @@ const (
 	StatusPerdido        KanbanStatus = "perdido"
 )
 
+type ScrapingStatus string
+
+const (
+	ScrapeRunning   ScrapingStatus = "running"
+	ScrapeCompleted ScrapingStatus = "completed"
+	ScrapeError     ScrapingStatus = "error"
+)
+
+type EnrichmentStatus string
+
+const (
+	StatusCapturado    EnrichmentStatus = "CAPTURADO"
+	StatusEnriquecendo EnrichmentStatus = "ENRIQUECENDO"
+	StatusEnriquecido  EnrichmentStatus = "ENRIQUECIDO"
+)
+
+type ScrapingJob struct {
+	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	Nicho       string         `gorm:"type:varchar(255);not null"`
+	Localizacao string         `gorm:"type:varchar(255);not null"`
+	Status      ScrapingStatus `gorm:"type:varchar(50);default:'running'"`
+	Logs        string         `gorm:"type:text"`
+	Leads       []Lead         `gorm:"foreignKey:ScrapingJobID"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Lead struct {
 	ID            uuid.UUID    `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	ScrapingJobID *uuid.UUID   `gorm:"type:uuid;index"`
 	Empresa       string       `gorm:"type:varchar(255);not null"`
-	Nota          string       `gorm:"type:varchar(50)"`
+	Nicho         string       `gorm:"type:varchar(255)"`
+	Rating        string       `gorm:"type:varchar(50)"`
 	QtdAvaliacoes string       `gorm:"type:varchar(50)"`
 	ResumoNegocio string       `gorm:"type:text"`
 	Endereco      string       `gorm:"type:varchar(500)"`
@@ -30,12 +60,18 @@ type Lead struct {
 	LinkWhatsapp  string       `gorm:"type:varchar(255)"`
 	Site          string       `gorm:"type:varchar(255)"`
 	Email         string       `gorm:"type:varchar(255)"`
-	Instagram     string       `gorm:"type:varchar(255)"`
-	Facebook      string       `gorm:"type:varchar(255)"`
-	LinkedIn      string       `gorm:"type:varchar(255)"`
-	TikTok        string       `gorm:"type:varchar(255)"`
-	YouTube       string       `gorm:"type:varchar(255)"`
-	KanbanStatus  KanbanStatus `gorm:"type:varchar(50);default:'prospeccao'"`
+	Instagram        string           `gorm:"type:varchar(255)"`
+	Facebook         string           `gorm:"type:varchar(255)"`
+	LinkedIn         string           `gorm:"type:varchar(255)"`
+	TikTok           string           `gorm:"type:varchar(255)"`
+	YouTube          string           `gorm:"type:varchar(255)"`
+	TemPixel         bool             `gorm:"default:false"`
+	TemGTM           bool             `gorm:"default:false"`
+	DeepData         datatypes.JSON   `gorm:"type:jsonb"`
+	AIAnalysis       datatypes.JSON   `gorm:"type:jsonb"`
+	Status           EnrichmentStatus `gorm:"type:varchar(50);default:'CAPTURADO'"`
+	KanbanStatus     KanbanStatus     `gorm:"type:varchar(50);default:'prospeccao'"`
+	NotasProspeccao  string           `gorm:"type:text"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -46,6 +82,9 @@ func (l *Lead) BeforeCreate(tx *gorm.DB) (err error) {
 	}
 	if l.KanbanStatus == "" {
 		l.KanbanStatus = StatusProspeccao
+	}
+	if l.Status == "" {
+		l.Status = StatusCapturado
 	}
 	return
 }

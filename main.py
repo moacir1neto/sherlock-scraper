@@ -1,6 +1,7 @@
 import time
 import re
 import csv
+import argparse
 from playwright.sync_api import sync_playwright
 
 print(r"""
@@ -11,6 +12,13 @@ print(r"""
  |____/|_| |_|\___|_|  |_|\___/ \___|_|\_\
     FASE 10: O CAÇADOR DE ELEMENTOS 🎯
 """)
+
+parser = argparse.ArgumentParser(description="Sherlock - Caçador de Leads no Google Maps")
+parser.add_argument('--nicho', required=True, help='Nicho de negócio (ex: Dentista, Advogado)')
+parser.add_argument('--localizacao', required=True, help='Cidade/região (ex: Florianópolis SC)')
+parser.add_argument('--limit', type=int, default=20, help='Quantidade máxima de leads a extrair')
+args = parser.parse_args()
+
 
 def processar_telefone(telefone_extraido):
     numeros = re.sub(r'\D', '', telefone_extraido)
@@ -88,8 +96,9 @@ def investigar_site(context, url_site):
 
 def run(playwright):
     print("="*50)
-    nicho = input("🎯 Que nicho quer prospectar? (Ex: Dentista, Advogado, Contabilidade): ")
-    cidade = input("📍 Em que cidade/região? (Ex: São Paulo SP, Centro Florianópolis): ")
+    nicho = args.nicho
+    cidade = args.localizacao
+    print(f"🎯 Nicho: {nicho} | 📍 Localização: {cidade}")
     print("="*50)
     
     termo_busca = f"{nicho} em {cidade}"
@@ -111,11 +120,7 @@ def run(playwright):
         search_box.first.fill(termo_busca, force=True)
         search_box.first.press("Enter")
 
-<<<<<<< HEAD
-        page.wait_for_selector("a[href*='/maps/place/']", timeout=15000)
-=======
         page.wait_for_selector("a[href*='/maps/place/']", timeout=60000)
->>>>>>> staging
         time.sleep(2)
 
         print("🖱️ A fazer scroll para carregar os Leads...")
@@ -142,7 +147,12 @@ def run(playwright):
                 "E-mail", "Instagram", "Facebook", "LinkedIn", "TikTok", "YouTube"
             ])
 
+            salvos = 0
             for i in range(quantidade):
+                if salvos >= args.limit:
+                    print(f"\n🎯 Limite de {args.limit} leads atingido. A finalizar...")
+                    break
+                
                 link_elemento = places.nth(i)
                 nome = link_elemento.get_attribute("aria-label")
                 
@@ -159,30 +169,47 @@ def run(playwright):
                 link_elemento.click(force=True)
                 time.sleep(2.5) 
                 
-                # --- NOVIDADE FASE 10: EXTRAÇÃO FORÇA BRUTA DE AVALIAÇÕES ---
+                # --- NOVIDADE FASE 13: SELETORES CIRÚRGICOS (NOTA + PIOR COMENTÁRIO) ---
                 nota = "-"
                 qtd_avaliacoes = "-"
+                pior_comentario = "-"
+                
                 try:
-                    # Captura TODO o texto visível no painel do mapa
-                    texto_painel = page.locator('div[role="main"]').first.inner_text()
-                    
-                    # Procura exatamente o padrão "4,8 (120)" ou "5,0(35)"
-                    match = re.search(r'([1-5][.,]\d)\s*\(([\d.]+)\)', texto_painel)
-                    if match:
-                        nota = match.group(1)
-                        qtd_avaliacoes = match.group(2).replace('.', '') # Remove o ponto se tiver mais de mil avaliações
-                    else:
-                        # Fallback de segurança
-                        reputacao_loc = page.locator('[aria-label*="estrelas"]')
-                        if reputacao_loc.count() > 0:
-                            texto_rep = reputacao_loc.first.get_attribute("aria-label")
-                            if "estrelas" in texto_rep:
-                                nota = texto_rep.split(" ")[0] 
-                            nums = re.findall(r'\d+', texto_rep.split("estrelas")[-1]) if "estrelas" in texto_rep else re.findall(r'\d+', texto_rep)
-                            if nums:
-                                qtd_avaliacoes = "".join(nums)
+                    # Opcional: Manter regex simples para qtd_avaliacoes não quebrar a coluna
+                    texto_card = link_elemento.get_attribute("aria-label") or ""
+                    m_card_qtd = re.search(r'[1-5][.,]\d\s*\((\d+[\d.,]*)\)', texto_card)
+                    if m_card_qtd:
+                        qtd_avaliacoes = m_card_qtd.group(1).replace('.', '').replace(',', '')
+
+                    # 1. Captura da Nota com seletor cirúrgico e fallback
+                    try:
+                        nota_el = page.locator('.fontDisplayLarge').first
+                        nota_el.wait_for(state="attached", timeout=2500)
+                        nota = nota_el.inner_text().strip().replace(',', '.')
+                    except:
+                        # Fallback span[aria-hidden='true'] dentro da classe .F7nice
+                        fallback_el = page.locator('.F7nice span[aria-hidden="true"]').first
+                        if fallback_el.count() > 0:
+                            nota = fallback_el.inner_text().strip().replace(',', '.')
+
+                    # 2. Captura do Pior Comentário (Resumo da Dor)
+                    try:
+                        avaliacoes = page.locator('.jftiEf').all()
+                        for ava in avaliacoes:
+                            estrelas_el = ava.locator('.kvMYJc').first
+                            if estrelas_el.count() > 0:
+                                aria = estrelas_el.get_attribute("aria-label") or ""
+                                if "1 estrela" in aria or "2 estrelas" in aria:
+                                    texto_el = ava.locator('span.wiI7pd').first
+                                    if texto_el.count() > 0:
+                                        pior_comentario = texto_el.inner_text().strip()
+                                        break
+                    except: pass
                 except Exception as e:
-                    pass
+                    print(f"⚠️ Alerta na extração do lead {nome}: {e}")
+                
+                # Debug de Engenharia
+                print(f"💎 Lead: {nome[:30]:<30} | Nota: {nota:<4} | Avaliações: {qtd_avaliacoes}")
 
                 # 2. Endereço
                 endereco_locator = page.locator('button[data-item-id="address"]')
@@ -205,12 +232,17 @@ def run(playwright):
                     site = site_locator.first.get_attribute("href")
                     dados_sociais = investigar_site(context, site)
 
+                # Substitui o resumo pela dor se tivermos achado um comentário negativo
+                if pior_comentario != "-":
+                    dados_sociais["resumo"] = pior_comentario
+
                 # Salvar a linha do CSV!
                 escritor.writerow([
                     nome, nota, qtd_avaliacoes, dados_sociais["resumo"], endereco, tel_visual, tipo_num, link_wa, site,
                     dados_sociais["email"], dados_sociais["instagram"], dados_sociais["facebook"], 
                     dados_sociais["linkedin"], dados_sociais["tiktok"], dados_sociais["youtube"]
                 ])
+                salvos += 1
 
         print("\n" + "=" * 50)
         print(f"✅ SUCESSO! FICHEIRO '{nome_arquivo}' GUARDADO COM SUCESSO!")
