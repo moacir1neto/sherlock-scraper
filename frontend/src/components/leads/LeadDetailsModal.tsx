@@ -14,8 +14,11 @@ import {
   Building2,
   ChevronDown,
   ExternalLink,
+  Brain,
+  Loader2,
 } from 'lucide-react';
 import { Lead, KanbanStatus } from '@/types';
+import { AIAnalysisView } from './AIAnalysisView';
 
 // ──────────────────────────────────────────────
 // Types
@@ -26,6 +29,7 @@ interface LeadDetailsModalProps {
   onClose: () => void;
   onStatusChange: (leadId: string, newStatus: KanbanStatus) => void;
   onUpdateLead: (lead: Lead) => void;
+  onAnalyzeLead?: (leadId: string) => Promise<any>;
 }
 
 // ──────────────────────────────────────────────
@@ -94,9 +98,10 @@ const SocialLink = ({ href, icon, label, color }: { href: string; icon: React.Re
 // ──────────────────────────────────────────────
 // Main Modal (Slide-over)
 // ──────────────────────────────────────────────
-const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead }: LeadDetailsModalProps) => {
+const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead, onAnalyzeLead }: LeadDetailsModalProps) => {
   const [statusOpen, setStatusOpen] = useState(false);
   const [notes, setNotes] = useState('');
+  const [analyzingAI, setAnalyzingAI] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Sync notes with lead data
@@ -109,6 +114,19 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead 
   const handleNotesBlur = () => {
     if (lead && notes !== lead.NotasProspeccao) {
       onUpdateLead({ ...lead, NotasProspeccao: notes });
+    }
+  };
+
+  const handleAnalyzeLead = async () => {
+    if (!lead || !onAnalyzeLead) return;
+
+    setAnalyzingAI(true);
+    try {
+      await onAnalyzeLead(lead.ID);
+    } catch (error) {
+      // Error já é tratado no hook com toast
+    } finally {
+      setAnalyzingAI(false);
     }
   };
 
@@ -382,6 +400,58 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead 
                       <SocialLink href={lead.YouTube} icon={<Youtube size={22} />} label="YouTube" color="bg-[#FF0000] text-white shadow-lg shadow-red-500/10" />
                       <SocialLink href={lead.Site} icon={<Globe size={22} />} label="Website" color="bg-white/10 text-white border border-white/10 shadow-lg shadow-white/5" />
                     </div>
+                  </div>
+                )}
+
+                {/* AI Analysis Section */}
+                {lead.Status === 'ENRIQUECIDO' && (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between px-1">
+                      <h3 className="text-[10px] text-gray-500 uppercase tracking-[0.25em] font-black border-l-2 border-purple-500 pl-3">
+                        Estratégia de IA
+                      </h3>
+                      {!lead.AIAnalysis && onAnalyzeLead && (
+                        <button
+                          onClick={handleAnalyzeLead}
+                          disabled={analyzingAI}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20"
+                        >
+                          {analyzingAI ? (
+                            <>
+                              <Loader2 size={16} className="animate-spin" />
+                              Analisando...
+                            </>
+                          ) : (
+                            <>
+                              <Brain size={16} />
+                              Gerar Estratégia
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {lead.AIAnalysis ? (
+                      <div className="rounded-3xl overflow-hidden border border-white/10 bg-gradient-to-br from-purple-500/5 to-blue-500/5">
+                        <AIAnalysisView analysis={lead.AIAnalysis} />
+                      </div>
+                    ) : (
+                      <div className="p-8 bg-white/[0.02] border border-white/10 rounded-3xl text-center">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="p-4 bg-purple-500/10 rounded-full">
+                            <Brain size={40} className="text-purple-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-400 font-semibold mb-1">
+                              Análise de IA não gerada
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              Clique em "Gerar Estratégia" para criar uma análise personalizada
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

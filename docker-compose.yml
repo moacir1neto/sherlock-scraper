@@ -26,10 +26,10 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   api:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
-    env_file:              
+    env_file:
       - ./backend/.env
     ports:
       - "3000:3000"
@@ -37,6 +37,8 @@ services:
       DATABASE_URL: "host=db user=postgres password=password dbname=crm port=5432 sslmode=disable TimeZone=America/Sao_Paulo"
       JWT_SECRET: "my_dev_super_secret"
       REDIS_ADDR: "redis:6379"
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
+      GOOGLE_PLACES_API_KEY: "${GOOGLE_PLACES_API_KEY}"
       COMPOSE_FILE: "/workspace/docker-compose.yml"
       HOST_PROJECT_PATH: "${PWD:-.}"
     volumes:

@@ -8,6 +8,19 @@ export type KanbanStatus =
 
 export type EnrichmentStatus = 'CAPTURADO' | 'ENRIQUECENDO' | 'ENRIQUECIDO';
 
+export interface AIAnalysis {
+  score_maturidade: number;
+  classificacao: string;
+  gap_critico: string;
+  perda_estimada_mensal: string;
+  icebreaker_whatsapp: string;
+  pitch_comercial: string;
+  objecao_prevista: string;
+  resposta_objecao: string;
+  probabilidade_fechamento: string;
+  proximos_passos: string[];
+}
+
 export interface Lead {
   ID: string;
   Empresa: string;
@@ -32,6 +45,7 @@ export interface Lead {
   KanbanStatus: KanbanStatus;
   NotasProspeccao?: string;
   ScrapingJobID?: string;
+  AIAnalysis?: AIAnalysis;
 }
 
 export type ScrapingStatus = 'running' | 'completed' | 'error';

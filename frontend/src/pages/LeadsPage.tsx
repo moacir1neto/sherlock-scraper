@@ -17,7 +17,7 @@ const LeadsPage: React.FC = () => {
   const [view, setView] = useState<ViewMode>('list');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { leads, scrapeJobs, loading, fetchLeads, fetchScrapeJobs, updateStatus, updateLead, setLeads } = useLeads();
+  const { leads, scrapeJobs, loading, fetchLeads, fetchScrapeJobs, updateStatus, updateLead, analyzeLead, setLeads } = useLeads();
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLead(lead);
@@ -172,6 +172,14 @@ const LeadsPage: React.FC = () => {
           if (selectedLead && selectedLead.ID === updatedLead.ID) {
             setSelectedLead(updatedLead);
           }
+        }}
+        onAnalyzeLead={async (leadId) => {
+          const analysis = await analyzeLead(leadId);
+          // Update selectedLead with new analysis
+          if (selectedLead && selectedLead.ID === leadId) {
+            setSelectedLead({ ...selectedLead, AIAnalysis: analysis });
+          }
+          return analysis;
         }}
       />
     </>

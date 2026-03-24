@@ -91,15 +91,42 @@ export function useLeads() {
     }
   }, []);
 
-  return { 
-    leads, 
-    scrapeJobs, 
-    loading, 
-    fetchLeads, 
-    fetchScrapeJobs, 
-    updateStatus, 
-    updateLead, 
+  const analyzeLead = useCallback(async (leadId: string) => {
+    try {
+      const res = await axios.post(
+        `${API_URL()}/protected/leads/${leadId}/analyze`,
+        {},
+        { headers: authHeaders() }
+      );
+
+      // Atualiza o lead local com a análise recebida
+      setLeads(prev =>
+        prev.map(l =>
+          l.ID === leadId
+            ? { ...l, AIAnalysis: res.data.analysis }
+            : l
+        )
+      );
+
+      toast.success('🤖 Análise de IA gerada com sucesso!');
+      return res.data.analysis;
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Falha ao gerar análise de IA';
+      toast.error(errorMsg);
+      throw error;
+    }
+  }, [leads]);
+
+  return {
+    leads,
+    scrapeJobs,
+    loading,
+    fetchLeads,
+    fetchScrapeJobs,
+    updateStatus,
+    updateLead,
     deleteScrapeJob,
-    setLeads 
+    analyzeLead,
+    setLeads
   };
 }

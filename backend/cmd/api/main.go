@@ -43,6 +43,10 @@ func main() {
 
 	scrapeHandler := handlers.NewScrapeHandler(leadService)
 
+	// AI Service (Google Gemini)
+	aiService := services.NewAIService()
+	aiHandler := handlers.NewAIHandler(aiService)
+
 	// 5. API Routes
 	api := app.Group("/api/v1")
 
@@ -66,6 +70,10 @@ func main() {
 	leads.Post("/upload", leadHandler.UploadCSV)
 	leads.Patch("/:id/status", leadHandler.UpdateStatus)
 	leads.Put("/:id", leadHandler.UpdateLead)
+
+	// AI Analysis Routes
+	leads.Post("/:id/analyze", aiHandler.AnalyzeLead)      // Gera análise de IA
+	leads.Get("/:id/analysis", aiHandler.GetAnalysis)      // Retorna análise salva
 
 	// Scrape Routes
 	protected.Post("/scrape", scrapeHandler.Start)
