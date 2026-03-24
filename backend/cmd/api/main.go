@@ -47,6 +47,9 @@ func main() {
 	aiService := services.NewAIService()
 	aiHandler := handlers.NewAIHandler(aiService)
 
+	// Company Settings
+	settingHandler := handlers.NewSettingHandler()
+
 	// 5. API Routes
 	api := app.Group("/api/v1")
 
@@ -74,6 +77,10 @@ func main() {
 	// AI Analysis Routes
 	leads.Post("/:id/analyze", aiHandler.AnalyzeLead)      // Gera análise de IA
 	leads.Get("/:id/analysis", aiHandler.GetAnalysis)      // Retorna análise salva
+
+	// Settings Routes
+	protected.Get("/settings", settingHandler.GetSettings)
+	protected.Put("/settings", settingHandler.UpdateSettings)
 
 	// Scrape Routes
 	protected.Post("/scrape", scrapeHandler.Start)

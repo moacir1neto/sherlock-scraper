@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import LeadsPage from '@/pages/LeadsPage';
 import ScrapingsPage from '@/pages/ScrapingsPage';
 import ListsPage from '@/pages/ListsPage';
+import SettingsPage from '@/pages/SettingsPage';
 import { useAuth } from '@/contexts/AuthContext';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -32,6 +33,7 @@ const App = () => {
         <Route path="raspagens" element={<ScrapingsPage />} />
         <Route path="listas" element={<ListsPage />} />
         <Route path="listas/:id/leads" element={<LeadsPage />} />
+        <Route path="configuracoes" element={<SettingsPage />} />
       </Route>
     </Routes>
   );

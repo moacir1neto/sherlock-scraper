@@ -25,15 +25,36 @@ func Connect() {
 
 	log.Println("Database connection successfully opened")
 
-	// Automigrate User, Lead and ScrapingJob
-	err = db.AutoMigrate(&domain.User{}, &domain.ScrapingJob{}, &domain.Lead{})
+	// Automigrate User, Lead, ScrapingJob and CompanySetting
+	err = db.AutoMigrate(&domain.User{}, &domain.ScrapingJob{}, &domain.Lead{}, &domain.CompanySetting{})
 	if err != nil {
 		log.Fatal("Failed to migrate database: \n", err)
 	}
 
 	seedDefaultUser(db)
+	seedDefaultSettings(db)
 
 	DB = db
+}
+
+func seedDefaultSettings(db *gorm.DB) {
+	var count int64
+	db.Model(&domain.CompanySetting{}).Count(&count)
+	if count == 0 {
+		log.Println("No company settings found, seeding defaults...")
+		settings := &domain.CompanySetting{
+			ID:          1,
+			CompanyName: "Sherlock Scraper",
+			Niche:       "Software House",
+			MainOffer:   "Desenvolvimento de sistemas web e mobile sob medida, com foco em automação de processos e integrações inteligentes.",
+			ToneOfVoice: "Consultivo e Direto",
+		}
+		if err := db.Create(settings).Error; err != nil {
+			log.Println("Error creating default company settings:", err)
+		} else {
+			log.Println("Default company settings created successfully")
+		}
+	}
 }
 
 func seedDefaultUser(db *gorm.DB) {

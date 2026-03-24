@@ -1,3 +1,13 @@
+export interface CompanySetting {
+  ID: number;
+  CompanyName: string;
+  Niche: string;
+  MainOffer: string;
+  ToneOfVoice: string;
+  CreatedAt: string;
+  UpdatedAt: string;
+}
+
 export type KanbanStatus =
   | 'prospeccao'
   | 'contatado'

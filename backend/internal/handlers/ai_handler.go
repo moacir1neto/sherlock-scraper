@@ -82,8 +82,20 @@ func (h *AIHandler) AnalyzeLead(c *fiber.Ctx) error {
 	log.Printf("🔍 Dados extraídos para análise: Empresa=%s, Nota=%s, Reviews=%s, Pixel=%v, GTM=%v",
 		input.Empresa, input.NotaGoogle, input.TotalReviews, input.TemPixel, input.TemGTM)
 
-	// E. Chamar serviço de IA
-	analysis, err := h.aiService.GenerateLeadStrategy(input)
+	// E. Buscar configurações da empresa para contexto da IA
+	var settings domain.CompanySetting
+	if err := database.DB.First(&settings, 1).Error; err != nil {
+		log.Printf("⚠️  CompanySetting não encontrado, usando defaults: %v", err)
+		settings = domain.CompanySetting{
+			CompanyName: "Sherlock Scraper",
+			Niche:       "Software House",
+			MainOffer:   "Desenvolvimento de sistemas web e mobile sob medida, com foco em automação de processos e integrações inteligentes.",
+			ToneOfVoice: "Consultivo e Direto",
+		}
+	}
+
+	// F. Chamar serviço de IA com contexto da empresa
+	analysis, err := h.aiService.GenerateLeadStrategy(input, settings)
 	if err != nil {
 		log.Printf("❌ Erro ao gerar análise de IA: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
