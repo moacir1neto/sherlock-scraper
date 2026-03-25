@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { 
-  CheckCircle2, 
-  Briefcase, 
-  MessageCircle, 
-  Bot, 
-  Users, 
-  Rocket, 
-  TrendingUp, 
-  DollarSign, 
-  Percent, 
-  Target 
+import {
+  CheckCircle2,
+  Briefcase,
+  MessageCircle,
+  Bot,
+  Users,
+  Rocket,
+  TrendingUp,
+  DollarSign,
+  Percent,
+  Target
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePipeline } from '@/hooks/usePipeline';
+import { useLeads } from '@/hooks/useLeads';
+import { AIPipelineResponse } from '@/types';
 
 const ONBOARDING_STEPS = [
   { 
@@ -64,18 +66,14 @@ const ONBOARDING_STEPS = [
   },
 ];
 
-const METRICS = [
-  { title: 'Pipeline Total', value: 'R$ 0,00', subtext: 'Valor estimado', icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-  { title: 'Negócios Ativos', value: '0', subtext: 'Em aberto agora', icon: Target, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-  { title: 'Conversão', value: '0%', subtext: 'Neste período', icon: Percent, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  { title: 'Faturamento', value: 'R$ 0,00', subtext: 'Neste mês', icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-];
 
 export default function DashboardHome() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { fetchPipeline } = usePipeline();
+  const { leads, fetchLeads } = useLeads();
   const [hasPipeline, setHasPipeline] = useState(false);
+  const [pipelineData, setPipelineData] = useState<AIPipelineResponse | null>(null);
 
   useEffect(() => {
     const handleCheckPipeline = async () => {
@@ -83,25 +81,44 @@ export default function DashboardHome() {
         const data = await fetchPipeline();
         if (data) {
           setHasPipeline(true);
+          setPipelineData(data);
           localStorage.setItem('pipeline_generated', 'true');
+          await fetchLeads();
         } else {
-          // Fallback for visual mockup while DB is adjusting
           const local = localStorage.getItem('pipeline_generated') === 'true';
           setHasPipeline(local);
         }
       } catch (error: any) {
         if (error?.response?.status === 401) {
-          // Token inválido/expirado — redireciona para login
           navigate('/login');
           return;
         }
-        // Para outros erros, fallback silencioso para localStorage
         const local = localStorage.getItem('pipeline_generated') === 'true';
         setHasPipeline(local);
       }
     };
     handleCheckPipeline();
-  }, [fetchPipeline, navigate]);
+  }, [fetchPipeline, fetchLeads, navigate]);
+
+  // KPI calculations
+  const metrics = useMemo(() => {
+    const stages = pipelineData?.stages || [];
+    const finalStageId = stages.length > 0 ? stages[stages.length - 1].id : null;
+    const wonLeads = finalStageId ? leads.filter((l) => l.KanbanStatus === finalStageId) : [];
+    const faturamento = wonLeads.reduce((sum, l) => sum + (l.estimated_value || 0), 0);
+    const pipelineTotal = leads.reduce((sum, l) => sum + (l.estimated_value || 0), 0);
+    const negociosAtivos = leads.length - wonLeads.length;
+    const taxaConversao = leads.length > 0 ? Math.round((wonLeads.length / leads.length) * 100) : 0;
+
+    const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    return [
+      { title: 'Pipeline Total', value: formatBRL(pipelineTotal), subtext: 'Valor estimado', icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+      { title: 'Negócios Ativos', value: String(negociosAtivos), subtext: 'Em aberto agora', icon: Target, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+      { title: 'Conversão', value: `${taxaConversao}%`, subtext: 'Neste período', icon: Percent, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+      { title: 'Faturamento', value: formatBRL(faturamento), subtext: 'Negócios ganhos', icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    ];
+  }, [leads, pipelineData]);
 
   // Simple progress calculation based on mocked data
   const completedSteps = hasPipeline ? 1 : 0;
@@ -190,7 +207,7 @@ export default function DashboardHome() {
 
       {/* Metrics Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {METRICS.map((metric, i) => (
+        {metrics.map((metric, i) => (
           <div key={i} className="bg-black/40 border border-white/5 rounded-2xl p-6 hover:bg-white/[0.02] transition-colors">
             <div className="flex items-center justify-between mb-4">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${metric.bg} ${metric.color}`}>

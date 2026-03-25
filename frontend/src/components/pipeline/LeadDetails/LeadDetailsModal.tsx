@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { Lead, AIPipelineStage } from '@/types';
 import { AnimatePresence, motion } from 'framer-motion';
+import confetti from 'canvas-confetti';
+import toast from 'react-hot-toast';
 import SidebarInfo from './SidebarInfo';
 import TabHistorico from './TabHistorico';
 import TabAtividade from './TabAtividade';
@@ -66,16 +68,41 @@ export default function LeadDetailsModal({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // Loss modal state
+  const [isLossModalOpen, setIsLossModalOpen] = useState(false);
+  const [lossReason, setLossReason] = useState('');
+  const [lossDetails, setLossDetails] = useState('');
+
   // Reset state on open
   useEffect(() => {
     if (isOpen) {
       setActiveTab('historico');
       setMoreMenuOpen(false);
       setMoveSubmenu(false);
+      setIsLossModalOpen(false);
+      setLossReason('');
+      setLossDetails('');
     }
   }, [isOpen]);
 
   if (!lead) return null;
+
+  const handleGanho = async () => {
+    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    toast.success('Negócio Fechado! 🎉');
+    const finalStage = stages[stages.length - 1];
+    if (finalStage) {
+      await onMove(lead.ID, finalStage.id);
+    }
+    setTimeout(() => onClose(), 1500);
+  };
+
+  const handleConfirmPerda = async () => {
+    toast.error('Negócio marcado como perdido.');
+    await onMove(lead.ID, 'lost');
+    setIsLossModalOpen(false);
+    onClose();
+  };
 
   const handleDelete = async () => {
     setMoreMenuOpen(false);
@@ -153,11 +180,17 @@ export default function LeadDetailsModal({
 
               {/* Right — Action Buttons */}
               <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-sm">
+                <button
+                  onClick={handleGanho}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-sm"
+                >
                   <TrendingUp size={16} />
                   Ganho
                 </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-sm">
+                <button
+                  onClick={() => setIsLossModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-sm"
+                >
                   <TrendingDown size={16} />
                   Perda
                 </button>
@@ -281,6 +314,77 @@ export default function LeadDetailsModal({
               </div>
             </div>
           </motion.div>
+
+          {/* ── Loss Mini-Modal ── */}
+          <AnimatePresence>
+            {isLossModalOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[200] flex items-center justify-center"
+              >
+                <div
+                  className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                  onClick={() => setIsLossModalOpen(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  transition={{ duration: 0.2 }}
+                  className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6"
+                >
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">
+                    Marcar negócio como perdido
+                  </h3>
+
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Motivo da perda
+                  </label>
+                  <select
+                    value={lossReason}
+                    onChange={(e) => setLossReason(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-400 transition-all mb-4"
+                  >
+                    <option value="">Selecione um motivo...</option>
+                    <option value="preco">Preço</option>
+                    <option value="concorrencia">Concorrência</option>
+                    <option value="falta_interesse">Falta de Interesse</option>
+                    <option value="sem_orcamento">Sem Orçamento</option>
+                  </select>
+
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Detalhes adicionais{' '}
+                    <span className="text-gray-400 font-normal">(opcional)</span>
+                  </label>
+                  <textarea
+                    value={lossDetails}
+                    onChange={(e) => setLossDetails(e.target.value)}
+                    placeholder="Adicione mais contexto sobre a perda..."
+                    rows={3}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 bg-gray-50 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-400 transition-all mb-6"
+                  />
+
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      onClick={() => setIsLossModalOpen(false)}
+                      className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleConfirmPerda}
+                      disabled={!lossReason}
+                      className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-500 rounded-xl transition-all active:scale-95 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Confirmar Perda
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
