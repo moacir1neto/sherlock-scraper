@@ -93,17 +93,17 @@ func (h *LeadHandler) UpdateStatus(c *fiber.Ctx) error {
 func (h *LeadHandler) UpdateLead(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if id == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "id parameter is required"})
+		return h.HandleIDRequired(c)
 	}
 
 	var lead domain.Lead
-	if err := c.BodyParser(&lead); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	if err := h.ParserLead(c, &lead); err != nil {
+		return err
 	}
 
 	parsedID, err := uuid.Parse(id)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id format"})
+		return h.HandleInvalidID(c)
 	}
 	lead.ID = parsedID
 
@@ -115,6 +115,35 @@ func (h *LeadHandler) UpdateLead(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "lead updated successfully", "lead": lead})
 }
 
+func (h *LeadHandler) DeleteLead(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "id parameter is required"})
+	}
+
+	err := h.service.DeleteLead(c.Context(), id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete lead", "details": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"message": "Lead deleted successfully"})
+}
+
+func (h *LeadHandler) HandleIDRequired(c *fiber.Ctx) error {
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "id parameter is required"})
+}
+
+func (h *LeadHandler) HandleInvalidID(c *fiber.Ctx) error {
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id format"})
+}
+
+func (h *LeadHandler) ParserLead(c *fiber.Ctx, lead *domain.Lead) error {
+	if err := c.BodyParser(lead); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	return nil
+}
+
 func (h *LeadHandler) CreateLead(c *fiber.Ctx) error {
 	type Request struct {
 		CompanyName    string  `json:"company_name"`
@@ -124,6 +153,19 @@ func (h *LeadHandler) CreateLead(c *fiber.Ctx) error {
 		DueDate        string  `json:"due_date"`
 		Tags           string  `json:"tags"`
 		LinkedLeadID   string  `json:"linked_lead_id"`
+		Endereco       string  `json:"endereco"`
+		Telefone       string  `json:"telefone"`
+		TipoTelefone   string  `json:"tipo_telefone"`
+		Email          string  `json:"email"`
+		Site           string  `json:"site"`
+		Instagram      string  `json:"instagram"`
+		Facebook       string  `json:"facebook"`
+		LinkedIn       string  `json:"linkedin"`
+		TikTok         string  `json:"tiktok"`
+		YouTube        string  `json:"youtube"`
+		ResumoNegocio  string  `json:"resumo_negocio"`
+		Rating         string  `json:"rating"`
+		QtdAvaliacoes  string  `json:"qtd_avaliacoes"`
 	}
 
 	fmt.Printf("[CreateLead] Raw body: %s\n", string(c.Body()))
@@ -153,6 +195,19 @@ func (h *LeadHandler) CreateLead(c *fiber.Ctx) error {
 		Status:         domain.StatusCapturado,
 		EstimatedValue: req.EstimatedValue,
 		Tags:           req.Tags,
+		Endereco:       req.Endereco,
+		Telefone:       req.Telefone,
+		TipoTelefone:   req.TipoTelefone,
+		Email:          req.Email,
+		Site:           req.Site,
+		Instagram:      req.Instagram,
+		Facebook:       req.Facebook,
+		LinkedIn:       req.LinkedIn,
+		TikTok:         req.TikTok,
+		YouTube:        req.YouTube,
+		ResumoNegocio:  req.ResumoNegocio,
+		Rating:         req.Rating,
+		QtdAvaliacoes:  req.QtdAvaliacoes,
 	}
 
 	if req.DueDate != "" {

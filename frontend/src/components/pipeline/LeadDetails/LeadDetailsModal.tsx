@@ -11,6 +11,7 @@ import {
   CalendarCheck,
   MessageSquare,
   StickyNote,
+  ChevronLeft,
 } from 'lucide-react';
 import { Lead, AIPipelineStage } from '@/types';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -25,6 +26,9 @@ interface LeadDetailsModalProps {
   onClose: () => void;
   lead: Lead | null;
   stages: AIPipelineStage[];
+  onDelete: (leadId: string) => Promise<boolean>;
+  onDuplicate: (lead: Lead) => Promise<Lead | null>;
+  onMove: (leadId: string, newStageId: string) => Promise<void>;
 }
 
 type TabKey = 'historico' | 'atividade' | 'mensagens' | 'observacoes';
@@ -41,9 +45,13 @@ export default function LeadDetailsModal({
   onClose,
   lead,
   stages,
+  onDelete,
+  onDuplicate,
+  onMove,
 }: LeadDetailsModalProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('historico');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [moveSubmenu, setMoveSubmenu] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
   // Close "more" dropdown on outside click
@@ -51,18 +59,42 @@ export default function LeadDetailsModal({
     const handler = (e: MouseEvent) => {
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
         setMoreMenuOpen(false);
+        setMoveSubmenu(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Reset tab on open
+  // Reset state on open
   useEffect(() => {
-    if (isOpen) setActiveTab('historico');
+    if (isOpen) {
+      setActiveTab('historico');
+      setMoreMenuOpen(false);
+      setMoveSubmenu(false);
+    }
   }, [isOpen]);
 
   if (!lead) return null;
+
+  const handleDelete = async () => {
+    setMoreMenuOpen(false);
+    const success = await onDelete(lead.ID);
+    if (success) onClose();
+  };
+
+  const handleDuplicate = async () => {
+    setMoreMenuOpen(false);
+    await onDuplicate(lead);
+    onClose();
+  };
+
+  const handleMove = async (stageId: string) => {
+    setMoreMenuOpen(false);
+    setMoveSubmenu(false);
+    await onMove(lead.ID, stageId);
+    onClose();
+  };
 
   const renderTab = () => {
     switch (activeTab) {
@@ -133,7 +165,10 @@ export default function LeadDetailsModal({
                 {/* More Dropdown */}
                 <div className="relative" ref={moreRef}>
                   <button
-                    onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                    onClick={() => {
+                      setMoreMenuOpen(!moreMenuOpen);
+                      setMoveSubmenu(false);
+                    }}
                     className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-semibold rounded-xl transition-colors"
                   >
                     Mais
@@ -144,17 +179,66 @@ export default function LeadDetailsModal({
                   </button>
 
                   {moreMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-xl py-1 z-50">
-                      <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                        <Copy size={14} /> Duplicar
-                      </button>
-                      <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                        <ArrowRightLeft size={14} /> Mover
-                      </button>
-                      <div className="h-px bg-gray-100 my-1" />
-                      <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
-                        <Trash2 size={14} /> Excluir
-                      </button>
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl py-1 z-50">
+                      {moveSubmenu ? (
+                        <>
+                          {/* Move Submenu — Stage List */}
+                          <button
+                            onClick={() => setMoveSubmenu(false)}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-gray-50 transition-colors"
+                          >
+                            <ChevronLeft size={14} />
+                            Mover para etapa
+                          </button>
+                          <div className="h-px bg-gray-100 my-1" />
+                          {stages.map((stage) => (
+                            <button
+                              key={stage.id}
+                              onClick={() => handleMove(stage.id)}
+                              disabled={stage.id === lead.KanbanStatus}
+                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                                stage.id === lead.KanbanStatus
+                                  ? 'text-gray-300 cursor-not-allowed'
+                                  : 'text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              <div
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: stage.color }}
+                              />
+                              {stage.name}
+                              {stage.id === lead.KanbanStatus && (
+                                <span className="ml-auto text-[10px] text-gray-300 font-medium">
+                                  atual
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          {/* Default Menu */}
+                          <button
+                            onClick={handleDuplicate}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            <Copy size={14} /> Duplicar
+                          </button>
+                          <button
+                            onClick={() => setMoveSubmenu(true)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            <ArrowRightLeft size={14} /> Mover
+                          </button>
+                          <div className="h-px bg-gray-100 my-1" />
+                          <button
+                            onClick={handleDelete}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 size={14} /> Excluir
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

@@ -13,6 +13,7 @@ type LeadRepository interface {
 	UpdateStatus(ctx context.Context, id string, status domain.KanbanStatus) error
 	Update(ctx context.Context, lead *domain.Lead) error
 	Create(ctx context.Context, lead *domain.Lead) error
+	Delete(ctx context.Context, id string) error
 
 	CreateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error
 	UpdateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error
@@ -28,6 +29,7 @@ type LeadService interface {
 	GetLeadsByJob(ctx context.Context, jobID string) ([]*domain.Lead, error)
 	ChangeStatus(ctx context.Context, id string, status domain.KanbanStatus) error
 	UpdateLead(ctx context.Context, lead *domain.Lead) error
+	DeleteLead(ctx context.Context, id string) error
 
 	CreateJob(ctx context.Context, nicho, localizacao string) (*domain.ScrapingJob, error)
 	UpdateJob(ctx context.Context, job *domain.ScrapingJob) error

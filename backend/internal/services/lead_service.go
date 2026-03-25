@@ -81,6 +81,10 @@ func (s *leadService) UpdateLead(ctx context.Context, lead *domain.Lead) error {
 	return s.repo.Update(ctx, lead)
 }
 
+func (s *leadService) DeleteLead(ctx context.Context, id string) error {
+	return s.repo.Delete(ctx, id)
+}
+
 func (s *leadService) CreateJob(ctx context.Context, nicho, localizacao string) (*domain.ScrapingJob, error) {
 	job := &domain.ScrapingJob{
 		Nicho:       nicho,

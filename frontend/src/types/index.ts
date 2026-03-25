@@ -80,6 +80,19 @@ export interface CreateLeadPayload {
   due_date?: string;
   tags?: string;
   linked_lead_id?: string;
+  endereco?: string;
+  telefone?: string;
+  tipo_telefone?: string;
+  email?: string;
+  site?: string;
+  instagram?: string;
+  facebook?: string;
+  linkedin?: string;
+  tiktok?: string;
+  youtube?: string;
+  resumo_negocio?: string;
+  rating?: string;
+  qtd_avaliacoes?: string;
 }
 
 export type ScrapingStatus = 'running' | 'completed' | 'error';

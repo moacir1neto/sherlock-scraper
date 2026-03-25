@@ -80,6 +80,7 @@ func main() {
 	leads.Post("/upload", leadHandler.UploadCSV)
 	leads.Patch("/:id/status", leadHandler.UpdateStatus)
 	leads.Put("/:id", leadHandler.UpdateLead)
+	leads.Delete("/:id", leadHandler.DeleteLead)
 
 	// AI Analysis Routes
 	leads.Post("/:id/analyze", aiHandler.AnalyzeLead)      // Gera análise de IA

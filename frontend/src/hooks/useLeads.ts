@@ -117,6 +117,64 @@ export function useLeads() {
     }
   }, [leads]);
 
+  const deleteLead = useCallback(async (leadId: string) => {
+    const originalLeads = [...leads];
+    setLeads((prev: Lead[]) => prev.filter((l: Lead) => l.ID !== leadId));
+
+    try {
+      await axios.delete(`${API_URL()}/protected/leads/${leadId}`, {
+        headers: authHeaders(),
+      });
+      toast.success('Negócio excluído com sucesso');
+      return true;
+    } catch {
+      toast.error('Falha ao excluir negócio. Revertendo...');
+      setLeads(originalLeads);
+      return false;
+    }
+  }, [leads]);
+
+  const duplicateLead = useCallback(async (lead: Lead) => {
+    const payload: Record<string, unknown> = {
+      company_name: `${lead.Empresa} - Cópia`,
+      stage_id: lead.KanbanStatus,
+    };
+    if (lead.Nicho) payload.nicho = lead.Nicho;
+    if (lead.estimated_value && lead.estimated_value > 0) {
+      payload.estimated_value = Number(lead.estimated_value);
+    }
+    if (lead.due_date) payload.due_date = lead.due_date;
+    if (lead.tags) payload.tags = lead.tags;
+
+    // Additional fields to copy
+    if (lead.Endereco) (payload as any).endereco = lead.Endereco;
+    if (lead.Telefone) (payload as any).telefone = lead.Telefone;
+    if (lead.TipoTelefone) (payload as any).tipo_telefone = lead.TipoTelefone;
+    if (lead.Email) (payload as any).email = lead.Email;
+    if (lead.Site) (payload as any).site = lead.Site;
+    if (lead.Instagram) (payload as any).instagram = lead.Instagram;
+    if (lead.Facebook) (payload as any).facebook = lead.Facebook;
+    if (lead.LinkedIn) (payload as any).linkedin = lead.LinkedIn;
+    if (lead.TikTok) (payload as any).tiktok = lead.TikTok;
+    if (lead.YouTube) (payload as any).youtube = lead.YouTube;
+    if (lead.ResumoNegocio) (payload as any).resumo_negocio = lead.ResumoNegocio;
+    if (lead.Rating) (payload as any).rating = lead.Rating;
+    if (lead.QtdAvaliacoes) (payload as any).qtd_avaliacoes = lead.QtdAvaliacoes;
+
+    try {
+      const res = await axios.post(`${API_URL()}/protected/leads`, payload, {
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      });
+      toast.success('Negócio duplicado com sucesso!');
+      const newLead = res.data;
+      setLeads((prev: Lead[]) => [newLead, ...prev]);
+      return newLead;
+    } catch {
+      toast.error('Falha ao duplicar negócio');
+      return null;
+    }
+  }, []);
+
   const createLead = useCallback(async (data: CreateLeadPayload) => {
     // Normalize: ensure estimated_value is a clean number, strip undefined fields
     const payload: Record<string, unknown> = {
@@ -130,6 +188,19 @@ export function useLeads() {
     if (data.due_date) payload.due_date = data.due_date;
     if (data.tags) payload.tags = data.tags;
     if (data.linked_lead_id) payload.linked_lead_id = data.linked_lead_id;
+    if (data.endereco) payload.endereco = data.endereco;
+    if (data.telefone) payload.telefone = data.telefone;
+    if (data.tipo_telefone) payload.tipo_telefone = data.tipo_telefone;
+    if (data.email) payload.email = data.email;
+    if (data.site) payload.site = data.site;
+    if (data.instagram) payload.instagram = data.instagram;
+    if (data.facebook) payload.facebook = data.facebook;
+    if (data.linkedin) payload.linkedin = data.linkedin;
+    if (data.tiktok) payload.tiktok = data.tiktok;
+    if (data.youtube) payload.youtube = data.youtube;
+    if (data.resumo_negocio) payload.resumo_negocio = data.resumo_negocio;
+    if (data.rating) payload.rating = data.rating;
+    if (data.qtd_avaliacoes) payload.qtd_avaliacoes = data.qtd_avaliacoes;
 
     try {
       const url = `${API_URL()}/protected/leads`;
@@ -158,6 +229,8 @@ export function useLeads() {
     updateStatus,
     updateLead,
     createLead,
+    deleteLead,
+    duplicateLead,
     deleteScrapeJob,
     analyzeLead,
     setLeads

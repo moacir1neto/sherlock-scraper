@@ -141,7 +141,7 @@ function DroppableColumn({
 // ── Main Pipeline Page ──
 export default function Pipeline() {
   const { fetchPipeline, fetchAllPipelines, fetchPipelineById, deletePipeline, addStage } = usePipeline();
-  const { leads, fetchLeads, createLead, updateStatus } = useLeads();
+  const { leads, fetchLeads, createLead, updateStatus, deleteLead, duplicateLead } = useLeads();
   const [pipelineState, setPipelineState] = useState<AIPipelineResponse | null>(null);
   const [allPipelines, setAllPipelines] = useState<PipelineSummary[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -155,7 +155,7 @@ export default function Pipeline() {
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: 5 },
     })
   );
 
@@ -484,6 +484,9 @@ export default function Pipeline() {
           onClose={() => setSelectedLead(null)}
           lead={selectedLead}
           stages={pipelineState.stages}
+          onDelete={deleteLead}
+          onDuplicate={duplicateLead}
+          onMove={updateStatus}
         />
       )}
 

@@ -52,6 +52,10 @@ func (r *leadRepository) Create(ctx context.Context, lead *domain.Lead) error {
 	return r.db.WithContext(ctx).Create(lead).Error
 }
 
+func (r *leadRepository) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Delete(&domain.Lead{}, "id = ?", id).Error
+}
+
 func (r *leadRepository) CreateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error {
 	return r.db.WithContext(ctx).Create(job).Error
 }
