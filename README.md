@@ -1,6 +1,6 @@
 # 🔎 Sherlock CRM — B2B Lead Management Platform
 
-> **Sistema de CRM B2B Premium** para gerenciamento de leads frios gerados automaticamente pelo robô scraper Sherlock. Stack: Python Scraper + Go API (Fiber + GORM) + React (Vite + TypeScript) + PostgreSQL — completamente containerizado com Docker.
+> **Sistema de CRM B2B Premium** para gerenciamento de leads frios gerados automaticamente pelo robô scraper Sherlock. Stack: Python Scraper + Go API (Fiber + GORM) + React (Vite + TypeScript) + PostgreSQL — completamente containerizado com Docker
 
 ---
 
