@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { LayoutList, Kanban, ChevronLeft, MapPin } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { LayoutList, Kanban, ChevronLeft, MapPin, Brain, Sparkles, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useLeads } from '@/hooks/useLeads';
 import ListView from '@/components/leads/ListView';
@@ -16,8 +16,22 @@ const LeadsPage: React.FC = () => {
   const location = useLocation();
   const [view, setView] = useState<ViewMode>('list');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { leads, scrapeJobs, loading, fetchLeads, fetchScrapeJobs, updateStatus, updateLead, analyzeLead, setLeads } = useLeads();
+  const [isBulkAnalyzing, setIsBulkAnalyzing] = useState(false);
+  
+  const { 
+    leads, 
+    scrapeJobs, 
+    loading, 
+    fetchLeads, 
+    fetchScrapeJobs, 
+    updateStatus, 
+    updateLead, 
+    analyzeLead, 
+    analyzeLeadsBulk,
+    setLeads 
+  } = useLeads();
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLead(lead);
@@ -46,8 +60,23 @@ const LeadsPage: React.FC = () => {
     fetchScrapeJobs();
     if (id) {
       fetchLeads(id);
+      setSelectedIds([]); // Clear selection when job changes
     }
   }, [fetchLeads, fetchScrapeJobs, id]);
+
+  const handleBulkAnalyze = async () => {
+    if (selectedIds.length === 0) return;
+    
+    setIsBulkAnalyzing(true);
+    try {
+      await analyzeLeadsBulk(selectedIds);
+      setSelectedIds([]);
+    } catch (error) {
+      // Error handled in useLeads
+    } finally {
+      setIsBulkAnalyzing(false);
+    }
+  };
 
   return (
     <>
@@ -93,6 +122,30 @@ const LeadsPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Bulk AI Action */}
+          <AnimatePresence>
+            {selectedIds.length > 0 && view === 'list' && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9, x: 20 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.9, x: 20 }}
+                onClick={handleBulkAnalyze}
+                disabled={isBulkAnalyzing}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-500/20 group disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isBulkAnalyzing ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Brain size={16} className="group-hover:rotate-12 transition-transform" />
+                )}
+                <span>
+                  {isBulkAnalyzing ? 'Analisando...' : `Analisar ${selectedIds.length} Leads`}
+                </span>
+                {!isBulkAnalyzing && <Sparkles size={14} className="text-white/60" />}
+              </motion.button>
+            )}
+          </AnimatePresence>
+
           {/* View Toggle */}
           <div className="flex items-center bg-black/40 border border-white/10 rounded-xl p-1 gap-1">
             <button
@@ -138,7 +191,13 @@ const LeadsPage: React.FC = () => {
               exit={{ opacity: 0, x: -10 }}
               className="h-full overflow-auto custom-scrollbar bg-black/20 border border-white/5 rounded-2xl"
             >
-              <ListView leads={leads} onStatusChange={updateStatus} onLeadClick={handleLeadClick} />
+              <ListView 
+                leads={leads} 
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+                onStatusChange={updateStatus} 
+                onLeadClick={handleLeadClick} 
+              />
             </motion.div>
           ) : (
             <motion.div
@@ -177,7 +236,7 @@ const LeadsPage: React.FC = () => {
           const analysis = await analyzeLead(leadId);
           // Update selectedLead with new analysis
           if (selectedLead && selectedLead.ID === leadId) {
-            setSelectedLead({ ...selectedLead, AIAnalysis: analysis });
+            setSelectedLead({ ...selectedLead, ai_analysis: analysis });
           }
           return analysis;
         }}

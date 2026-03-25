@@ -9,6 +9,7 @@ import (
 type LeadRepository interface {
 	CreateBatch(ctx context.Context, leads []*domain.Lead) error
 	GetAll(ctx context.Context) ([]*domain.Lead, error)
+	GetByID(ctx context.Context, id string) (*domain.Lead, error)
 	GetByJobID(ctx context.Context, jobID string) ([]*domain.Lead, error)
 	UpdateStatus(ctx context.Context, id string, status domain.KanbanStatus) error
 	Update(ctx context.Context, lead *domain.Lead) error
@@ -25,6 +26,7 @@ type LeadRepository interface {
 type LeadService interface {
 	ImportCSV(ctx context.Context, csvData [][]string, nicho string, jobID *string) error
 	CreateLead(ctx context.Context, lead *domain.Lead) error
+	GetLead(ctx context.Context, id string) (*domain.Lead, error)
 	GetLeads(ctx context.Context) ([]*domain.Lead, error)
 	GetLeadsByJob(ctx context.Context, jobID string) ([]*domain.Lead, error)
 	ChangeStatus(ctx context.Context, id string, status domain.KanbanStatus) error

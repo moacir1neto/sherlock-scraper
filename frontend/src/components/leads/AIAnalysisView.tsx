@@ -8,15 +8,13 @@ import {
   MessageCircle,
   Lightbulb,
   Target,
-  CheckCircle2,
-  Copy,
-  Check,
-  DollarSign,
   Shield,
   Sparkles,
   Mail,
   Phone,
   UserX,
+  Check, // Added for CopyButton
+  Copy, // Added for CopyButton
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -28,12 +26,12 @@ interface AIAnalysisViewProps {
 function RadialScore({ score }: { score: number }) {
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
-  const progress = (score / 10) * circumference;
+  const progress = (score / 100) * circumference;
   const offset = circumference - progress;
 
   const getColor = (s: number) => {
-    if (s >= 8) return { stroke: '#22c55e', glow: 'rgba(34,197,94,0.3)', text: 'text-green-400', label: 'text-green-500' };
-    if (s >= 5) return { stroke: '#eab308', glow: 'rgba(234,179,8,0.3)', text: 'text-yellow-400', label: 'text-yellow-500' };
+    if (s >= 80) return { stroke: '#22c55e', glow: 'rgba(34,197,94,0.3)', text: 'text-green-400', label: 'text-green-500' };
+    if (s >= 50) return { stroke: '#eab308', glow: 'rgba(234,179,8,0.3)', text: 'text-yellow-400', label: 'text-yellow-500' };
     return { stroke: '#ef4444', glow: 'rgba(239,68,68,0.3)', text: 'text-red-400', label: 'text-red-500' };
   };
 
@@ -64,7 +62,7 @@ function RadialScore({ score }: { score: number }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className={`text-3xl font-bold ${colors.text}`}>{score}</span>
-        <span className="text-[10px] text-gray-500 uppercase tracking-widest">/ 10</span>
+        <span className="text-[10px] text-gray-500 uppercase tracking-widest">/ 100</span>
       </div>
     </div>
   );
@@ -123,7 +121,7 @@ export function AIAnalysisView({ analysis }: AIAnalysisViewProps) {
     >
       {/* Header - Score + Classification */}
       <motion.div variants={fadeUp} className="flex items-center gap-6">
-        <RadialScore score={analysis.score_maturidade} />
+        <RadialScore score={analysis.score_maturidade * 10} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="w-4 h-4 text-purple-400" />

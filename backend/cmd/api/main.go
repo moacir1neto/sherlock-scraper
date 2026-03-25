@@ -83,6 +83,7 @@ func main() {
 	leads.Delete("/:id", leadHandler.DeleteLead)
 
 	// AI Analysis Routes
+	leads.Post("/analyze/bulk", aiHandler.AnalyzeLeadsBulk) // Análise em massa
 	leads.Post("/:id/analyze", aiHandler.AnalyzeLead)      // Gera análise de IA
 	leads.Get("/:id/analysis", aiHandler.GetAnalysis)      // Retorna análise salva
 

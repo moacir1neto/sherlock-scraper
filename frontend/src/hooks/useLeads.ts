@@ -103,7 +103,7 @@ export function useLeads() {
       setLeads((prev: Lead[]) =>
         prev.map((l: Lead) =>
           l.ID === leadId
-            ? { ...l, AIAnalysis: res.data.analysis }
+            ? { ...l, ai_analysis: res.data.analysis }
             : l
         )
       );
@@ -111,11 +111,32 @@ export function useLeads() {
       toast.success('🤖 Análise de IA gerada com sucesso!');
       return res.data.analysis;
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || 'Falha ao gerar análise de IA';
-      toast.error(errorMsg);
+      const backendError = error.response?.data?.error || '';
+      if (error.response?.status === 400 && backendError === 'lead is being enriched') {
+        toast.error('Este lead está sendo enriquecido no momento. Aguarde a conclusão e tente novamente.', {
+          duration: 5000,
+        });
+      } else {
+        toast.error(backendError || 'Falha ao gerar análise de IA');
+      }
       throw error;
     }
   }, [leads]);
+
+  const analyzeLeadsBulk = useCallback(async (leadIds: string[]) => {
+    try {
+      await axios.post(
+        `${API_URL()}/protected/leads/analyze/bulk`,
+        { lead_ids: leadIds },
+        { headers: authHeaders() }
+      );
+      toast.success(`${leadIds.length} leads enviados para análise neural!`);
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Falha ao processar análise em massa';
+      toast.error(errorMsg);
+      throw error;
+    }
+  }, []);
 
   const deleteLead = useCallback(async (leadId: string) => {
     const originalLeads = [...leads];
@@ -233,6 +254,7 @@ export function useLeads() {
     duplicateLead,
     deleteScrapeJob,
     analyzeLead,
+    analyzeLeadsBulk,
     setLeads
   };
 }

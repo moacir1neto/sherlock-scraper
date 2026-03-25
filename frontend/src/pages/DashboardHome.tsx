@@ -100,15 +100,18 @@ export default function DashboardHome() {
     handleCheckPipeline();
   }, [fetchPipeline, fetchLeads, navigate]);
 
-  // KPI calculations
+  // KPI calculations — only count leads that belong to a pipeline stage (actual deals)
   const metrics = useMemo(() => {
     const stages = pipelineData?.stages || [];
+    const stageIds = new Set(stages.map((s) => s.id));
+    const deals = leads.filter((l) => stageIds.has(l.KanbanStatus));
+
     const finalStageId = stages.length > 0 ? stages[stages.length - 1].id : null;
-    const wonLeads = finalStageId ? leads.filter((l) => l.KanbanStatus === finalStageId) : [];
-    const faturamento = wonLeads.reduce((sum, l) => sum + (l.estimated_value || 0), 0);
-    const pipelineTotal = leads.reduce((sum, l) => sum + (l.estimated_value || 0), 0);
-    const negociosAtivos = leads.length - wonLeads.length;
-    const taxaConversao = leads.length > 0 ? Math.round((wonLeads.length / leads.length) * 100) : 0;
+    const wonDeals = finalStageId ? deals.filter((l) => l.KanbanStatus === finalStageId) : [];
+    const faturamento = wonDeals.reduce((sum, l) => sum + (l.estimated_value || 0), 0);
+    const pipelineTotal = deals.reduce((sum, l) => sum + (l.estimated_value || 0), 0);
+    const negociosAtivos = deals.length - wonDeals.length;
+    const taxaConversao = deals.length > 0 ? Math.round((wonDeals.length / deals.length) * 100) : 0;
 
     const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 

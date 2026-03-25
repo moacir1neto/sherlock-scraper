@@ -225,6 +225,13 @@ func (h *LeadHandler) CreateLead(c *fiber.Ctx) error {
 			fmt.Printf("[CreateLead] LinkedLeadID parse error: %v (input: %s)\n", err, req.LinkedLeadID)
 		} else {
 			lead.LinkedLeadID = &parsed
+
+			// Inherit ai_analysis from linked lead if available
+			linkedLead, err := h.service.GetLead(c.Context(), parsed.String())
+			if err == nil && linkedLead != nil && len(linkedLead.AIAnalysis) > 0 {
+				lead.AIAnalysis = linkedLead.AIAnalysis
+				fmt.Printf("[CreateLead] Inherited ai_analysis from linked lead %s\n", parsed.String())
+			}
 		}
 	}
 

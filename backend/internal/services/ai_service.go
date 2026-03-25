@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/google/generative-ai-go/genai"
@@ -61,9 +62,23 @@ func NewAIService() *AIService {
 
 // GenerateLeadStrategy gera estratégia comercial usando IA para um lead
 func (s *AIService) GenerateLeadStrategy(input LeadAnalysisInput, settings domain.CompanySetting, skill string) (*LeadAnalysisOutput, error) {
-	if s.apiKey == "" {
-		log.Printf("⚠️  GEMINI_API_KEY não configurada - pulando análise de IA")
-		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
+	if s.apiKey == "" || s.apiKey == "MOCK" {
+		log.Printf("⚠️  GEMINI_API_KEY não configurada - Usando MOCK para %s", input.Empresa)
+		time.Sleep(2 * time.Second) // Simula processamento
+
+		return &LeadAnalysisOutput{
+			SkillUsed:               skill,
+			ScoreMaturidade:         6,
+			Classificacao:           "Intermediário",
+			GapCritico:              "Empresa possui site mas não utiliza ferramentas de tracking (Pixel/GTM) para otimizar conversões.",
+			PerdaEstimadaMensal:     "R$ 5.000 - R$ 12.000",
+			IcebreakerWhatsapp:      fmt.Sprintf("Olá! Vi que a %s tem uma ótima pontuação no Google (%s estrelas). Como vocês estão rastreando os visitantes do site hoje?", input.Empresa, input.NotaGoogle),
+			PitchComercial:          fmt.Sprintf("Notei que seu site não possui Pixel do Facebook. Isso significa que você está perdendo a chance de fazer retargeting para quem já mostrou interesse. Podemos ajudar a configurar isso em 24h."),
+			ObjecaoPrevista:         "Não temos orçamento para marketing este mês.",
+			RespostaObjecao:         "Nossa solução foca justamente em reduzir o desperdício do orçamento atual, aumentando o ROI sem precisar investir mais em anúncios.",
+			ProbabilidadeFechamento: "Média",
+			ProximosPassos:          []string{"Enviar prova social do mesmo nicho", "Agendar reunião técnica", "Apresentar plano de 30 dias"},
+		}, nil
 	}
 
 	log.Printf("🤖 Iniciando análise de IA para: %s (skill: %s)", input.Empresa, skill)

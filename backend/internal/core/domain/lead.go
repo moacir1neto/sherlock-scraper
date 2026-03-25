@@ -68,7 +68,7 @@ type Lead struct {
 	TemPixel         bool             `gorm:"default:false"`
 	TemGTM           bool             `gorm:"default:false"`
 	DeepData         datatypes.JSON   `gorm:"type:jsonb"`
-	AIAnalysis       datatypes.JSON   `gorm:"type:jsonb"`
+	AIAnalysis       datatypes.JSON   `json:"ai_analysis" gorm:"type:jsonb"`
 	Status           EnrichmentStatus `gorm:"type:varchar(50);default:'CAPTURADO'"`
 	KanbanStatus     KanbanStatus     `gorm:"type:varchar(50);default:'prospeccao'"`
 	NotasProspeccao  string           `gorm:"type:text"`

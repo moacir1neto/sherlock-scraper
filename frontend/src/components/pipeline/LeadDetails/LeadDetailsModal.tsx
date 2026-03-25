@@ -12,12 +12,14 @@ import {
   MessageSquare,
   StickyNote,
   ChevronLeft,
+  Brain,
 } from 'lucide-react';
 import { Lead, AIPipelineStage } from '@/types';
 import { AnimatePresence, motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import toast from 'react-hot-toast';
 import SidebarInfo from './SidebarInfo';
+import TabInteligencia from './TabInteligencia';
 import TabHistorico from './TabHistorico';
 import TabAtividade from './TabAtividade';
 import TabMensagens from './TabMensagens';
@@ -31,11 +33,13 @@ interface LeadDetailsModalProps {
   onDelete: (leadId: string) => Promise<boolean>;
   onDuplicate: (lead: Lead) => Promise<Lead | null>;
   onMove: (leadId: string, newStageId: string) => Promise<void>;
+  onAnalyze?: (leadId: string) => Promise<any>;
 }
 
-type TabKey = 'historico' | 'atividade' | 'mensagens' | 'observacoes';
+type TabKey = 'inteligencia' | 'historico' | 'atividade' | 'mensagens' | 'observacoes';
 
 const tabs: { key: TabKey; label: string; icon: React.ElementType }[] = [
+  { key: 'inteligencia', label: 'IA', icon: Brain },
   { key: 'historico', label: 'Histórico', icon: History },
   { key: 'atividade', label: 'Atividade', icon: CalendarCheck },
   { key: 'mensagens', label: 'Mensagens', icon: MessageSquare },
@@ -50,8 +54,9 @@ export default function LeadDetailsModal({
   onDelete,
   onDuplicate,
   onMove,
+  onAnalyze,
 }: LeadDetailsModalProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>('historico');
+  const [activeTab, setActiveTab] = useState<TabKey>('inteligencia');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [moveSubmenu, setMoveSubmenu] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -76,7 +81,7 @@ export default function LeadDetailsModal({
   // Reset state on open
   useEffect(() => {
     if (isOpen) {
-      setActiveTab('historico');
+      setActiveTab('inteligencia');
       setMoreMenuOpen(false);
       setMoveSubmenu(false);
       setIsLossModalOpen(false);
@@ -125,6 +130,8 @@ export default function LeadDetailsModal({
 
   const renderTab = () => {
     switch (activeTab) {
+      case 'inteligencia':
+        return <TabInteligencia lead={lead} onAnalyze={onAnalyze ? (id: string) => onAnalyze(id) : async () => {}} />;
       case 'historico':
         return <TabHistorico lead={lead} stages={stages} />;
       case 'atividade':

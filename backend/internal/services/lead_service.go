@@ -64,6 +64,10 @@ func (s *leadService) CreateLead(ctx context.Context, lead *domain.Lead) error {
 	return s.repo.Create(ctx, lead)
 }
 
+func (s *leadService) GetLead(ctx context.Context, id string) (*domain.Lead, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
 func (s *leadService) GetLeadsByJob(ctx context.Context, jobID string) ([]*domain.Lead, error) {
 	return s.repo.GetByJobID(ctx, jobID)
 }

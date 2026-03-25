@@ -27,6 +27,12 @@ func (r *leadRepository) GetAll(ctx context.Context) ([]*domain.Lead, error) {
 	return leads, err
 }
 
+func (r *leadRepository) GetByID(ctx context.Context, id string) (*domain.Lead, error) {
+	var lead domain.Lead
+	err := r.db.WithContext(ctx).First(&lead, "id = ?", id).Error
+	return &lead, err
+}
+
 func (r *leadRepository) GetByJobID(ctx context.Context, jobID string) ([]*domain.Lead, error) {
 	var leads []*domain.Lead
 	err := r.db.WithContext(ctx).Where("scraping_job_id = ?", jobID).Order("created_at desc").Find(&leads).Error

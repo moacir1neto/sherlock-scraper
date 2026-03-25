@@ -113,11 +113,36 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, onStatusChange }) => 
 
 interface ListViewProps {
   leads: Lead[];
+  selectedIds: string[];
+  onSelectionChange: (ids: string[]) => void;
   onStatusChange: (leadId: string, newStatus: KanbanStatus) => void;
   onLeadClick?: (lead: Lead) => void;
 }
 
-const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange, onLeadClick }) => {
+const ListView: React.FC<ListViewProps> = ({ 
+  leads, 
+  selectedIds, 
+  onSelectionChange, 
+  onStatusChange, 
+  onLeadClick 
+}) => {
+  const toggleSelectAll = () => {
+    if (selectedIds.length === leads.length && leads.length > 0) {
+      onSelectionChange([]);
+    } else {
+      onSelectionChange(leads.map(l => l.ID));
+    }
+  };
+
+  const toggleSelectOne = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (selectedIds.includes(id)) {
+      onSelectionChange(selectedIds.filter(i => i !== id));
+    } else {
+      onSelectionChange([...selectedIds, id]);
+    }
+  };
+
   if (leads.length === 0) {
     return (
       <div className="h-64 flex flex-col items-center justify-center text-gray-500">
@@ -131,7 +156,16 @@ const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange, onLeadClick 
     <div className="overflow-x-auto custom-scrollbar">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-xs text-gray-500 uppercase tracking-wider border-b border-white/5">
+          <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-white/5">
+            <th className="py-3 px-4 w-10">
+              <input
+                type="checkbox"
+                className="rounded border-white/10 bg-white/5 text-blue-600 focus:ring-blue-500/20 transition-all cursor-pointer"
+                checked={leads.length > 0 && selectedIds.length === leads.length}
+                onChange={toggleSelectAll}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </th>
             <th className="text-left py-3 px-4 font-semibold">Empresa</th>
             <th className="text-left py-3 px-4 font-semibold">Enriquecimento</th>
             <th className="text-left py-3 px-4 font-semibold">Status</th>
@@ -145,12 +179,24 @@ const ListView: React.FC<ListViewProps> = ({ leads, onStatusChange, onLeadClick 
         <tbody>
           {leads.map((lead, i) => {
             const whatsappUrl = lead.LinkWhatsapp || (lead.Telefone ? `https://wa.me/55${lead.Telefone.replace(/\D/g, '')}` : null);
+            const isSelected = selectedIds.includes(lead.ID);
             return (
               <tr
                 key={lead.ID}
                 onClick={() => onLeadClick?.(lead)}
-                className={`border-b border-white/5 hover:bg-white/[0.05] transition-colors ${onLeadClick ? 'cursor-pointer' : ''} ${i % 2 === 0 ? '' : 'bg-white/[0.015]'}`}
+                className={`border-b border-white/5 hover:bg-white/[0.05] transition-colors ${onLeadClick ? 'cursor-pointer' : ''} ${i % 2 === 0 ? '' : 'bg-white/[0.015]'} ${isSelected ? 'bg-blue-600/10' : ''}`}
               >
+                {/* Checkbox */}
+                <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    className="rounded border-white/10 bg-white/5 text-blue-600 focus:ring-blue-500/20 transition-all cursor-pointer"
+                    checked={isSelected}
+                    onChange={() => {}} // Controlled by onClick on td or row
+                    onClick={(e) => toggleSelectOne(e, lead.ID)}
+                  />
+                </td>
+
                 {/* Empresa */}
                 <td className="py-3.5 px-4 w-1/4">
                   <div className="font-medium text-white max-w-[200px] truncate" title={lead.Empresa}>

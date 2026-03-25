@@ -65,7 +65,7 @@ export interface Lead {
   KanbanStatus: KanbanStatus;
   NotasProspeccao?: string;
   ScrapingJobID?: string;
-  AIAnalysis?: AIAnalysis;
+  ai_analysis?: AIAnalysis;
   estimated_value?: number;
   due_date?: string;
   tags?: string;

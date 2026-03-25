@@ -141,7 +141,7 @@ function DroppableColumn({
 // ── Main Pipeline Page ──
 export default function Pipeline() {
   const { fetchPipeline, fetchAllPipelines, fetchPipelineById, deletePipeline, addStage } = usePipeline();
-  const { leads, fetchLeads, createLead, updateStatus, deleteLead, duplicateLead } = useLeads();
+  const { leads, fetchLeads, createLead, updateStatus, deleteLead, duplicateLead, analyzeLead } = useLeads();
   const [pipelineState, setPipelineState] = useState<AIPipelineResponse | null>(null);
   const [allPipelines, setAllPipelines] = useState<PipelineSummary[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -487,6 +487,13 @@ export default function Pipeline() {
           onDelete={deleteLead}
           onDuplicate={duplicateLead}
           onMove={updateStatus}
+          onAnalyze={async (leadId) => {
+            const analysis = await analyzeLead(leadId);
+            if (selectedLead && selectedLead.ID === leadId) {
+              setSelectedLead({ ...selectedLead, ai_analysis: analysis });
+            }
+            return analysis;
+          }}
         />
       )}
 
@@ -516,7 +523,17 @@ export default function Pipeline() {
                     {columnLeads.length > 0 ? (
                       <div className="space-y-3">
                         {columnLeads.map((lead: Lead) => (
-                          <DraggableLeadCard key={lead.ID} lead={lead} onClick={() => setSelectedLead(lead)} />
+                          <DraggableLeadCard key={lead.ID} lead={lead} onClick={() => {
+                            // If deal has a linked lead with ai_analysis, inherit it
+                            if (!lead.ai_analysis && lead.linked_lead_id) {
+                              const linkedLead = leads.find((l: Lead) => l.ID === lead.linked_lead_id);
+                              if (linkedLead?.ai_analysis) {
+                                setSelectedLead({ ...lead, ai_analysis: linkedLead.ai_analysis });
+                                return;
+                              }
+                            }
+                            setSelectedLead(lead);
+                          }} />
                         ))}
                       </div>
                     ) : (
