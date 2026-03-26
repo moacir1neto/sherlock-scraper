@@ -1,13 +1,17 @@
-import { Mail, Phone, Plus, Building2, User } from 'lucide-react';
+import { useState } from 'react';
+import { Mail, Phone, Plus, Building2, User, Search, Loader2 } from 'lucide-react';
 import { Lead, AIPipelineStage } from '@/types';
 
 interface SidebarInfoProps {
   lead: Lead;
   stages: AIPipelineStage[];
+  onEnrichCNPJ?: (leadId: string) => Promise<any>;
 }
 
-export default function SidebarInfo({ lead, stages }: SidebarInfoProps) {
+export default function SidebarInfo({ lead, stages, onEnrichCNPJ }: SidebarInfoProps) {
   const currentStage = stages.find((s) => s.id === lead.KanbanStatus);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [localCNPJ, setLocalCNPJ] = useState(lead.CNPJ || '');
 
   const formatBRL = (value?: number) => {
     if (!value) return 'R$ 0,00';
@@ -18,6 +22,23 @@ export default function SidebarInfo({ lead, stages }: SidebarInfoProps) {
   };
 
   const initial = lead.Empresa?.charAt(0)?.toUpperCase() || '?';
+
+  const handleEnrichCNPJ = async () => {
+    if (!onEnrichCNPJ) return;
+    setCnpjLoading(true);
+    try {
+      const result = await onEnrichCNPJ(lead.ID);
+      if (result?.cnpj) {
+        setLocalCNPJ(result.cnpj);
+      }
+    } catch {
+      // Error handled by toast in hook
+    } finally {
+      setCnpjLoading(false);
+    }
+  };
+
+  const displayCNPJ = localCNPJ || lead.CNPJ;
 
   return (
     <div className="space-y-5">
@@ -149,9 +170,32 @@ export default function SidebarInfo({ lead, stages }: SidebarInfoProps) {
           </span>
         </div>
 
+        {/* CNPJ with search button */}
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-500">CNPJ</span>
-          <span className="text-sm text-gray-400 italic">Não informado</span>
+          {displayCNPJ ? (
+            <span className="text-sm font-mono font-medium text-gray-700">
+              {displayCNPJ}
+            </span>
+          ) : (
+            <button
+              onClick={handleEnrichCNPJ}
+              disabled={cnpjLoading || !onEnrichCNPJ}
+              className="text-xs text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {cnpjLoading ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  Buscando...
+                </>
+              ) : (
+                <>
+                  <Search size={12} />
+                  Buscar CNPJ
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {lead.Site && (

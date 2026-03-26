@@ -226,11 +226,70 @@ func (h *LeadHandler) CreateLead(c *fiber.Ctx) error {
 		} else {
 			lead.LinkedLeadID = &parsed
 
-			// Inherit ai_analysis from linked lead if available
+			// Inherit data from linked lead if available
 			linkedLead, err := h.service.GetLead(c.Context(), parsed.String())
-			if err == nil && linkedLead != nil && len(linkedLead.AIAnalysis) > 0 {
-				lead.AIAnalysis = linkedLead.AIAnalysis
-				fmt.Printf("[CreateLead] Inherited ai_analysis from linked lead %s\n", parsed.String())
+			if err == nil && linkedLead != nil {
+				// Inherit ai_analysis
+				if len(linkedLead.AIAnalysis) > 0 {
+					lead.AIAnalysis = linkedLead.AIAnalysis
+				}
+				// Inherit contact & company data (only if not provided in the request)
+				if lead.Endereco == "" && linkedLead.Endereco != "" {
+					lead.Endereco = linkedLead.Endereco
+				}
+				if lead.Telefone == "" && linkedLead.Telefone != "" {
+					lead.Telefone = linkedLead.Telefone
+					lead.TipoTelefone = linkedLead.TipoTelefone
+				}
+				if lead.LinkWhatsapp == "" && linkedLead.LinkWhatsapp != "" {
+					lead.LinkWhatsapp = linkedLead.LinkWhatsapp
+				}
+				if lead.Email == "" && linkedLead.Email != "" {
+					lead.Email = linkedLead.Email
+				}
+				if lead.Site == "" && linkedLead.Site != "" {
+					lead.Site = linkedLead.Site
+				}
+				if lead.Instagram == "" && linkedLead.Instagram != "" {
+					lead.Instagram = linkedLead.Instagram
+				}
+				if lead.Facebook == "" && linkedLead.Facebook != "" {
+					lead.Facebook = linkedLead.Facebook
+				}
+				if lead.LinkedIn == "" && linkedLead.LinkedIn != "" {
+					lead.LinkedIn = linkedLead.LinkedIn
+				}
+				if lead.TikTok == "" && linkedLead.TikTok != "" {
+					lead.TikTok = linkedLead.TikTok
+				}
+				if lead.YouTube == "" && linkedLead.YouTube != "" {
+					lead.YouTube = linkedLead.YouTube
+				}
+				if lead.ResumoNegocio == "" && linkedLead.ResumoNegocio != "" {
+					lead.ResumoNegocio = linkedLead.ResumoNegocio
+				}
+				if lead.Rating == "" && linkedLead.Rating != "" {
+					lead.Rating = linkedLead.Rating
+				}
+				if lead.QtdAvaliacoes == "" && linkedLead.QtdAvaliacoes != "" {
+					lead.QtdAvaliacoes = linkedLead.QtdAvaliacoes
+				}
+				if lead.Nicho == "" && linkedLead.Nicho != "" {
+					lead.Nicho = linkedLead.Nicho
+				}
+				if !lead.TemPixel && linkedLead.TemPixel {
+					lead.TemPixel = linkedLead.TemPixel
+				}
+				if !lead.TemGTM && linkedLead.TemGTM {
+					lead.TemGTM = linkedLead.TemGTM
+				}
+				if lead.DeepData == nil && linkedLead.DeepData != nil {
+					lead.DeepData = linkedLead.DeepData
+				}
+				if lead.CNPJ == "" && linkedLead.CNPJ != "" {
+					lead.CNPJ = linkedLead.CNPJ
+				}
+				fmt.Printf("[CreateLead] Inherited data from linked lead %s\n", parsed.String())
 			}
 		}
 	}

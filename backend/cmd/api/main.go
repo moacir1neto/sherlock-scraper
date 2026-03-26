@@ -53,6 +53,10 @@ func main() {
 	pipelineRepo := repositories.NewPipelineRepository(database.DB)
 	pipelineHandler := handlers.NewPipelineHandler(aiService, pipelineRepo)
 
+	// CNPJ Enrichment Service
+	cnpjService := services.NewCNPJService(leadService)
+	cnpjHandler := handlers.NewCNPJHandler(cnpjService)
+
 	// Company Settings
 	settingHandler := handlers.NewSettingHandler()
 
@@ -86,6 +90,10 @@ func main() {
 	leads.Post("/analyze/bulk", aiHandler.AnalyzeLeadsBulk) // Análise em massa
 	leads.Post("/:id/analyze", aiHandler.AnalyzeLead)      // Gera análise de IA
 	leads.Get("/:id/analysis", aiHandler.GetAnalysis)      // Retorna análise salva
+
+	// CNPJ Enrichment Routes
+	leads.Post("/:id/enrich-cnpj", cnpjHandler.EnrichCNPJ)       // Busca CNPJ por nome
+	leads.Post("/:id/validate-cnpj", cnpjHandler.ValidateCNPJ)   // Valida CNPJ existente
 
 	// Pipeline routes
 	protected.Get("/pipeline", pipelineHandler.GetPipeline)

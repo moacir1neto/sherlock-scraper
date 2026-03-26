@@ -141,7 +141,7 @@ function DroppableColumn({
 // ── Main Pipeline Page ──
 export default function Pipeline() {
   const { fetchPipeline, fetchAllPipelines, fetchPipelineById, deletePipeline, addStage } = usePipeline();
-  const { leads, fetchLeads, createLead, updateStatus, deleteLead, duplicateLead, analyzeLead } = useLeads();
+  const { leads, fetchLeads, createLead, updateStatus, deleteLead, duplicateLead, analyzeLead, enrichCNPJ } = useLeads();
   const [pipelineState, setPipelineState] = useState<AIPipelineResponse | null>(null);
   const [allPipelines, setAllPipelines] = useState<PipelineSummary[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -493,6 +493,13 @@ export default function Pipeline() {
               setSelectedLead({ ...selectedLead, ai_analysis: analysis });
             }
             return analysis;
+          }}
+          onEnrichCNPJ={async (leadId) => {
+            const result = await enrichCNPJ(leadId);
+            if (selectedLead && selectedLead.ID === leadId && result?.cnpj) {
+              setSelectedLead({ ...selectedLead, CNPJ: result.cnpj });
+            }
+            return result;
           }}
         />
       )}

@@ -34,6 +34,7 @@ interface LeadDetailsModalProps {
   onDuplicate: (lead: Lead) => Promise<Lead | null>;
   onMove: (leadId: string, newStageId: string) => Promise<void>;
   onAnalyze?: (leadId: string) => Promise<any>;
+  onEnrichCNPJ?: (leadId: string) => Promise<any>;
 }
 
 type TabKey = 'inteligencia' | 'historico' | 'atividade' | 'mensagens' | 'observacoes';
@@ -55,6 +56,7 @@ export default function LeadDetailsModal({
   onDuplicate,
   onMove,
   onAnalyze,
+  onEnrichCNPJ,
 }: LeadDetailsModalProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('inteligencia');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -317,7 +319,7 @@ export default function LeadDetailsModal({
 
               {/* Sidebar (Right) */}
               <div className="overflow-y-auto p-5 bg-gray-50">
-                <SidebarInfo lead={lead} stages={stages} />
+                <SidebarInfo lead={lead} stages={stages} onEnrichCNPJ={onEnrichCNPJ} />
               </div>
             </div>
           </motion.div>

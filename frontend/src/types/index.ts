@@ -59,6 +59,7 @@ export interface Lead {
   LinkedIn: string;
   TikTok: string;
   YouTube: string;
+  CNPJ: string;
   TemPixel: boolean;
   TemGTM: boolean;
   Status: EnrichmentStatus;

@@ -126,6 +126,24 @@ export default function LeadCreateModal({
       linked_lead_id: linkedLeadId || undefined,
     };
 
+    // If linked to a lead, inherit its contact & company data
+    if (selectedLead) {
+      if (selectedLead.Endereco) payload.endereco = selectedLead.Endereco;
+      if (selectedLead.Telefone) payload.telefone = selectedLead.Telefone;
+      if (selectedLead.TipoTelefone) payload.tipo_telefone = selectedLead.TipoTelefone;
+      if (selectedLead.Email) payload.email = selectedLead.Email;
+      if (selectedLead.Site) payload.site = selectedLead.Site;
+      if (selectedLead.Instagram) payload.instagram = selectedLead.Instagram;
+      if (selectedLead.Facebook) payload.facebook = selectedLead.Facebook;
+      if (selectedLead.LinkedIn) payload.linkedin = selectedLead.LinkedIn;
+      if (selectedLead.TikTok) payload.tiktok = selectedLead.TikTok;
+      if (selectedLead.YouTube) payload.youtube = selectedLead.YouTube;
+      if (selectedLead.ResumoNegocio) payload.resumo_negocio = selectedLead.ResumoNegocio;
+      if (selectedLead.Rating) payload.rating = selectedLead.Rating;
+      if (selectedLead.QtdAvaliacoes) payload.qtd_avaliacoes = selectedLead.QtdAvaliacoes;
+      if (selectedLead.Nicho) payload.nicho = selectedLead.Nicho;
+    }
+
     const result = await onSubmit(payload);
     if (result) {
       handleClose();

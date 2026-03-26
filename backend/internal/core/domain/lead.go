@@ -65,6 +65,7 @@ type Lead struct {
 	LinkedIn         string           `gorm:"type:varchar(255)"`
 	TikTok           string           `gorm:"type:varchar(255)"`
 	YouTube          string           `gorm:"type:varchar(255)"`
+	CNPJ             string           `gorm:"type:varchar(20)"`
 	TemPixel         bool             `gorm:"default:false"`
 	TemGTM           bool             `gorm:"default:false"`
 	DeepData         datatypes.JSON   `gorm:"type:jsonb"`

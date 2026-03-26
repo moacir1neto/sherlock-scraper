@@ -241,6 +241,33 @@ export function useLeads() {
     }
   }, []);
 
+  const enrichCNPJ = useCallback(async (leadId: string) => {
+    try {
+      const res = await axios.post(
+        `${API_URL()}/protected/leads/${leadId}/enrich-cnpj`,
+        {},
+        { headers: authHeaders() }
+      );
+
+      const cnpj = res.data.result?.cnpj;
+      if (cnpj) {
+        // Update local lead state with the new CNPJ
+        setLeads((prev: Lead[]) =>
+          prev.map((l: Lead) =>
+            l.ID === leadId ? { ...l, CNPJ: cnpj } : l
+          )
+        );
+        toast.success(`CNPJ encontrado: ${cnpj}`);
+      }
+
+      return res.data.result;
+    } catch (error: any) {
+      const msg = error.response?.data?.message || 'CNPJ não encontrado';
+      toast.error(msg);
+      throw error;
+    }
+  }, []);
+
   return {
     leads,
     scrapeJobs,
@@ -255,6 +282,7 @@ export function useLeads() {
     deleteScrapeJob,
     analyzeLead,
     analyzeLeadsBulk,
+    enrichCNPJ,
     setLeads
   };
 }
