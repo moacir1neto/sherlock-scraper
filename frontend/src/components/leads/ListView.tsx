@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Lead, KanbanStatus, EnrichmentStatus } from '@/types';
-import { Star, MapPin, Phone, ExternalLink, MessageCircle, ChevronDown, Loader2, Sparkles, Database } from 'lucide-react';
+import { Star, MapPin, Phone, ExternalLink, MessageCircle, ChevronDown, Loader2, Sparkles, Database, Brain } from 'lucide-react';
 
 const STATUS_CONFIG: Record<KanbanStatus, { label: string; color: string; bg: string }> = {
   prospeccao:      { label: 'Prospecção',        color: 'text-blue-400',   bg: 'bg-blue-500/15 border-blue-500/30' },
@@ -38,9 +38,10 @@ interface EnrichmentBadgeProps {
   status: EnrichmentStatus;
   hasPixel?: boolean;
   hasGTM?: boolean;
+  hasAiAnalysis?: boolean;
 }
 
-const EnrichmentBadge: React.FC<EnrichmentBadgeProps> = ({ status, hasPixel, hasGTM }) => {
+const EnrichmentBadge: React.FC<EnrichmentBadgeProps> = ({ status, hasPixel, hasGTM, hasAiAnalysis }) => {
   const cfg = ENRICHMENT_CONFIG[status];
 
   return (
@@ -63,6 +64,15 @@ const EnrichmentBadge: React.FC<EnrichmentBadgeProps> = ({ status, hasPixel, has
               GTM
             </div>
           )}
+        </div>
+      )}
+      {hasAiAnalysis && (
+        <div
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30"
+          title="Dossiê de IA gerado"
+        >
+          <Brain size={10} />
+          IA
         </div>
       )}
     </div>
@@ -215,6 +225,7 @@ const ListView: React.FC<ListViewProps> = ({
                     status={lead.Status || 'CAPTURADO'}
                     hasPixel={lead.TemPixel}
                     hasGTM={lead.TemGTM}
+                    hasAiAnalysis={!!lead.ai_analysis}
                   />
                 </td>
 

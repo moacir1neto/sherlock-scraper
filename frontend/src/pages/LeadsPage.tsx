@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { LayoutList, Kanban, ChevronLeft, MapPin, Brain, Sparkles, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useLeads } from '@/hooks/useLeads';
@@ -66,11 +67,38 @@ const LeadsPage: React.FC = () => {
 
   const handleBulkAnalyze = async () => {
     if (selectedIds.length === 0) return;
-    
+
+    // Filter out leads that already have an AI dossier
+    const idsWithoutDossier = selectedIds.filter(
+      (sid) => !leads.find((l) => l.ID === sid)?.ai_analysis
+    );
+
+    if (idsWithoutDossier.length === 0) {
+      toast('Todos os leads selecionados já possuem Dossiê de IA.', {
+        icon: '✅',
+        style: { borderRadius: '12px', background: '#1e1b4b', color: '#fff' },
+      });
+      return;
+    }
+
+    const skipped = selectedIds.length - idsWithoutDossier.length;
+
     setIsBulkAnalyzing(true);
+    toast(
+      `A IA está analisando ${idsWithoutDossier.length} leads.${skipped > 0 ? ` ${skipped} já analisado(s) foram ignorados.` : ''} Isso pode levar alguns segundos...`,
+      {
+        icon: '🧠',
+        style: { borderRadius: '12px', background: '#1e1b4b', color: '#fff' },
+        duration: 5000,
+      }
+    );
+
     try {
-      await analyzeLeadsBulk(selectedIds);
+      await analyzeLeadsBulk(idsWithoutDossier);
       setSelectedIds([]);
+      if (id) {
+        await fetchLeads(id);
+      }
     } catch (error) {
       // Error handled in useLeads
     } finally {

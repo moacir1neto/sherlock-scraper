@@ -67,13 +67,24 @@ func (h *AIHandler) AnalyzeLead(c *fiber.Ctx) error {
 		}
 	}
 
-	// D. Montar input para análise de IA
+	// D. Montar input para análise de IA (ENRIQUECIDO)
 	input := services.LeadAnalysisInput{
-		Empresa:  lead.Empresa,
-		Nicho:    lead.Nicho,
-		Site:     lead.Site,
-		TemPixel: lead.TemPixel,
-		TemGTM:   lead.TemGTM,
+		Empresa:       lead.Empresa,
+		Nicho:         lead.Nicho,
+		Site:          lead.Site,
+		TemPixel:      lead.TemPixel,
+		TemGTM:        lead.TemGTM,
+		Endereco:      lead.Endereco,
+		Telefone:      lead.Telefone,
+		TipoTelefone:  lead.TipoTelefone,
+		LinkWhatsapp:  lead.LinkWhatsapp,
+		Email:         lead.Email,
+		ResumoNegocio: lead.ResumoNegocio,
+		InstagramURL:  lead.Instagram,
+		FacebookURL:   lead.Facebook,
+		LinkedInURL:   lead.LinkedIn,
+		TikTokURL:     lead.TikTok,
+		YouTubeURL:    lead.YouTube,
 	}
 
 	// Extrai dados do Google Reviews (se existir)
@@ -83,13 +94,17 @@ func (h *AIHandler) AnalyzeLead(c *fiber.Ctx) error {
 		input.ComentariosRecentes = deepData.Google.ComentariosRecentes
 	}
 
-	// Extrai bio do Instagram (se existir)
+	// Extrai dados enriquecidos do Instagram (se existir)
 	if deepData.Instagram != nil {
 		input.BioInstagram = deepData.Instagram.Bio
+		input.SeguidoresInstagram = deepData.Instagram.Followers
+		input.SeguindoInstagram = deepData.Instagram.Following
+		input.PostsRecentes = deepData.Instagram.Posts
+		input.UltimoPostData = deepData.Instagram.LastPostDate
 	}
 
-	log.Printf("🔍 Dados extraídos para análise: Empresa=%s, Nota=%s, Reviews=%s, Pixel=%v, GTM=%v",
-		input.Empresa, input.NotaGoogle, input.TotalReviews, input.TemPixel, input.TemGTM)
+	log.Printf("🔍 Dados extraídos para análise: Empresa=%s, Nota=%s, Reviews=%s, Pixel=%v, GTM=%v, Endereco=%s, Tel=%s",
+		input.Empresa, input.NotaGoogle, input.TotalReviews, input.TemPixel, input.TemGTM, input.Endereco, input.Telefone)
 
 	// E. Buscar configurações da empresa para contexto da IA
 	var settings domain.CompanySetting
@@ -210,13 +225,24 @@ func (h *AIHandler) AnalyzeLeadsBulk(c *fiber.Ctx) error {
 			json.Unmarshal(lead.DeepData, &deepData)
 		}
 
-		// Montar input
+		// Montar input (ENRIQUECIDO)
 		input := services.LeadAnalysisInput{
-			Empresa:  lead.Empresa,
-			Nicho:    lead.Nicho,
-			Site:     lead.Site,
-			TemPixel: lead.TemPixel,
-			TemGTM:   lead.TemGTM,
+			Empresa:       lead.Empresa,
+			Nicho:         lead.Nicho,
+			Site:          lead.Site,
+			TemPixel:      lead.TemPixel,
+			TemGTM:        lead.TemGTM,
+			Endereco:      lead.Endereco,
+			Telefone:      lead.Telefone,
+			TipoTelefone:  lead.TipoTelefone,
+			LinkWhatsapp:  lead.LinkWhatsapp,
+			Email:         lead.Email,
+			ResumoNegocio: lead.ResumoNegocio,
+			InstagramURL:  lead.Instagram,
+			FacebookURL:   lead.Facebook,
+			LinkedInURL:   lead.LinkedIn,
+			TikTokURL:     lead.TikTok,
+			YouTubeURL:    lead.YouTube,
 		}
 		if deepData.Google != nil {
 			input.NotaGoogle = deepData.Google.NotaGeral
@@ -225,6 +251,10 @@ func (h *AIHandler) AnalyzeLeadsBulk(c *fiber.Ctx) error {
 		}
 		if deepData.Instagram != nil {
 			input.BioInstagram = deepData.Instagram.Bio
+			input.SeguidoresInstagram = deepData.Instagram.Followers
+			input.SeguindoInstagram = deepData.Instagram.Following
+			input.PostsRecentes = deepData.Instagram.Posts
+			input.UltimoPostData = deepData.Instagram.LastPostDate
 		}
 
 		// Gerar análise
