@@ -7,8 +7,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Expõe a porta para a Bridge API
+EXPOSE 8000
+
 # Copia o nosso código para dentro do contêiner
 COPY . .
 
-# Comando padrão ao rodar o contêiner
-CMD ["python", "main.py"]
+# Por padrão, iniciamos o servidor web da Ponte (Microserviço)
+# Mas ainda podemos rodar o main.py manualmente via 'docker run' se precisarmos de jobs pesados.
+CMD ["uvicorn", "bridge_api:app", "--host", "0.0.0.0", "--port", "8000"]

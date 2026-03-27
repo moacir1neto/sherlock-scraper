@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,8 +14,20 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/hibiken/asynq"
-	"github.com/playwright-community/playwright-go"
 )
+
+// SherlockCNPJResponse mapeia o retorno do microserviço bridge_api.py
+type SherlockCNPJResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error"`
+	Message string `json:"message"`
+	Dados   struct {
+		CNPJ              string `json:"cnpj"`
+		SituacaoCadastral string `json:"situacao_cadastral"`
+		Email             string `json:"email"`
+		Telefone          string `json:"telefone"`
+	} `json:"dados"`
+}
 
 const (
 	// TaskTypeEnrichLead defines the task identifier for lead enrichment.
@@ -68,15 +81,30 @@ func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
 	if lead.CNPJ == "" {
 		log.Printf("🔍 [Worker] Buscando CNPJ em background para: %s", lead.Empresa)
 		
-		cnpjEncontrado, err := searchCasaDosDadosWorker(lead.Empresa)
+		log.Printf("🔍 [Worker] Solicitando enriquecimento via Sherlock API: %s", lead.Empresa)
 		
-		if err == nil && cnpjEncontrado != "" {
-			lead.CNPJ = cnpjEncontrado
-			// Atualiza apenas o campo CNPJ para não sobrescrever outros dados
-			database.DB.Model(&lead).Update("cnpj", lead.CNPJ)
-			log.Printf("✅ [Worker] CNPJ %s vinculado com sucesso à %s!", lead.CNPJ, lead.Empresa)
+		cnpjDetail, err := searchCasaDosDadosWorker(lead.Empresa)
+		
+		if err == nil && cnpjDetail != nil && cnpjDetail.Dados.CNPJ != "" {
+			lead.CNPJ = cnpjDetail.Dados.CNPJ
+			
+			// Enriquecimento opcional de campos se vierem da Casa dos Dados e estiverem vazios
+			updates := map[string]interface{}{"cnpj": lead.CNPJ}
+			
+			if cnpjDetail.Dados.Email != "" && lead.Email == "" {
+				lead.Email = cnpjDetail.Dados.Email
+				updates["email"] = lead.Email
+			}
+			
+			if cnpjDetail.Dados.Telefone != "" && lead.Telefone == "" {
+				lead.Telefone = cnpjDetail.Dados.Telefone
+				updates["telefone"] = lead.Telefone
+			}
+
+			database.DB.Model(&lead).Updates(updates)
+			log.Printf("✅ [Worker] Dados vinculados com sucesso via Sherlock (CNPJ: %s)", lead.CNPJ)
 		} else {
-			log.Printf("⚠️ [Worker] CNPJ não encontrado (seguindo com a raspagem normal): %v", err)
+			log.Printf("⚠️ [Worker] Sherlock não retornou dados (seguindo com fallback): %v", err)
 		}
 	}
 	// --- 🩺 FIM DA CIRURGIA ---
@@ -254,141 +282,35 @@ func fetchAndParseWebsite(websiteURL, companyName string) (*EnrichmentData, erro
 	return enrichmentData, nil
 }
 
-// searchCasaDosDadosWorker busca CNPJ via Casa dos Dados usando Playwright para bypass do Cloudflare.
-func searchCasaDosDadosWorker(empresa string) (string, error) {
-	log.Printf("🌐 [CasaDosDados] Iniciando busca Playwright para: %s", empresa)
-
-	// Instalar driver do Playwright (idempotente, não reinstala se já existe)
-	if err := playwright.Install(&playwright.RunOptions{
-		SkipInstallBrowsers: true,
-	}); err != nil {
-		log.Printf("⚠️  Aviso: Falha ao instalar driver do Playwright: %v", err)
-	}
-
-	// Iniciar Playwright
-	pw, err := playwright.Run()
+// searchCasaDosDadosWorker consome a Bridge API (Python) rodando no container 'sherlock'
+func searchCasaDosDadosWorker(empresa string) (*SherlockCNPJResponse, error) {
+	apiURL := "http://sherlock:8000/scrape-cnpj"
+	
+	payload := map[string]string{"termo": empresa}
+	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return "", fmt.Errorf("falha ao iniciar Playwright: %w", err)
+		return nil, err
 	}
-	defer pw.Stop()
 
-	// Lançar Chromium headless
-	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless:       playwright.Bool(true),
-		ExecutablePath: playwright.String("/usr/bin/chromium-browser"),
-		Args: []string{
-			"--no-sandbox",
-			"--disable-setuid-sandbox",
-			"--disable-dev-shm-usage",
-			"--disable-gpu",
-		},
-	})
+	client := &http.Client{Timeout: 45 * time.Second} // Timeout estendido para scraping UI
+	resp, err := client.Post(apiURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", fmt.Errorf("falha ao lançar navegador: %w", err)
+		return nil, fmt.Errorf("falha na conexão com sherlock: %w", err)
 	}
-	defer browser.Close()
+	defer resp.Body.Close()
 
-	// Criar contexto com User-Agent moderno para parecer navegador real
-	browserCtx, err := browser.NewContext(playwright.BrowserNewContextOptions{
-    UserAgent: playwright.String("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"),
-    Viewport: &playwright.Size{
-        Width:  1920,
-        Height: 1080,
-    },
-    Locale: playwright.String("pt-BR"),
-})
-	if err != nil {
-		return "", fmt.Errorf("falha ao criar contexto do navegador: %w", err)
-	}
-	defer browserCtx.Close()
-
-	page, err := browserCtx.NewPage()
-	if err != nil {
-		return "", fmt.Errorf("falha ao criar página: %w", err)
-	}
-	defer page.Close()
-
-	// 1. Navegar até o site principal para passar pelo challenge do Cloudflare
-	if _, err := page.Goto("https://casadosdados.com.br", playwright.PageGotoOptions{
-		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
-		Timeout:   playwright.Float(30000),
-	}); err != nil {
-		return "", fmt.Errorf("falha ao acessar casadosdados.com.br: %w", err)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("sherlock retornou status %d", resp.StatusCode)
 	}
 
-	// Aguardar o Cloudflare resolver o challenge
-	time.Sleep(5 * time.Second)
-
-	// 2. Executar a chamada à API de dentro do contexto do navegador (herda cookies do Cloudflare)
-	jsPayload := fmt.Sprintf(`JSON.stringify({
-		"query": { "termo": [%q] },
-		"range_query": { "data_abertura": { "lte": null, "gte": null } },
-		"extras": {
-			"somente_mei": false, "excluir_mei": false, "com_email": false,
-			"incluir_atividade_secundaria": false, "com_contato_telefonico": false,
-			"somente_fixo": false, "somente_celular": false,
-			"somente_matriz": false, "somente_filial": false
-		},
-		"page": 1
-	})`, empresa)
-
-	apiResult, err := page.Evaluate(fmt.Sprintf(`async () => {
-		try {
-			const body = %s;
-			const resp = await fetch("https://api.casadosdados.com.br/v2/public/cnpj/search", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: body
-			});
-			if (resp.status === 404) return { error: "not_found" };
-			if (!resp.ok) throw new Error("HTTP " + resp.status);
-			return await resp.json();
-		} catch (e) {
-			return { error: e.message };
-		}
-	}`, jsPayload))
-	if err != nil {
-		return "", fmt.Errorf("falha crítica na execução do script: %w", err)
+	var result SherlockCNPJResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("falha ao decodificar resposta: %w", err)
 	}
 
-	// 2.2 Verificar se o script retornou um erro tratado
-	resultMap, ok := apiResult.(map[string]interface{})
-	if ok {
-		if errorMsg, hasError := resultMap["error"]; hasError {
-			return "", fmt.Errorf("CasaDosDados reportou erro: %v", errorMsg)
-		}
+	if !result.Success {
+		return &result, fmt.Errorf("scraper reportou erro: %s", result.Message)
 	}
 
-	// 3. Parsear o resultado retornado pelo JavaScript
-	resultJSON, err := json.Marshal(apiResult)
-	if err != nil {
-		return "", fmt.Errorf("falha ao serializar resultado: %w", err)
-	}
-
-	var apiResp struct {
-		Success bool `json:"success"`
-		Data    struct {
-			Count int `json:"count"`
-			CNPJ  []struct {
-				CNPJ string `json:"cnpj"`
-			} `json:"cnpj"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(resultJSON, &apiResp); err != nil {
-		return "", fmt.Errorf("falha ao decodificar resposta: %w", err)
-	}
-
-	if !apiResp.Success || apiResp.Data.Count == 0 || len(apiResp.Data.CNPJ) == 0 {
-		return "", fmt.Errorf("nenhum resultado encontrado para '%s'", empresa)
-	}
-
-	// 4. Formatar e retornar o primeiro CNPJ
-	rawCnpj := apiResp.Data.CNPJ[0].CNPJ
-	cleaned := strings.NewReplacer(".", "", "-", "", "/", "").Replace(rawCnpj)
-	if len(cleaned) == 14 {
-		return fmt.Sprintf("%s.%s.%s/%s-%s", cleaned[0:2], cleaned[2:5], cleaned[5:8], cleaned[8:12], cleaned[12:14]), nil
-	}
-
-	return rawCnpj, nil
+	return &result, nil
 }

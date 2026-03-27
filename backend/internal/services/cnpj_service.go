@@ -1,6 +1,7 @@
 package services
-
+ 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	//"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
 )
 
@@ -35,6 +35,8 @@ type CNPJResult struct {
 	RazaoSocial   string `json:"razao_social"`
 	NomeFantasia  string `json:"nome_fantasia"`
 	Situacao      string `json:"situacao"`
+	Email         string `json:"email,omitempty"`
+	Telefone      string `json:"telefone,omitempty"`
 	Source        string `json:"source"`
 }
 
@@ -56,33 +58,26 @@ func (s *CNPJService) EnrichCNPJ(leadID string) (*CNPJResult, error) {
 		}, nil
 	}
 
-	log.Printf("🔍 Buscando CNPJ para: %s (Endereço: %s)", lead.Empresa, lead.Endereco)
+	log.Printf("🔍 Buscando CNPJ para: %s via Sherlock (Playwright)...", lead.Empresa)
 
-	// 2. Extract city from address for better search
-	city := extractCityFromAddress(lead.Endereco)
-
-	// 3. Try BrasilAPI first (free, public)
-	result, err := s.searchBrasilAPI(lead.Empresa, city)
+	// 2. Chamar o motor Sherlock (Internal Microservice)
+	result, err := s.searchViaSherlock(lead.Empresa)
 	if err != nil {
-		log.Printf("⚠️  BrasilAPI falhou: %v — tentando ReceitaWS...", err)
+		log.Printf("❌ Sherlock falhou ou não encontrou: %v", err)
+		return nil, err // Retorna o erro para o handler tratar (cnpj_not_found)
 	}
 
-	// If BrasilAPI didn't find it, try CasaDosDados or similar
-	if result == nil {
-		result, err = s.searchCasaDosDados(lead.Empresa, city)
-		if err != nil {
-			log.Printf("⚠️  CasaDosDados falhou: %v", err)
-		}
-	}
-
-	// 4. If no real API found a result, return a clear "not found"
-	if result == nil {
-		log.Printf("❌ CNPJ não encontrado para: %s", lead.Empresa)
-		return nil, fmt.Errorf("CNPJ não encontrado para '%s'. Tente buscar manualmente em https://casadosdados.com.br", lead.Empresa)
-	}
-
-	// 5. Save CNPJ to database
+	// 3. Save CNPJ to database
 	lead.CNPJ = result.CNPJ
+	
+	// Enriquecimento opcional de campos (Email e Telefone) se vierem do Sherlock e estiverem vazios
+	if result.Email != "" && lead.Email == "" {
+		lead.Email = result.Email
+	}
+	if result.Telefone != "" && lead.Telefone == "" {
+		lead.Telefone = result.Telefone
+	}
+
 	if err := s.leadService.UpdateLead(nil, lead); err != nil {
 		log.Printf("⚠️  Erro ao salvar CNPJ no banco: %v", err)
 		return result, fmt.Errorf("CNPJ encontrado (%s), mas falhou ao salvar: %w", result.CNPJ, err)
@@ -90,6 +85,61 @@ func (s *CNPJService) EnrichCNPJ(leadID string) (*CNPJResult, error) {
 
 	log.Printf("✅ CNPJ encontrado e salvo: %s → %s", lead.Empresa, result.CNPJ)
 	return result, nil
+}
+
+// searchViaSherlock consome a Bridge API (Python) rodando no container 'sherlock'
+func (s *CNPJService) searchViaSherlock(empresa string) (*CNPJResult, error) {
+	apiURL := "http://sherlock:8000/scrape-cnpj"
+	
+	payload := map[string]string{"termo": empresa}
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	// Struct interna para mapear o retorno do microserviço bridge_api.py
+	type SherlockResponse struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+		Message string `json:"message"`
+		Dados   struct {
+			CNPJ              string `json:"cnpj"`
+			SituacaoCadastral string `json:"situacao_cadastral"`
+			Email             string `json:"email"`
+			Telefone          string `json:"telefone"`
+		} `json:"dados"`
+	}
+
+	// Timeout estendido para scraping UI (45s)
+	client := &http.Client{Timeout: 45 * time.Second} 
+	resp, err := client.Post(apiURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("falha na conexão com sherlock: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("sherlock retornou status %d", resp.StatusCode)
+	}
+
+	var result SherlockResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("falha ao decodificar resposta: %w", err)
+	}
+
+	if !result.Success {
+		return nil, fmt.Errorf("empresa não encontrada no scraper: %s", result.Message)
+	}
+
+	return &CNPJResult{
+		CNPJ:         result.Dados.CNPJ,
+		RazaoSocial:  empresa,
+		NomeFantasia: empresa,
+		Situacao:     result.Dados.SituacaoCadastral,
+		Email:        result.Dados.Email,
+		Telefone:     result.Dados.Telefone,
+		Source:       "sherlock",
+	}, nil
 }
 
 // searchBrasilAPI tries to find CNPJ using BrasilAPI (free)
