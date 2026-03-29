@@ -1,4 +1,4 @@
-version: "3.8"
+
 
 services:   
   sherlock:
@@ -44,6 +44,9 @@ services:
       GOOGLE_PLACES_API_KEY: "${GOOGLE_PLACES_API_KEY}"
       COMPOSE_FILE: "/workspace/docker-compose.yml"
       HOST_PROJECT_PATH: "${PWD:-.}"
+      # --- NOVAS VARIÁVEIS DA INTEGRAÇÃO ---
+      WHATSMIau_API_URL: "http://whatsmiau-api:8080"
+      WHATSMIau_API_TOKEN: "seu_token_de_api_aqui" # Vamos gerar isso no painel depois
     volumes:
       - ./backend:/app
       - /var/run/docker.sock:/var/run/docker.sock
@@ -66,5 +69,38 @@ services:
     depends_on:
       - api
 
+  whatsmiau-api:
+    build:
+      context: ./whatsmeow
+      dockerfile: Dockerfile
+    container_name: whatsmiau-api
+    ports:
+      - "8081:8080"
+    environment:
+      PORT: "8080"
+      DIALECT_DB: "postgres"
+      DB_URL: "postgres://postgres:password@db:5432/whatsmiau?sslmode=disable"
+      REDIS_URL: "redis:6379"
+    volumes:
+      - whatsmiau_data:/app/data
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  whatsmiau-ui:
+    build:
+      context: ./whatsmeow/frontend
+      dockerfile: Dockerfile.dev
+    container_name: whatsmiau-ui
+    ports:
+      - "3031:3031"
+    environment:
+      VITE_PROXY_TARGET: "http://whatsmiau-api:8080"
+    depends_on:
+      - whatsmiau-api
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  whatsmiau_data:
