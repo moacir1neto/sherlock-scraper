@@ -23,7 +23,9 @@ func main() {
 	defer queue.CloseClient()
 
 	// 3. Initialize Fiber App
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		StrictRouting: false,
+	})
 	app.Use(logger.New())
 
 	app.Use(cors.New(cors.Config{
@@ -47,6 +49,14 @@ func main() {
 	aiService := services.NewAIService()
 	aiHandler := handlers.NewAIHandler(aiService)
 
+	// Pipeline (CRM/Kanban)
+	pipelineRepo := repositories.NewPipelineRepository(database.DB)
+	pipelineHandler := handlers.NewPipelineHandler(aiService, pipelineRepo)
+
+	// CNPJ Enrichment Service
+	cnpjService := services.NewCNPJService(leadService)
+	cnpjHandler := handlers.NewCNPJHandler(cnpjService)
+
 	// Company Settings
 	settingHandler := handlers.NewSettingHandler()
 
@@ -69,14 +79,29 @@ func main() {
 	
 	// Lead Routes
 	leads := protected.Group("/leads")
-	leads.Get("", leadHandler.GetLeads)
+	leads.Get("/", leadHandler.GetLeads)
+	leads.Post("/", leadHandler.CreateLead)
 	leads.Post("/upload", leadHandler.UploadCSV)
 	leads.Patch("/:id/status", leadHandler.UpdateStatus)
 	leads.Put("/:id", leadHandler.UpdateLead)
+	leads.Delete("/:id", leadHandler.DeleteLead)
 
 	// AI Analysis Routes
+	leads.Post("/analyze/bulk", aiHandler.AnalyzeLeadsBulk) // Análise em massa
 	leads.Post("/:id/analyze", aiHandler.AnalyzeLead)      // Gera análise de IA
 	leads.Get("/:id/analysis", aiHandler.GetAnalysis)      // Retorna análise salva
+
+	// CNPJ Enrichment Routes
+	leads.Post("/:id/enrich-cnpj", cnpjHandler.EnrichCNPJ)       // Busca CNPJ por nome
+	leads.Post("/:id/validate-cnpj", cnpjHandler.ValidateCNPJ)   // Valida CNPJ existente
+
+	// Pipeline routes
+	protected.Get("/pipeline", pipelineHandler.GetPipeline)
+	protected.Get("/pipeline/all", pipelineHandler.GetAllPipelines)
+	protected.Post("/pipeline", pipelineHandler.CreatePipeline)
+	protected.Post("/pipeline/stage", pipelineHandler.AddStage)
+	protected.Post("/pipeline/generate-ai", pipelineHandler.GenerateAIPipeline)
+	protected.Delete("/pipeline", pipelineHandler.DeletePipeline)
 
 	// Settings Routes
 	protected.Get("/settings", settingHandler.GetSettings)

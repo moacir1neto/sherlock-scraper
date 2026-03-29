@@ -60,6 +60,14 @@ func (s *leadService) ImportCSV(ctx context.Context, csvData [][]string, nicho s
 	return nil
 }
 
+func (s *leadService) CreateLead(ctx context.Context, lead *domain.Lead) error {
+	return s.repo.Create(ctx, lead)
+}
+
+func (s *leadService) GetLead(ctx context.Context, id string) (*domain.Lead, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
 func (s *leadService) GetLeadsByJob(ctx context.Context, jobID string) ([]*domain.Lead, error) {
 	return s.repo.GetByJobID(ctx, jobID)
 }
@@ -69,16 +77,16 @@ func (s *leadService) GetLeads(ctx context.Context) ([]*domain.Lead, error) {
 }
 
 func (s *leadService) ChangeStatus(ctx context.Context, id string, status domain.KanbanStatus) error {
-	switch status {
-	case domain.StatusProspeccao, domain.StatusContatado, domain.StatusReuniaoAgendada, domain.StatusNegociacao, domain.StatusGanho, domain.StatusPerdido:
-		return s.repo.UpdateStatus(ctx, id, status)
-	default:
-		return errors.New("invalid kanban status")
-	}
+	// Relaxing validation to support dynamic stages (UUIDs or names from Pipeline)
+	return s.repo.UpdateStatus(ctx, id, status)
 }
 
 func (s *leadService) UpdateLead(ctx context.Context, lead *domain.Lead) error {
 	return s.repo.Update(ctx, lead)
+}
+
+func (s *leadService) DeleteLead(ctx context.Context, id string) error {
+	return s.repo.Delete(ctx, id)
 }
 
 func (s *leadService) CreateJob(ctx context.Context, nicho, localizacao string) (*domain.ScrapingJob, error) {

@@ -29,17 +29,19 @@ type TextSearchResponse struct {
 		PlaceID string `json:"place_id"`
 		Name    string `json:"name"`
 	} `json:"results"`
-	Status string `json:"status"`
+	Status       string `json:"status"`
+	ErrorMessage string `json:"error_message,omitempty"`
 }
 
 // PlaceDetailsResponse representa a resposta do Place Details da Places API
 type PlaceDetailsResponse struct {
 	Result struct {
-		Rating            float64 `json:"rating"`
-		UserRatingsTotal  int     `json:"user_ratings_total"`
-		Reviews           []Review `json:"reviews"`
+		Rating           float64  `json:"rating"`
+		UserRatingsTotal int      `json:"user_ratings_total"`
+		Reviews          []Review `json:"reviews"`
 	} `json:"result"`
-	Status string `json:"status"`
+	Status       string `json:"status"`
+	ErrorMessage string `json:"error_message,omitempty"`
 }
 
 // Review representa uma avaliação individual do Google
@@ -176,7 +178,12 @@ func searchPlace(query string, apiKey string) (string, error) {
 
 	// Check API status
 	if searchResponse.Status != "OK" {
-		log.Printf("⚠️  Google Places API retornou status: %s", searchResponse.Status)
+		if searchResponse.Status == "REQUEST_DENIED" {
+			log.Printf("🚨 Google API DENIED: %s. Verifique se a 'Places API' está ativa e o faturamento configurado.", searchResponse.ErrorMessage)
+		} else {
+			log.Printf("⚠️  Google Places API retornou status: %s", searchResponse.Status)
+		}
+
 		if searchResponse.Status == "ZERO_RESULTS" {
 			return "", nil // Não é erro fatal, apenas não encontrou
 		}
@@ -240,6 +247,9 @@ func getPlaceDetails(placeID string, apiKey string) (*PlaceDetailsResponse, erro
 
 	// Check API status
 	if detailsResponse.Status != "OK" {
+		if detailsResponse.Status == "REQUEST_DENIED" {
+			log.Printf("🚨 Google API DENIED: %s. Verifique se a 'Places API' está ativa e o faturamento configurado.", detailsResponse.ErrorMessage)
+		}
 		return nil, fmt.Errorf("API status: %s", detailsResponse.Status)
 	}
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Lead } from '@/types';
-import { Star, MapPin, Phone, ExternalLink, MessageCircle } from 'lucide-react';
+import { Star, MapPin, Phone, ExternalLink, MessageCircle, Flame, Snowflake, Thermometer } from 'lucide-react';
 
 interface LeadCardProps {
   lead: Lead;
@@ -9,7 +9,9 @@ interface LeadCardProps {
 }
 
 const LeadCard: React.FC<LeadCardProps> = ({ lead, isDragging, onLeadClick }) => {
-  const whatsappUrl = lead.LinkWhatsapp || (lead.Telefone ? `https://wa.me/55${lead.Telefone.replace(/\\D/g, '')}` : null);
+  const whatsappUrl = lead.LinkWhatsapp || (lead.Telefone ? `https://wa.me/55${lead.Telefone.replace(/\D/g, '')}` : null);
+  const scoreRaw = lead.ai_analysis?.score_maturidade;
+  const score = scoreRaw !== undefined ? scoreRaw * 10 : undefined;
 
   return (
     <div
@@ -22,12 +24,30 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, isDragging, onLeadClick }) =>
         <h4 className="font-semibold text-white leading-tight break-words pr-2 line-clamp-2">
           {lead.Empresa || 'Unknown Company'}
         </h4>
-        {lead.Rating && lead.Rating !== '-' && (
-          <div className="flex items-center gap-1 text-yellow-500 bg-yellow-400/5 border border-yellow-400/20 px-2 py-1 rounded-md text-[10px] font-black shrink-0 shadow-sm">
-            <Star size={10} className="fill-yellow-500" />
-            {lead.Rating.includes(' ') ? lead.Rating.split(' ')[0] : lead.Rating}
-          </div>
-        )}
+        
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {lead.Rating && lead.Rating !== '-' && (
+            <div className="flex items-center gap-1 text-yellow-500 bg-yellow-400/5 border border-yellow-400/20 px-2 py-1 rounded-md text-[10px] font-black shadow-sm">
+              <Star size={10} className="fill-yellow-500" />
+              {lead.Rating.includes(' ') ? lead.Rating.split(' ')[0] : lead.Rating}
+            </div>
+          )}
+          {score !== undefined && (
+            <div 
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black shadow-sm border ${
+                score >= 80 
+                  ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20' 
+                  : score >= 50 
+                  ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' 
+                  : 'bg-rose-400/10 text-rose-400 border-rose-400/20'
+              }`}
+              title={score >= 80 ? 'Lead Quente 🔥' : score >= 50 ? 'Lead Morno 😐' : 'Lead Frio 🧊'}
+            >
+              {score >= 80 ? <Flame size={10} /> : score < 50 ? <Snowflake size={10} /> : <Thermometer size={10} />}
+              {score}
+            </div>
+          )}
+        </div>
       </div>
       
       {lead.ResumoNegocio && (
@@ -60,7 +80,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, isDragging, onLeadClick }) =>
             rel="noopener noreferrer"
             title="Chat on WhatsApp"
             className="w-8 h-8 rounded-lg bg-[#25D366]/10 text-[#25D366] flex items-center justify-center hover:bg-[#25D366] flex-none hover:text-white transition-colors cursor-pointer"
-            onPointerDown={(e) => e.stopPropagation()} // Prevent drag conflict when clicking link
+            onPointerDown={(e) => e.stopPropagation()} 
           >
             <MessageCircle size={16} />
           </a>

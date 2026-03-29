@@ -6,6 +6,8 @@ import LeadsPage from '@/pages/LeadsPage';
 import ScrapingsPage from '@/pages/ScrapingsPage';
 import ListsPage from '@/pages/ListsPage';
 import SettingsPage from '@/pages/SettingsPage';
+import Pipeline from '@/pages/Pipeline';
+import DashboardHome from '@/pages/DashboardHome';
 import { useAuth } from '@/contexts/AuthContext';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -19,7 +21,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const App = () => {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard/raspagens" replace />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/login" element={<Login />} />
       <Route
         path="/dashboard"
@@ -29,10 +31,11 @@ const App = () => {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard/raspagens" replace />} />
+        <Route index element={<DashboardHome />} />
         <Route path="raspagens" element={<ScrapingsPage />} />
         <Route path="listas" element={<ListsPage />} />
         <Route path="listas/:id/leads" element={<LeadsPage />} />
+        <Route path="pipeline" element={<Pipeline />} />
         <Route path="configuracoes" element={<SettingsPage />} />
       </Route>
     </Routes>

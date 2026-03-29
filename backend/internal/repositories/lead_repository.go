@@ -27,6 +27,12 @@ func (r *leadRepository) GetAll(ctx context.Context) ([]*domain.Lead, error) {
 	return leads, err
 }
 
+func (r *leadRepository) GetByID(ctx context.Context, id string) (*domain.Lead, error) {
+	var lead domain.Lead
+	err := r.db.WithContext(ctx).First(&lead, "id = ?", id).Error
+	return &lead, err
+}
+
 func (r *leadRepository) GetByJobID(ctx context.Context, jobID string) ([]*domain.Lead, error) {
 	var leads []*domain.Lead
 	err := r.db.WithContext(ctx).Where("scraping_job_id = ?", jobID).Order("created_at desc").Find(&leads).Error
@@ -46,6 +52,14 @@ func (r *leadRepository) UpdateStatus(ctx context.Context, id string, status dom
 
 func (r *leadRepository) Update(ctx context.Context, lead *domain.Lead) error {
 	return r.db.WithContext(ctx).Save(lead).Error
+}
+
+func (r *leadRepository) Create(ctx context.Context, lead *domain.Lead) error {
+	return r.db.WithContext(ctx).Create(lead).Error
+}
+
+func (r *leadRepository) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Delete(&domain.Lead{}, "id = ?", id).Error
 }
 
 func (r *leadRepository) CreateScrapeJob(ctx context.Context, job *domain.ScrapingJob) error {

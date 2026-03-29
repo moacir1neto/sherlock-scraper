@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,19 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/hibiken/asynq"
 )
+
+// SherlockCNPJResponse mapeia o retorno do microserviço bridge_api.py
+type SherlockCNPJResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error"`
+	Message string `json:"message"`
+	Dados   struct {
+		CNPJ              string `json:"cnpj"`
+		SituacaoCadastral string `json:"situacao_cadastral"`
+		Email             string `json:"email"`
+		Telefone          string `json:"telefone"`
+	} `json:"dados"`
+}
 
 const (
 	// TaskTypeEnrichLead defines the task identifier for lead enrichment.
@@ -62,6 +76,38 @@ func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
 	}
 
 	log.Printf("📊 Lead '%s' agora está em status ENRIQUECENDO", payload.CompanyName)
+
+	// --- 🩺 INÍCIO DA CIRURGIA: BUSCA AUTOMÁTICA DE CNPJ ---
+	if lead.CNPJ == "" {
+		log.Printf("🔍 [Worker] Buscando CNPJ em background para: %s", lead.Empresa)
+		
+		log.Printf("🔍 [Worker] Solicitando enriquecimento via Sherlock API: %s", lead.Empresa)
+		
+		cnpjDetail, err := searchCasaDosDadosWorker(lead.Empresa)
+		
+		if err == nil && cnpjDetail != nil && cnpjDetail.Dados.CNPJ != "" {
+			lead.CNPJ = cnpjDetail.Dados.CNPJ
+			
+			// Enriquecimento opcional de campos se vierem da Casa dos Dados e estiverem vazios
+			updates := map[string]interface{}{"cnpj": lead.CNPJ}
+			
+			if cnpjDetail.Dados.Email != "" && lead.Email == "" {
+				lead.Email = cnpjDetail.Dados.Email
+				updates["email"] = lead.Email
+			}
+			
+			if cnpjDetail.Dados.Telefone != "" && lead.Telefone == "" {
+				lead.Telefone = cnpjDetail.Dados.Telefone
+				updates["telefone"] = lead.Telefone
+			}
+
+			database.DB.Model(&lead).Updates(updates)
+			log.Printf("✅ [Worker] Dados vinculados com sucesso via Sherlock (CNPJ: %s)", lead.CNPJ)
+		} else {
+			log.Printf("⚠️ [Worker] Sherlock não retornou dados (seguindo com fallback): %v", err)
+		}
+	}
+	// --- 🩺 FIM DA CIRURGIA ---
 
 	// C. Verificar se o Lead possui um Website
 	if lead.Site == "" || !strings.HasPrefix(strings.ToLower(lead.Site), "http") {
@@ -234,4 +280,37 @@ func fetchAndParseWebsite(websiteURL, companyName string) (*EnrichmentData, erro
 	enrichmentData := ExtractSocialAndTracking(htmlBody)
 
 	return enrichmentData, nil
+}
+
+// searchCasaDosDadosWorker consome a Bridge API (Python) rodando no container 'sherlock'
+func searchCasaDosDadosWorker(empresa string) (*SherlockCNPJResponse, error) {
+	apiURL := "http://sherlock:8000/scrape-cnpj"
+	
+	payload := map[string]string{"termo": empresa}
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{Timeout: 45 * time.Second} // Timeout estendido para scraping UI
+	resp, err := client.Post(apiURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("falha na conexão com sherlock: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("sherlock retornou status %d", resp.StatusCode)
+	}
+
+	var result SherlockCNPJResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("falha ao decodificar resposta: %w", err)
+	}
+
+	if !result.Success {
+		return &result, fmt.Errorf("scraper reportou erro: %s", result.Message)
+	}
+
+	return &result, nil
 }
