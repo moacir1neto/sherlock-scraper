@@ -118,6 +118,8 @@ func main() {
 	// 5.3. Internal Routes (server-to-server, no JWT)
 	internal := api.Group("/internal", middlewares.InternalAuth())
 	internal.Post("/scrape-sync", scrapeHandler.StartSync)
+	internal.Post("/scrape-start", scrapeHandler.StartAsync)
+	internal.Get("/scrape-status/:job_id", scrapeHandler.StatusWithLeads)
 
 	// 6. Start Queue Worker in background
 	log.Println("🚀 Starting Queue Worker in background...")
