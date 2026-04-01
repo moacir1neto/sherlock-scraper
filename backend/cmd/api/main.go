@@ -30,7 +30,7 @@ func main() {
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "http://localhost:5173", // Libera o acesso para o seu Front-end
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Internal-Token",
 		AllowMethods: "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
 	}))
 
@@ -114,6 +114,10 @@ func main() {
 	protected.Get("/scrapes/:id/leads", scrapeHandler.GetLeadsByJob)
 	protected.Delete("/scrapes/:id", scrapeHandler.DeleteJob)
 	protected.Delete("/scrapings/:id", scrapeHandler.DeleteJob) // Alias as requested
+
+	// 5.3. Internal Routes (server-to-server, no JWT)
+	internal := api.Group("/internal", middlewares.InternalAuth())
+	internal.Post("/scrape-sync", scrapeHandler.StartSync)
 
 	// 6. Start Queue Worker in background
 	log.Println("🚀 Starting Queue Worker in background...")
