@@ -1,0 +1,85 @@
+services:
+  whatsmiau:
+    build: .
+    container_name: whatsmiau
+    ports:
+      - "8081:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - SHERLOCK_API_URL=http://host.docker.internal:3000
+      - SHERLOCK_URL=http://host.docker.internal:3000
+      - PORT=8080
+      - REDIS_URL=redis:6379
+      - DB_URL=postgres://whatsmiau:123456@db:5432/whatsmiau?sslmode=disable
+      - DIALECT_DB=postgres
+    volumes:
+      - whatsmeow:/app/data
+    depends_on:
+      redis:
+        condition: service_started
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - whatsmiau-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: whatsmiau-frontend
+    ports:
+      - "3031:3031"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_PROXY_TARGET=http://whatsmiau:8080
+    depends_on:
+      - whatsmiau
+    restart: unless-stopped
+    networks:
+      - whatsmiau-network
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - whatsmiau-network
+
+  db:
+    image: postgres:15-alpine
+    container_name: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: whatsmiau
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: whatsmiau
+    networks:
+      - whatsmiau-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U whatsmiau -d whatsmiau" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  whatsmiau-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
+  whatsmeow:
+    driver: local
+  pg-data:
+    driver: local

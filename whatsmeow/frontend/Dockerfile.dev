@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Instalar dependências
+COPY package*.json ./
+RUN npm install --legacy-peer-deps
+
+# Copiar código fonte
+COPY . .
+
+# Expor porta do Vite dev server
+EXPOSE 3031
+
+# Comando para rodar em modo desenvolvimento
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3031"]
+
+
