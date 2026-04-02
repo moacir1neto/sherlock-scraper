@@ -101,6 +101,9 @@ services:
       - "3031:3031"
     environment:
       VITE_PROXY_TARGET: "http://whatsmiau-api:8080"
+    volumes:
+      - ./whatsmeow/frontend:/app
+      - /app/node_modules
     depends_on:
       - whatsmiau-api
     restart: unless-stopped
