@@ -12,6 +12,7 @@ import (
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
+	"github.com/digitalcombo/sherlock-scraper/backend/pkg/csvparser"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -160,4 +161,209 @@ func (h *ScrapeHandler) DeleteJob(c *fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// ScrapeSyncRequest is the payload for the internal synchronous scrape endpoint.
+// Uses "keyword" and "location" to match WhatsMiau's field naming convention.
+type ScrapeSyncRequest struct {
+	Keyword  string `json:"keyword"`
+	Location string `json:"location"`
+	Limit    int    `json:"limit"`
+}
+
+// syncLeadDTO maps domain.Lead fields to the naming convention expected by WhatsMiau.
+type syncLeadDTO struct {
+	Name    string `json:"name"`
+	Phone   string `json:"phone"`
+	Address string `json:"address,omitempty"`
+	Website string `json:"website,omitempty"`
+	Rating  string `json:"rating,omitempty"`
+	Reviews string `json:"reviews,omitempty"`
+}
+
+// StartSync runs the scraping pipeline synchronously and returns the parsed leads directly.
+// It is intended for internal server-to-server calls only (protected by InternalAuth middleware).
+// Returns 200 with the lead array on success, or 500 on scraping failure.
+// Times out after 60 seconds.
+func (h *ScrapeHandler) StartSync(c *fiber.Ctx) error {
+	var req ScrapeSyncRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if req.Keyword == "" || req.Location == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "keyword and location are required"})
+	}
+
+	if req.Limit <= 0 {
+		req.Limit = 20
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var combinedBuf bytes.Buffer
+	cmd := exec.CommandContext(ctx,
+		"docker-compose",
+		"-f", "/workspace/docker-compose.yml",
+		"run", "--rm",
+		"-e", fmt.Sprintf("SHERLOCK_NICHO=%s", req.Keyword),
+		"-e", fmt.Sprintf("SHERLOCK_LOCALIZACAO=%s", req.Location),
+		"sherlock",
+		"python", "main.py",
+		"--nicho", req.Keyword,
+		"--localizacao", req.Location,
+		"--limit", fmt.Sprintf("%d", req.Limit),
+	)
+	cmd.Stdout = &combinedBuf
+	cmd.Stderr = &combinedBuf
+
+	if err := cmd.Run(); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "scraping failed"})
+	}
+
+	nichoFmt := strings.ReplaceAll(req.Keyword, " ", "_")
+	cidadeFmt := strings.ReplaceAll(req.Location, " ", "_")
+	fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to read scraping results"})
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	reader.Comma = ';'
+	reader.LazyQuotes = true
+	reader.FieldsPerRecord = -1
+
+	records, err := reader.ReadAll()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to parse scraping results"})
+	}
+
+	leads := csvparser.MapToLeads(records, req.Keyword)
+
+	mapped := make([]syncLeadDTO, len(leads))
+	for i, l := range leads {
+		mapped[i] = syncLeadDTO{
+			Name:    l.Empresa,
+			Phone:   l.Telefone,
+			Address: l.Endereco,
+			Website: l.Site,
+			Rating:  l.Rating,
+			Reviews: l.QtdAvaliacoes,
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"total": len(mapped), "leads": mapped})
+}
+
+// ScrapeAsyncRequest is the payload for the non-blocking internal scrape endpoint.
+type ScrapeAsyncRequest struct {
+	Keyword  string `json:"keyword"`
+	Location string `json:"location"`
+	Limit    int    `json:"limit"`
+}
+
+// StartAsync creates a ScrapingJob and runs the scraper in a goroutine, returning the
+// job_id immediately so the caller can poll StatusWithLeads for the result.
+func (h *ScrapeHandler) StartAsync(c *fiber.Ctx) error {
+	var req ScrapeAsyncRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if req.Keyword == "" || req.Location == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "keyword and location are required"})
+	}
+	if req.Limit <= 0 {
+		req.Limit = 20
+	}
+
+	job, err := h.service.CreateJob(c.Context(), req.Keyword, req.Location)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create scraping job"})
+	}
+	jobID := job.ID.String()
+
+	go func() {
+		var buf bytes.Buffer
+		cmd := exec.Command(
+			"docker-compose", "-f", "/workspace/docker-compose.yml",
+			"run", "--rm",
+			"-e", fmt.Sprintf("SHERLOCK_NICHO=%s", req.Keyword),
+			"-e", fmt.Sprintf("SHERLOCK_LOCALIZACAO=%s", req.Location),
+			"sherlock", "python", "main.py",
+			"--nicho", req.Keyword,
+			"--localizacao", req.Location,
+			"--limit", fmt.Sprintf("%d", req.Limit),
+		)
+		cmd.Stdout = &buf
+		cmd.Stderr = &buf
+		cmdErr := cmd.Run()
+		job.Logs = buf.String()
+		if cmdErr != nil {
+			job.Status = domain.ScrapeError
+			if job.Logs == "" {
+				job.Logs = cmdErr.Error()
+			}
+		} else {
+			job.Status = domain.ScrapeCompleted
+			nichoFmt := strings.ReplaceAll(req.Keyword, " ", "_")
+			cidadeFmt := strings.ReplaceAll(req.Location, " ", "_")
+			fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
+			if file, errFile := os.Open(fileName); errFile == nil {
+				defer file.Close()
+				reader := csv.NewReader(file)
+				reader.Comma = ';'
+				reader.LazyQuotes = true
+				reader.FieldsPerRecord = -1
+				if records, errCsv := reader.ReadAll(); errCsv == nil {
+					h.service.ImportCSV(context.Background(), records, req.Keyword, &jobID)
+				}
+			}
+		}
+		h.service.UpdateJob(context.Background(), job)
+	}()
+
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"job_id": jobID})
+}
+
+// StatusWithLeads returns the current status of a scraping job. When the job is completed,
+// the response also includes the mapped leads in the format expected by WhatsMiau.
+func (h *ScrapeHandler) StatusWithLeads(c *fiber.Ctx) error {
+	jobID := c.Params("job_id")
+	job, err := h.service.GetJob(c.Context(), jobID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "job not found"})
+	}
+
+	resp := fiber.Map{
+		"job_id":  job.ID,
+		"status":  job.Status,
+		"elapsed": time.Since(job.CreatedAt).Round(time.Second).String(),
+	}
+
+	if job.Status == domain.ScrapeCompleted {
+		leads, _ := h.service.GetLeadsByJob(c.Context(), jobID)
+		mapped := make([]syncLeadDTO, len(leads))
+		for i, l := range leads {
+			mapped[i] = syncLeadDTO{
+				Name:    l.Empresa,
+				Phone:   l.Telefone,
+				Address: l.Endereco,
+				Website: l.Site,
+				Rating:  l.Rating,
+				Reviews: l.QtdAvaliacoes,
+			}
+		}
+		resp["total"] = len(mapped)
+		resp["leads"] = mapped
+	}
+
+	if job.Status == domain.ScrapeError {
+		resp["error"] = job.Logs
+	}
+
+	return c.JSON(resp)
 }

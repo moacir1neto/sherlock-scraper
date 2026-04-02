@@ -304,9 +304,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-40 transition-transform duration-300 ease-in-out ${
+        className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-40 transition-all duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 w-64 overflow-y-auto`}
+        } w-64 overflow-y-auto shadow-sm`}
       >
         {/* Menu Items */}
         <nav className="p-4">
