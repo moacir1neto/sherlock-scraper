@@ -86,6 +86,12 @@ api.interceptors.response.use(
       });
     }
     
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+
     if (error.code === 'ECONNABORTED') {
       error.message = 'Tempo limite excedido. Tente novamente.';
     } else if (!error.response) {
