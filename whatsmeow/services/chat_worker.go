@@ -104,10 +104,13 @@ func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo inte
 	// Publica evento de lead apenas para mensagens RECEBIDAS de contatos individuais.
 	// Regras:
 	//   !d.Key.FromMe       → ignora mensagens enviadas por nós mesmos
-	//   !isGroupJID(jid)    → ignora mensagens de grupos (@g.us)
+	//   !isGroupJID(jid)    → ignora grupos (@g.us)
+	//   len(phone) <= 15    → ignora listas de transmissão (JIDs com 18+ dígitos
+	//                         ex: "120363404701403742@s.whatsapp.net") que chegam
+	//                         com domínio @s.whatsapp.net mas não são contatos reais
 	if publisher != nil && !d.Key.FromMe && !isGroupJID(remoteJid) {
 		phone := phoneFromJID(remoteJid)
-		if phone != "" {
+		if phone != "" && len(phone) <= 15 {
 			// Goroutine separada: falha no publisher nunca atrasa a resposta ao chat
 			go func() {
 				pubCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

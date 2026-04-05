@@ -25,11 +25,16 @@ var finalKanbanStatuses = []domain.KanbanStatus{
 // kanbanUpdatedEvent é o payload JSON enviado via SSE ao frontend.
 // O campo "type" identifica o evento; os demais permitem o frontend atualizar
 // o card correto sem re-fetch completo da lista.
+//
+// O campo Phone é essencial para que o WhatsMeow backend possa localizar
+// seu próprio lead pelo telefone e re-emitir o evento com o UUID local —
+// os dois sistemas têm bancos separados com UUIDs diferentes.
 type kanbanUpdatedEvent struct {
 	Type      string `json:"type"`       // sempre "lead_kanban_updated"
-	LeadID    string `json:"lead_id"`    // UUID do lead movido
+	LeadID    string `json:"lead_id"`    // UUID do lead no banco Sherlock
 	NewStatus string `json:"new_status"` // novo KanbanStatus
 	Empresa   string `json:"empresa"`    // nome da empresa (para toast no frontend)
+	Phone     string `json:"phone"`      // telefone normalizado (apenas dígitos) para cross-match
 }
 
 type kanbanAutomationService struct {
@@ -102,7 +107,7 @@ func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context,
 	if moved {
 		log.Printf("[KanbanAutomation] 🎯 Lead %s (%q) movido → %q",
 			lead.ID, lead.Empresa, domain.StatusContatado)
-		s.publishSSEEvent(lead.ID.String(), string(domain.StatusContatado), lead.Empresa)
+		s.publishSSEEvent(lead.ID.String(), string(domain.StatusContatado), lead.Empresa, normalized)
 	} else {
 		log.Printf("[KanbanAutomation] ⏭️  Lead %s (%q) não movido — status %q é final ou idempotente",
 			lead.ID, lead.Empresa, lead.KanbanStatus)
@@ -113,7 +118,8 @@ func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context,
 
 // publishSSEEvent serializa e envia o evento para o hub SSE.
 // Chamado apenas quando o DB confirmou a mudança de linha (moved == true).
-func (s *kanbanAutomationService) publishSSEEvent(leadID, newStatus, empresa string) {
+// phone é o número normalizado (apenas dígitos) extraído do JID do WhatsApp.
+func (s *kanbanAutomationService) publishSSEEvent(leadID, newStatus, empresa, phone string) {
 	if s.broadcaster == nil {
 		return
 	}
@@ -123,6 +129,7 @@ func (s *kanbanAutomationService) publishSSEEvent(leadID, newStatus, empresa str
 		LeadID:    leadID,
 		NewStatus: newStatus,
 		Empresa:   empresa,
+		Phone:     phone,
 	}
 
 	data, err := json.Marshal(payload)

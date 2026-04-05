@@ -42,8 +42,8 @@ func Leads(group *echo.Group) {
 	protected.POST("/leads/analyze/bulk", ctrl.AnalyzeBulk)
 
 	// SSE — notificações em tempo real de movimentações do Kanban.
-	// Sem middleware de grupo: a autenticação é feita INTERNAMENTE no handler
-	// via ?token= query param (EventSource não suporta headers customizados).
-	sseCtrl := controllers.NewLeadSSE(services.Redis())
+	// - Sem middleware de grupo: autenticação feita INTERNAMENTE no handler via ?token=
+	// - leadRepo injetado para que o controller possa buscar/atualizar o banco local
+	sseCtrl := controllers.NewLeadSSE(services.Redis(), leadRepo)
 	group.GET("/leads/events", sseCtrl.Stream)
 }

@@ -15,7 +15,7 @@ const (
 	StatusContatado       KanbanStatus = "contatado"
 	StatusReuniaoAgendada KanbanStatus = "reuniao_agendada"
 	StatusNegociacao      KanbanStatus = "negociacao"
-	StatusEmConversa      KanbanStatus = "em_conversa" // Movido automaticamente ao receber msg WhatsApp
+	StatusEmConversa      KanbanStatus = "em_conversa" // Mantido por compatibilidade; automação usa StatusContatado
 	StatusGanho           KanbanStatus = "ganho"
 	StatusPerdido         KanbanStatus = "perdido"
 )
