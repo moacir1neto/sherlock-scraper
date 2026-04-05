@@ -11,12 +11,13 @@ import (
 type KanbanStatus string
 
 const (
-	StatusProspeccao     KanbanStatus = "prospeccao"
-	StatusContatado      KanbanStatus = "contatado"
+	StatusProspeccao      KanbanStatus = "prospeccao"
+	StatusContatado       KanbanStatus = "contatado"
 	StatusReuniaoAgendada KanbanStatus = "reuniao_agendada"
-	StatusNegociacao     KanbanStatus = "negociacao"
-	StatusGanho          KanbanStatus = "ganho"
-	StatusPerdido        KanbanStatus = "perdido"
+	StatusNegociacao      KanbanStatus = "negociacao"
+	StatusEmConversa      KanbanStatus = "em_conversa" // Movido automaticamente ao receber msg WhatsApp
+	StatusGanho           KanbanStatus = "ganho"
+	StatusPerdido         KanbanStatus = "perdido"
 )
 
 type ScrapingStatus string

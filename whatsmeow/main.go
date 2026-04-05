@@ -42,16 +42,27 @@ func main() {
 	app := echo.New()
 	app.Pre(middleware.Recover())
 	app.Pre(middleware.RemoveTrailingSlash())
-	app.Pre(middleware.CORS())
+	// CORS: AllowOrigins com wildcard para desenvolvimento.
+	// AllowCredentials: false permite usar "*" como origin.
+	// Para SSE com ?token= não há necessidade de credentials (cookies).
+	app.Pre(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Accept", "Content-Type", "Authorization", "apikey"},
+		AllowCredentials: false,
+	}))
 
 	hub := routes.Load(app)
 
 	// Start chat persistence workers (enqueue from event handler, persist in background, broadcast via WS)
+	// O RedisLeadEventPublisher publica no canal Redis quando uma mensagem é recebida,
+	// permitindo que o Sherlock CRM mova o lead automaticamente no Kanban.
 	if chatRepo, err := chats.NewSQL(); err == nil {
 		if messageRepo, err := messages.NewSQL(); err == nil {
 			ch := services.NewChatJobChan()
 			whatsmiau.Get().SetChatJobChan(ch)
-			services.RunChatWorkers(ch, chatRepo, messageRepo, hub)
+			leadPublisher := services.NewRedisLeadEventPublisher(services.Redis())
+			services.RunChatWorkers(ch, chatRepo, messageRepo, hub, leadPublisher)
 		}
 	}
 

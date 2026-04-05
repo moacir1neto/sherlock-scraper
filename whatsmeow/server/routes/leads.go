@@ -40,4 +40,10 @@ func Leads(group *echo.Group) {
 	protected.POST("/leads/:id/analyze", ctrl.Analyze)
 	// Dossiê IA em lote: POST /admin/leads/analyze/bulk
 	protected.POST("/leads/analyze/bulk", ctrl.AnalyzeBulk)
+
+	// SSE — notificações em tempo real de movimentações do Kanban.
+	// Sem middleware de grupo: a autenticação é feita INTERNAMENTE no handler
+	// via ?token= query param (EventSource não suporta headers customizados).
+	sseCtrl := controllers.NewLeadSSE(services.Redis())
+	group.GET("/leads/events", sseCtrl.Stream)
 }

@@ -14,6 +14,7 @@ import { LeadStatusBadge, STATUS_CONFIG } from './LeadStatusBadge';
 import { LeadDetailsModal } from './LeadDetailsModal';
 import { useAIAnalysis } from '../../contexts/AIAnalysisContext';
 import { LeadsKanban } from './LeadsKanban';
+import { useLeadsRealtime } from '../../hooks/useLeadsRealtime';
 
 type ViewMode = 'list' | 'kanban';
 
@@ -262,6 +263,15 @@ function LeadsView({ scrape, onBack }: LeadsViewProps) {
   useEffect(() => {
     setSelectedIds(new Set());
   }, [page, statusFilter]);
+
+  // Notificações em tempo real: atualiza kanban_status do lead sem re-fetch
+  useLeadsRealtime((leadId, newStatus) => {
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId ? { ...l, kanban_status: newStatus as Lead['kanban_status'] } : l
+      )
+    );
+  });
 
   const PAGE_SIZE = 50;
   const totalPages = Math.ceil(total / PAGE_SIZE);
