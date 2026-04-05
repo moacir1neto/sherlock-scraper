@@ -55,15 +55,7 @@ func NewKanbanAutomationService(leadRepo ports.LeadRepository, broadcaster ports
 }
 
 // OnWhatsAppMessageReceived implementa ports.KanbanAutomationService.
-//
-// Fluxo:
-//  1. Normaliza rawPhone e gera variantes (lida com DDI, DDD e 9º dígito).
-//  2. Busca o lead mais recente pelo telefone no banco.
-//  3. Executa UPDATE condicional: só move para 'contatado' se o status
-//     atual NÃO for um dos finalKanbanStatuses (operação atômica no DB).
-//  4. Se houve mudança real, publica evento SSE para o frontend.
-//  5. Loga o resultado — "lead não encontrado" e "status final" não são erros.
-func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context, rawPhone string) error {
+func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context, messageID string, rawPhone string) error {
 	// --- Passo 1: normalização e geração de variantes ---
 	normalized := phoneutil.Normalize(rawPhone)
 	variants := phoneutil.Variants(normalized)
@@ -91,9 +83,10 @@ func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context,
 	log.Printf("[KanbanAutomation] ✅ Lead encontrado: ID=%s | Empresa=%q | StatusAtual=%q",
 		lead.ID, lead.Empresa, lead.KanbanStatus)
 
-	// --- Passo 3: UPDATE condicional (atômico, sem race condition) ---
-	moved, err := s.leadRepo.UpdateStatusConditional(
+	// --- Passo 3: UPDATE condicional com IDEMPOTÊNCIA (atômico) ---
+	moved, err := s.leadRepo.UpdateStatusIdempotent(
 		ctx,
+		messageID,
 		lead.ID.String(),
 		domain.StatusContatado,
 		finalKanbanStatuses,

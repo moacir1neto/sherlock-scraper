@@ -11,13 +11,9 @@ import "context"
 // HTTP ou qualquer detalhe de infraestrutura. Ele apenas recebe dados
 // normalizados e aplica regras de negócio.
 type KanbanAutomationService interface {
-	// OnWhatsAppMessageReceived é chamado quando uma mensagem RECEBIDA chega
-	// via WhatsApp. rawPhone é o número puro em dígitos (sem DDI obrigatório,
-	// sem formatação), extraído do JID do WhatsApp pelo subscriber.
-	//
 	// O método é idempotente: se o lead já estiver em 'em_conversa' ou em
 	// um estágio final (ganho/perdido), nenhuma ação é executada.
-	OnWhatsAppMessageReceived(ctx context.Context, rawPhone string) error
+	OnWhatsAppMessageReceived(ctx context.Context, messageID string, rawPhone string) error
 }
 
 // SSEBroadcaster é a abstração que o KanbanAutomationService usa para notificar

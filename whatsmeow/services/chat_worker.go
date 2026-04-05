@@ -115,7 +115,7 @@ func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo inte
 			go func() {
 				pubCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
-				if err := publisher.PublishIncomingMessage(pubCtx, phone, job.InstanceID); err != nil {
+				if err := publisher.PublishIncomingMessage(pubCtx, d.Key.Id, phone, job.InstanceID); err != nil {
 					// Apenas warning — não retorna erro ao worker principal
 					zap.L().Warn("[ChatWorker] falha ao publicar evento de lead",
 						zap.String("phone", phone),

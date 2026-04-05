@@ -20,5 +20,5 @@ type LeadEventPublisher interface {
 	//
 	// Implementações devem ser não-bloqueantes: usar timeout interno e nunca
 	// retornar um erro que pare o fluxo principal de persistência de mensagens.
-	PublishIncomingMessage(ctx context.Context, phone string, instanceID string) error
+	PublishIncomingMessage(ctx context.Context, messageID string, phone string, instanceID string) error
 }

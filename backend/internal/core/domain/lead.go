@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+
+	"github.com/digitalcombo/sherlock-scraper/backend/pkg/phoneutil"
 )
 
 type KanbanStatus string
@@ -91,6 +93,13 @@ func (l *Lead) BeforeCreate(tx *gorm.DB) (err error) {
 	}
 	if l.Status == "" {
 		l.Status = StatusCapturado
+	}
+	return
+}
+
+func (l *Lead) BeforeSave(tx *gorm.DB) (err error) {
+	if l.Telefone != "" {
+		l.Telefone = phoneutil.StrictClean(l.Telefone)
 	}
 	return
 }

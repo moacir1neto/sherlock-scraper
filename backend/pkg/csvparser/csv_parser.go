@@ -5,6 +5,7 @@ import (
 	"mime/multipart"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
+	"github.com/digitalcombo/sherlock-scraper/backend/pkg/phoneutil"
 )
 
 // ParseFile parses the uploaded CSV file into a 2D string slice
@@ -42,7 +43,7 @@ func MapToLeads(records [][]string, nicho string) []*domain.Lead {
 			QtdAvaliacoes: row[2],
 			ResumoNegocio: row[3],
 			Endereco:      row[4],
-			Telefone:      row[5],
+			Telefone:      phoneutil.StrictClean(row[5]),
 			TipoTelefone:  row[6],
 			LinkWhatsapp:  row[7],
 			Site:          row[8],

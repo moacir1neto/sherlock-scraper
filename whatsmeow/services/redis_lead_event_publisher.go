@@ -19,6 +19,7 @@ const WhatsAppMessagesChannel = "whatsapp:messages:received"
 // Deve permanecer compatível com o WhatsAppMessageEvent do handlers/redis_subscriber.go
 // no módulo Sherlock.
 type leadMessagePayload struct {
+	MessageID  string    `json:"message_id"`
 	Phone      string    `json:"phone"`
 	InstanceID string    `json:"instance_id"`
 	ReceivedAt time.Time `json:"received_at"`
@@ -45,8 +46,9 @@ func NewRedisLeadEventPublisher(client *redis.Client) interfaces.LeadEventPublis
 //
 // Se o Redis estiver indisponível, loga um warning e retorna o erro sem
 // propagar pânico — o fluxo de persistência de mensagens não é afetado.
-func (p *redisLeadEventPublisher) PublishIncomingMessage(ctx context.Context, phone string, instanceID string) error {
+func (p *redisLeadEventPublisher) PublishIncomingMessage(ctx context.Context, messageID string, phone string, instanceID string) error {
 	payload := leadMessagePayload{
+		MessageID:  messageID,
 		Phone:      phone,
 		InstanceID: instanceID,
 		ReceivedAt: time.Now().UTC(),
