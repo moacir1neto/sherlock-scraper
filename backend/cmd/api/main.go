@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
@@ -9,9 +10,10 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/repositories"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/services"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/sse"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 func main() {
@@ -60,6 +62,11 @@ func main() {
 	// Company Settings
 	settingHandler := handlers.NewSettingHandler()
 
+	// SSE Hub — inicializado aqui para ser injetado tanto no handler quanto
+	// no KanbanAutomationService (seção 6) sem quebrar a ordem de declaração.
+	sseHub := sse.NewHub()
+	sseHandler := handlers.NewSSEHandler(sseHub)
+
 	// 5. API Routes
 	api := app.Group("/api/v1")
 
@@ -67,6 +74,11 @@ func main() {
 	auth := api.Group("/auth")
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
+
+	// SSE — Server-Sent Events para notificações em tempo real do Kanban.
+	// A rota valida o JWT internamente via query param ?token=... porque o
+	// EventSource da Web API não suporta headers customizados.
+	api.Get("/events/kanban", sseHandler.Stream)
 
 	// 5.2. Protected Routes
 	protected := api.Group("/protected", middlewares.Protected())
@@ -124,6 +136,19 @@ func main() {
 	// 6. Start Queue Worker in background
 	log.Println("🚀 Starting Queue Worker in background...")
 	go queue.StartServer()
+
+	// 6.1 Kanban Automation — Redis Pub/Sub Subscriber
+	// Escuta o canal "whatsapp:messages:received" e move leads automaticamente
+	// para o estágio "contatado" quando uma mensagem WhatsApp é recebida.
+	// O CompositeBroadcaster notifica:
+	//   - sseHub       → clientes SSE do Sherlock CRM (in-memory)
+	//   - redisBroadcaster → painel WhatsMeow via canal Redis "sherlock:leads:kanban_moved"
+	redisBroadcaster := sse.NewRedisBroadcaster()
+	composite := sse.NewCompositeBroadcaster(sseHub, redisBroadcaster)
+	kanbanService := services.NewKanbanAutomationService(leadRepo, composite)
+	redisSubscriber := handlers.NewRedisSubscriber(kanbanService)
+	go redisSubscriber.Listen(context.Background())
+	log.Println("📡 Kanban Automation subscriber iniciado (canal: whatsapp:messages:received)")
 
 	// 7. Start HTTP Server
 	log.Println("🌐 Server is running on port 3000...")

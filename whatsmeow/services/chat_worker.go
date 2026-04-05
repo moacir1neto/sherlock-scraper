@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/verbeux-ai/whatsmiau/interfaces"
@@ -19,13 +20,21 @@ const chatJobBufferSize = 10000
 const chatWorkerCount = 4
 
 // RunChatWorkers starts workers that consume from the chat job channel and persist to DB.
-// Pass the same channel to whatsmiau.Get().SetChatJobChan(ch). If broadcaster is non-nil, workers will broadcast after persist.
-func RunChatWorkers(ch <-chan whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster) {
+// Pass the same channel to whatsmiau.Get().SetChatJobChan(ch). If broadcaster is non-nil,
+// workers will broadcast after persist. If publisher is non-nil, workers will publish
+// incoming (non-self, non-group) messages to the LeadEventPublisher for CRM automation.
+func RunChatWorkers(
+	ch <-chan whatsmiau.ChatJob,
+	chatRepo interfaces.ChatRepository,
+	messageRepo interfaces.MessageRepository,
+	broadcaster ChatBroadcaster,
+	publisher interfaces.LeadEventPublisher,
+) {
 	for i := 0; i < chatWorkerCount; i++ {
 		go func(workerID int) {
 			for job := range ch {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				if err := processChatJob(ctx, job, chatRepo, messageRepo, broadcaster); err != nil {
+				if err := processChatJob(ctx, job, chatRepo, messageRepo, broadcaster, publisher); err != nil {
 					zap.L().Error("chat worker failed", zap.Int("worker", workerID), zap.String("type", job.Type), zap.String("instance", job.InstanceID), zap.Error(err))
 				}
 				cancel()
@@ -35,10 +44,10 @@ func RunChatWorkers(ch <-chan whatsmiau.ChatJob, chatRepo interfaces.ChatReposit
 	zap.L().Info("chat workers started", zap.Int("count", chatWorkerCount))
 }
 
-func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster) error {
+func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, publisher interfaces.LeadEventPublisher) error {
 	switch job.Type {
 	case "message":
-		return processMessageJob(ctx, job, chatRepo, messageRepo, broadcaster)
+		return processMessageJob(ctx, job, chatRepo, messageRepo, broadcaster, publisher)
 	case "receipt":
 		return processReceiptJob(ctx, job, chatRepo, messageRepo, broadcaster)
 	default:
@@ -46,7 +55,7 @@ func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfa
 	}
 }
 
-func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster) error {
+func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, publisher interfaces.LeadEventPublisher) error {
 	if job.MessageData == nil || job.MessageData.Key == nil {
 		return nil
 	}
@@ -91,7 +100,49 @@ func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo inte
 			"chat_id": chat.ID, "message": msg, "instance_id": job.InstanceID,
 		})
 	}
+
+	// Publica evento de lead apenas para mensagens RECEBIDAS de contatos individuais.
+	// Regras:
+	//   !d.Key.FromMe       → ignora mensagens enviadas por nós mesmos
+	//   !isGroupJID(jid)    → ignora mensagens de grupos (@g.us)
+	if publisher != nil && !d.Key.FromMe && !isGroupJID(remoteJid) {
+		phone := phoneFromJID(remoteJid)
+		if phone != "" {
+			// Goroutine separada: falha no publisher nunca atrasa a resposta ao chat
+			go func() {
+				pubCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				if err := publisher.PublishIncomingMessage(pubCtx, phone, job.InstanceID); err != nil {
+					// Apenas warning — não retorna erro ao worker principal
+					zap.L().Warn("[ChatWorker] falha ao publicar evento de lead",
+						zap.String("phone", phone),
+						zap.String("instance_id", job.InstanceID),
+						zap.Error(err),
+					)
+				}
+			}()
+		}
+	}
+
 	return nil
+}
+
+// phoneFromJID extrai a parte numérica de um JID do WhatsApp.
+//
+//	"5548999999999@s.whatsapp.net" → "5548999999999"
+//	"5548999999999@c.us"          → "5548999999999"
+func phoneFromJID(jid string) string {
+	at := strings.Index(jid, "@")
+	if at < 0 {
+		return jid
+	}
+	return jid[:at]
+}
+
+// isGroupJID retorna true se o JID pertencer a um grupo do WhatsApp.
+// Grupos usam o sufixo "@g.us"; contatos individuais usam "@s.whatsapp.net" ou "@c.us".
+func isGroupJID(jid string) bool {
+	return strings.Contains(jid, "@g.us")
 }
 
 func extractContentPreview(d *whatsmiau.WookMessageData) string {

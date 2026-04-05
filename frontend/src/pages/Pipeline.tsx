@@ -5,6 +5,7 @@ import LeadDetailsModal from '@/components/pipeline/LeadDetails/LeadDetailsModal
 import { AIPipelineResponse, Lead, CreateLeadPayload, PipelineSummary } from '@/types';
 import { usePipeline } from '@/hooks/usePipeline';
 import { useLeads } from '@/hooks/useLeads';
+import { useKanbanRealtime } from '@/hooks/useKanbanRealtime';
 import { ChevronDown, Plus, Edit2, Trash2, Layout, Building2, GripVertical, Check } from 'lucide-react';
 import Swal from 'sweetalert2';
 import {
@@ -141,7 +142,18 @@ function DroppableColumn({
 // ── Main Pipeline Page ──
 export default function Pipeline() {
   const { fetchPipeline, fetchAllPipelines, fetchPipelineById, deletePipeline, addStage } = usePipeline();
-  const { leads, fetchLeads, createLead, updateStatus, deleteLead, duplicateLead, analyzeLead, enrichCNPJ } = useLeads();
+  const { leads, fetchLeads, createLead, updateStatus, deleteLead, duplicateLead, analyzeLead, enrichCNPJ, setLeads } = useLeads();
+
+  // Callback estável que atualiza o card no estado local sem re-fetch completo.
+  // Chamado pelo hook SSE quando o backend move um lead automaticamente.
+  const handleLeadMovedByAutomation = useCallback((leadId: string, newStatus: string) => {
+    setLeads(prev => prev.map(l => l.ID === leadId ? { ...l, KanbanStatus: newStatus } : l));
+  }, [setLeads]);
+
+  // Escuta eventos SSE do Sherlock para mover cards em tempo real quando
+  // uma mensagem WhatsApp é recebida pelo lead.
+  useKanbanRealtime(handleLeadMovedByAutomation);
+
   const [pipelineState, setPipelineState] = useState<AIPipelineResponse | null>(null);
   const [allPipelines, setAllPipelines] = useState<PipelineSummary[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);

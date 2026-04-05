@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { Lead, KanbanStatus, EnrichmentStatus } from '@/types';
 import { Star, MapPin, Phone, ExternalLink, MessageCircle, ChevronDown, Loader2, Sparkles, Database, Brain } from 'lucide-react';
 
-const STATUS_CONFIG: Record<KanbanStatus, { label: string; color: string; bg: string }> = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   prospeccao:      { label: 'Prospecção',        color: 'text-blue-400',   bg: 'bg-blue-500/15 border-blue-500/30' },
   contatado:       { label: 'Contatado',          color: 'text-yellow-400', bg: 'bg-yellow-500/15 border-yellow-500/30' },
   reuniao_agendada:{ label: 'Reunião Agendada',   color: 'text-purple-400', bg: 'bg-purple-500/15 border-purple-500/30' },
   negociacao:      { label: 'Negociação',         color: 'text-orange-400', bg: 'bg-orange-500/15 border-orange-500/30' },
+  em_conversa:     { label: 'Em Conversa',        color: 'text-green-400',  bg: 'bg-green-500/15 border-green-500/30' },
   ganho:           { label: 'Ganho',              color: 'text-emerald-400',bg: 'bg-emerald-500/15 border-emerald-500/30' },
   perdido:         { label: 'Perdido',            color: 'text-red-400',    bg: 'bg-red-500/15 border-red-500/30' },
 };
@@ -86,7 +87,7 @@ interface StatusBadgeProps {
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, onStatusChange }) => {
   const [open, setOpen] = useState(false);
-  const cfg = STATUS_CONFIG[status];
+  const cfg = STATUS_CONFIG[status] ?? { label: status, color: 'text-gray-400', bg: 'bg-gray-500/15 border-gray-500/30' };
 
   return (
     <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>

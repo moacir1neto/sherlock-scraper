@@ -12,6 +12,15 @@ type LeadRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Lead, error)
 	GetByJobID(ctx context.Context, jobID string) ([]*domain.Lead, error)
 	UpdateStatus(ctx context.Context, id string, status domain.KanbanStatus) error
+	// UpdateStatusConditional atualiza kanban_status apenas se o status atual NÃO estiver
+	// na lista blockedStatuses. Retorna (true, nil) se a linha foi atualizada,
+	// (false, nil) se o status era final e nenhuma linha foi tocada.
+	// A lógica é executada atomicamente em uma única query SQL (sem race condition).
+	UpdateStatusConditional(ctx context.Context, id string, newStatus domain.KanbanStatus, blockedStatuses []domain.KanbanStatus) (updated bool, err error)
+	// FindByPhone busca o lead mais recente cujo campo Telefone, após remover
+	// caracteres não-numéricos, bate com qualquer string da lista variants.
+	// Retorna (nil, nil) se nenhum lead for encontrado (não é erro).
+	FindByPhone(ctx context.Context, variants []string) (*domain.Lead, error)
 	Update(ctx context.Context, lead *domain.Lead) error
 	Create(ctx context.Context, lead *domain.Lead) error
 	Delete(ctx context.Context, id string) error
