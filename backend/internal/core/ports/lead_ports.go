@@ -17,6 +17,10 @@ type LeadRepository interface {
 	// (false, nil) se o status era final e nenhuma linha foi tocada.
 	// A lógica é executada atomicamente em uma única query SQL (sem race condition).
 	UpdateStatusConditional(ctx context.Context, id string, newStatus domain.KanbanStatus, blockedStatuses []domain.KanbanStatus) (updated bool, err error)
+	// UpdateStatusIdempotent garante que a mensagem messageID seja processada apenas uma vez.
+	// Se a mensagem já foi processada, retorna (false, nil). Se for nova e o status
+	// for atualizado, retorna (true, nil).
+	UpdateStatusIdempotent(ctx context.Context, messageID string, id string, newStatus domain.KanbanStatus, blockedStatuses []domain.KanbanStatus) (updated bool, err error)
 	// FindByPhone busca o lead mais recente cujo campo Telefone, após remover
 	// caracteres não-numéricos, bate com qualquer string da lista variants.
 	// Retorna (nil, nil) se nenhum lead for encontrado (não é erro).

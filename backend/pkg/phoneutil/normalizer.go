@@ -28,6 +28,28 @@ func Normalize(phone string) string {
 	return reNonDigits.ReplaceAllString(strings.TrimSpace(phone), "")
 }
 
+// StrictClean aplica as regras rígidas do WhatsMiau/CRM para garantir
+// DDI 55, remover zeros à esquerda no DDD, e formatar corretamente.
+func StrictClean(phone string) string {
+	clean := Normalize(phone)
+	if clean == "" {
+		return ""
+	}
+
+	// Remove zero inicial do DDD (ex: 04899999999 -> 48999999999)
+	// Geralmente o número com zero inicial terá 11 ou 12 dígitos.
+	if len(clean) >= 11 && clean[0] == '0' {
+		clean = clean[1:]
+	}
+
+	// Insere o DDI 55 se o número final for no formato DDD local (10 ou 11 dígitos)
+	if (len(clean) == 10 || len(clean) == 11) && !strings.HasPrefix(clean, "55") {
+		clean = "55" + clean
+	}
+
+	return clean
+}
+
 // StripWAJID extrai a parte numérica de um JID do WhatsApp.
 // Retorna string vazia para JIDs de grupo (@g.us) — o caller deve ignorar.
 //

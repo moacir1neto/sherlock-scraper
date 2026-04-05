@@ -7,7 +7,9 @@ import (
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type leadRepository struct {
@@ -149,6 +151,56 @@ func (r *leadRepository) UpdateStatusConditional(
 		return false, res.Error
 	}
 	return res.RowsAffected > 0, nil
+}
+
+// UpdateStatusIdempotent implementa a lógica de idempotência via Transação + OnConflict.
+func (r *leadRepository) UpdateStatusIdempotent(
+	ctx context.Context,
+	messageID string,
+	id string,
+	newStatus domain.KanbanStatus,
+	blockedStatuses []domain.KanbanStatus,
+) (bool, error) {
+	var updated bool
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Tenta registrar a mensagem como processada.
+		// clause.OnConflict{DoNothing: true} garante que se o ID já existir, não faz nada e não dá erro.
+		res := tx.Clauses(clause.OnConflict{
+			DoNothing: true,
+		}).Create(&domain.ProcessedMessage{
+			MessageID:   messageID,
+			LeadID:      uuid.MustParse(id),
+			ProcessedAt: time.Now(),
+		})
+
+		// Se RowsAffected for 0, a mensagem já foi processada antes.
+		if res.RowsAffected == 0 {
+			updated = false
+			return nil
+		}
+
+		// 2. Se a mensagem é nova, procede com a atualização condicional.
+		blocked := make([]string, len(blockedStatuses))
+		for i, s := range blockedStatuses {
+			blocked[i] = string(s)
+		}
+
+		resUpdate := tx.Model(&domain.Lead{}).
+			Where("id = ? AND kanban_status NOT IN ?", id, blocked).
+			Updates(map[string]interface{}{
+				"kanban_status": string(newStatus),
+				"updated_at":    time.Now(),
+			})
+
+		if resUpdate.Error != nil {
+			return resUpdate.Error
+		}
+
+		updated = resUpdate.RowsAffected > 0
+		return nil
+	})
+
+	return updated, err
 }
 
 func (r *leadRepository) DeleteScrapeJob(ctx context.Context, id string) error {

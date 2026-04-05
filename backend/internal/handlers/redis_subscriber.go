@@ -24,6 +24,7 @@ const WhatsAppMessagesChannel = "whatsapp:messages:received"
 // Exemplo: "5548999999999". O KanbanAutomationService cuida da normalização
 // e geração de variantes — o publisher não precisa fazer isso.
 type WhatsAppMessageEvent struct {
+	MessageID  string    `json:"message_id"`  // ID único da mensagem (idempotência)
 	Phone      string    `json:"phone"`       // Ex: "5548999999999"
 	InstanceID string    `json:"instance_id"` // ID da instância WhatsMeow que recebeu
 	ReceivedAt time.Time `json:"received_at"` // Timestamp do recebimento
@@ -159,15 +160,15 @@ func (s *RedisSubscriber) handleMessage(ctx context.Context, payload string) {
 		return
 	}
 
-	log.Printf("[RedisSubscriber] ➡️  Despachando para KanbanAutomation: phone=%q instance=%q",
-		event.Phone, event.InstanceID)
+	log.Printf("[RedisSubscriber] ➡️  Despachando para KanbanAutomation: phone=%q instance=%q msgID=%q",
+		event.Phone, event.InstanceID, event.MessageID)
 
 	// Contexto com timeout para não bloquear o loop de eventos caso o DB leve
 	// mais de 5 segundos (ex: connection pool esgotado)
 	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := s.service.OnWhatsAppMessageReceived(callCtx, event.Phone); err != nil {
+	if err := s.service.OnWhatsAppMessageReceived(callCtx, event.MessageID, event.Phone); err != nil {
 		log.Printf("[RedisSubscriber] ❌ KanbanAutomation retornou erro para phone %q: %v",
 			event.Phone, err)
 		// Não retorna o erro — um lead não encontrado não deve parar o subscriber

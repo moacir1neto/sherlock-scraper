@@ -167,15 +167,29 @@ def run(playwright):
                 print(f"\n⏳ A analisar: {nome[:35]}...")
                 
                 link_elemento.click(force=True)
-                time.sleep(2.5) 
-                
-                # --- NOVIDADE FASE 13: SELETORES CIRÚRGICOS (NOTA + PIOR COMENTÁRIO) ---
+
+                # Aguarda painel atualizar para o nome correto antes de extrair dados.
+                # Evita seletores globais capturarem dados do item anterior.
+                try:
+                    page.wait_for_selector(
+                        'h1.DUwDvf, [data-attrid="title"] h1, .lMbq3e h1',
+                        timeout=5000,
+                        state="visible",
+                    )
+                    painel_nome_el = page.locator('h1.DUwDvf, [data-attrid="title"] h1, .lMbq3e h1').first
+                    painel_nome_real = painel_nome_el.inner_text().strip() if painel_nome_el.count() > 0 else ""
+                    if painel_nome_real and painel_nome_real.lower() not in nome.lower() and nome.lower() not in painel_nome_real.lower():
+                        time.sleep(1.5)
+                except Exception:
+                    time.sleep(2.5)
+
+                # --- SELETORES CIRÚRGICOS (NOTA + PIOR COMENTÁRIO) ---
                 nota = "-"
                 qtd_avaliacoes = "-"
                 pior_comentario = "-"
-                
+
                 try:
-                    # Opcional: Manter regex simples para qtd_avaliacoes não quebrar a coluna
+                    # qtd_avaliacoes extraído do aria-label capturado ANTES do clique
                     texto_card = link_elemento.get_attribute("aria-label") or ""
                     m_card_qtd = re.search(r'[1-5][.,]\d\s*\((\d+[\d.,]*)\)', texto_card)
                     if m_card_qtd:
@@ -187,7 +201,6 @@ def run(playwright):
                         nota_el.wait_for(state="attached", timeout=2500)
                         nota = nota_el.inner_text().strip().replace(',', '.')
                     except:
-                        # Fallback span[aria-hidden='true'] dentro da classe .F7nice
                         fallback_el = page.locator('.F7nice span[aria-hidden="true"]').first
                         if fallback_el.count() > 0:
                             nota = fallback_el.inner_text().strip().replace(',', '.')
@@ -207,13 +220,16 @@ def run(playwright):
                     except: pass
                 except Exception as e:
                     print(f"⚠️ Alerta na extração do lead {nome}: {e}")
-                
-                # Debug de Engenharia
+
                 print(f"💎 Lead: {nome[:30]:<30} | Nota: {nota:<4} | Avaliações: {qtd_avaliacoes}")
 
-                # 2. Endereço
+                # 2. Endereço — aguarda botão aparecer no painel atualizado
+                try:
+                    page.wait_for_selector('button[data-item-id="address"]', timeout=3000, state="attached")
+                except Exception:
+                    pass
                 endereco_locator = page.locator('button[data-item-id="address"]')
-                endereco = endereco_locator.first.inner_text().replace('\n', ' ').replace('', '').replace('-', '', 1).strip() if endereco_locator.count() > 0 else "Não encontrado"
+                endereco = endereco_locator.first.inner_text().replace('\n', ' ').replace('', '').replace('-', '', 1).strip() if endereco_locator.count() > 0 else "Não encontrado"
 
                 # 3. Telefone e WhatsApp
                 telefone_locator = page.locator('button[data-item-id^="phone:tel:"]')
@@ -227,7 +243,7 @@ def run(playwright):
                 site_locator = page.locator('a[data-item-id="authority"]')
                 site = "-"
                 dados_sociais = {"resumo": "-", "email": "-", "instagram": "-", "facebook": "-", "linkedin": "-", "tiktok": "-", "youtube": "-"}
-                
+
                 if site_locator.count() > 0:
                     site = site_locator.first.get_attribute("href")
                     dados_sociais = investigar_site(context, site)

@@ -25,11 +25,16 @@ var finalKanbanStatuses = []domain.KanbanStatus{
 // kanbanUpdatedEvent é o payload JSON enviado via SSE ao frontend.
 // O campo "type" identifica o evento; os demais permitem o frontend atualizar
 // o card correto sem re-fetch completo da lista.
+//
+// O campo Phone é essencial para que o WhatsMeow backend possa localizar
+// seu próprio lead pelo telefone e re-emitir o evento com o UUID local —
+// os dois sistemas têm bancos separados com UUIDs diferentes.
 type kanbanUpdatedEvent struct {
 	Type      string `json:"type"`       // sempre "lead_kanban_updated"
-	LeadID    string `json:"lead_id"`    // UUID do lead movido
+	LeadID    string `json:"lead_id"`    // UUID do lead no banco Sherlock
 	NewStatus string `json:"new_status"` // novo KanbanStatus
 	Empresa   string `json:"empresa"`    // nome da empresa (para toast no frontend)
+	Phone     string `json:"phone"`      // telefone normalizado (apenas dígitos) para cross-match
 }
 
 type kanbanAutomationService struct {
@@ -50,15 +55,7 @@ func NewKanbanAutomationService(leadRepo ports.LeadRepository, broadcaster ports
 }
 
 // OnWhatsAppMessageReceived implementa ports.KanbanAutomationService.
-//
-// Fluxo:
-//  1. Normaliza rawPhone e gera variantes (lida com DDI, DDD e 9º dígito).
-//  2. Busca o lead mais recente pelo telefone no banco.
-//  3. Executa UPDATE condicional: só move para 'contatado' se o status
-//     atual NÃO for um dos finalKanbanStatuses (operação atômica no DB).
-//  4. Se houve mudança real, publica evento SSE para o frontend.
-//  5. Loga o resultado — "lead não encontrado" e "status final" não são erros.
-func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context, rawPhone string) error {
+func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context, messageID string, rawPhone string) error {
 	// --- Passo 1: normalização e geração de variantes ---
 	normalized := phoneutil.Normalize(rawPhone)
 	variants := phoneutil.Variants(normalized)
@@ -86,9 +83,10 @@ func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context,
 	log.Printf("[KanbanAutomation] ✅ Lead encontrado: ID=%s | Empresa=%q | StatusAtual=%q",
 		lead.ID, lead.Empresa, lead.KanbanStatus)
 
-	// --- Passo 3: UPDATE condicional (atômico, sem race condition) ---
-	moved, err := s.leadRepo.UpdateStatusConditional(
+	// --- Passo 3: UPDATE condicional com IDEMPOTÊNCIA (atômico) ---
+	moved, err := s.leadRepo.UpdateStatusIdempotent(
 		ctx,
+		messageID,
 		lead.ID.String(),
 		domain.StatusContatado,
 		finalKanbanStatuses,
@@ -102,7 +100,7 @@ func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context,
 	if moved {
 		log.Printf("[KanbanAutomation] 🎯 Lead %s (%q) movido → %q",
 			lead.ID, lead.Empresa, domain.StatusContatado)
-		s.publishSSEEvent(lead.ID.String(), string(domain.StatusContatado), lead.Empresa)
+		s.publishSSEEvent(lead.ID.String(), string(domain.StatusContatado), lead.Empresa, normalized)
 	} else {
 		log.Printf("[KanbanAutomation] ⏭️  Lead %s (%q) não movido — status %q é final ou idempotente",
 			lead.ID, lead.Empresa, lead.KanbanStatus)
@@ -113,7 +111,8 @@ func (s *kanbanAutomationService) OnWhatsAppMessageReceived(ctx context.Context,
 
 // publishSSEEvent serializa e envia o evento para o hub SSE.
 // Chamado apenas quando o DB confirmou a mudança de linha (moved == true).
-func (s *kanbanAutomationService) publishSSEEvent(leadID, newStatus, empresa string) {
+// phone é o número normalizado (apenas dígitos) extraído do JID do WhatsApp.
+func (s *kanbanAutomationService) publishSSEEvent(leadID, newStatus, empresa, phone string) {
 	if s.broadcaster == nil {
 		return
 	}
@@ -123,6 +122,7 @@ func (s *kanbanAutomationService) publishSSEEvent(leadID, newStatus, empresa str
 		LeadID:    leadID,
 		NewStatus: newStatus,
 		Empresa:   empresa,
+		Phone:     phone,
 	}
 
 	data, err := json.Marshal(payload)

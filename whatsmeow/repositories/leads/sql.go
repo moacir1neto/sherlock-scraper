@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -284,4 +285,70 @@ func (r *SQLLead) Delete(ctx context.Context, id, companyID string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// FindByName busca o lead mais recente cujo nome contenha a string fornecida.
+// Usa ILIKE para match case-insensitive. Retorna nil sem erro se não encontrado.
+func (r *SQLLead) FindByName(ctx context.Context, companyID string, name string) (*models.Lead, error) {
+	if name == "" {
+		return nil, nil
+	}
+
+	query := fmt.Sprintf(`SELECT %s FROM leads
+		WHERE company_id=$1
+		  AND name ILIKE $2
+		ORDER BY created_at DESC
+		LIMIT 1`,
+		allCols,
+	)
+
+	var l models.Lead
+	err := scanLead(r.db.QueryRowContext(ctx, query, companyID, "%"+name+"%"), &l)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find lead by name: %w", err)
+	}
+	return &l, nil
+}
+
+// FindByPhone busca o lead mais recente cujo telefone normalizado (só dígitos)
+// case com qualquer uma das variantes fornecidas.
+//
+// Usa regexp_replace para normalizar o campo phone do banco na hora da query,
+// eliminando qualquer formatação armazenada (ex: "(48) 9 9999-9999").
+// Retorna nil sem erro se nenhum lead for encontrado.
+func (r *SQLLead) FindByPhone(ctx context.Context, companyID string, variants []string) (*models.Lead, error) {
+	if len(variants) == 0 {
+		return nil, nil
+	}
+
+	// Constrói placeholders: $2, $3, $4, ...
+	placeholders := make([]string, len(variants))
+	args := make([]interface{}, 0, len(variants)+1)
+	args = append(args, companyID)
+	for i, v := range variants {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, v)
+	}
+
+	query := fmt.Sprintf(`SELECT %s FROM leads
+		WHERE company_id=$1
+		  AND regexp_replace(phone, '[^0-9]', '', 'g') IN (%s)
+		ORDER BY created_at DESC
+		LIMIT 1`,
+		allCols,
+		strings.Join(placeholders, ","),
+	)
+
+	var l models.Lead
+	err := scanLead(r.db.QueryRowContext(ctx, query, args...), &l)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find lead by phone: %w", err)
+	}
+	return &l, nil
 }
