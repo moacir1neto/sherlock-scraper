@@ -30,6 +30,7 @@ func StartServer() {
 	
 	// Register task handlers here
 	mux.HandleFunc(TaskTypeEnrichLead, HandleEnrichLeadTask)
+	mux.HandleFunc(TaskTypeBulkMessage, HandleBulkMessageTask)
 
 	log.Printf("Asynq server initialized pointing to %s", redisAddr)
 

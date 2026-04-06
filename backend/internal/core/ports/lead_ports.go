@@ -46,6 +46,8 @@ type LeadService interface {
 	UpdateLead(ctx context.Context, lead *domain.Lead) error
 	DeleteLead(ctx context.Context, id string) error
 
+	EnqueueBulkSend(ctx context.Context, leadIDs []string, instanceID string) (int, error)
+
 	CreateJob(ctx context.Context, nicho, localizacao string) (*domain.ScrapingJob, error)
 	UpdateJob(ctx context.Context, job *domain.ScrapingJob) error
 	GetJob(ctx context.Context, id string) (*domain.ScrapingJob, error)
