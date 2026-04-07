@@ -142,23 +142,31 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container, repo interface
 }
 
 func (s *Whatsmiau) Connect(ctx context.Context, id string) (string, error) {
+	zap.L().Info("[connect] starting connection flow", zap.String("instance", id))
+
 	client, err := s.generateClient(ctx, id)
 	if err != nil {
+		zap.L().Error("[connect] generateClient failed", zap.String("instance", id), zap.Error(err))
 		return "", err
 	}
 	if client == nil {
+		zap.L().Info("[connect] already connected", zap.String("instance", id))
 		return "", nil
 	}
 
 	if qr, ok := s.qrCache.Load(id); ok {
+		zap.L().Debug("[connect] returning cached QR", zap.String("instance", id))
 		return qr, nil
 	}
 
+	zap.L().Info("[connect] waiting for QR code generation", zap.String("instance", id))
 	qrCode, err := s.observeAndQrCode(ctx, id, client)
 	if err != nil {
+		zap.L().Error("[connect] observeAndQrCode failed", zap.String("instance", id), zap.Error(err))
 		return "", err
 	}
 
+	zap.L().Info("[connect] QR code generated successfully", zap.String("instance", id))
 	return qrCode, nil
 }
 
@@ -173,13 +181,19 @@ func (s *Whatsmiau) generateClient(ctx context.Context, id string) (*whatsmeow.C
 
 	client, ok := s.clients.Load(id)
 	if !ok {
+		zap.L().Info("[generateClient] creating new device", zap.String("instance", id))
 		device := s.container.NewDevice()
 		client = whatsmeow.NewClient(device, s.logger)
 		s.clients.Store(id, client)
 	}
 
-	// trying recover existent connection
 	if s.hasSomeDevice(client) {
+		zap.L().Info("[generateClient] existing device found, attempting recovery",
+			zap.String("instance", id),
+			zap.Bool("logged_in", client.IsLoggedIn()),
+			zap.Bool("connected", client.IsConnected()),
+		)
+
 		if instanceFound := s.getInstanceCached(id); instanceFound != nil {
 			configProxy(client, instanceFound.InstanceProxy)
 		}
@@ -192,17 +206,21 @@ func (s *Whatsmiau) generateClient(ctx context.Context, id string) (*whatsmeow.C
 			if client.IsLoggedIn() {
 				return nil, nil
 			}
+		} else {
+			zap.L().Warn("[generateClient] recovery connect failed", zap.String("instance", id), zap.Error(err))
 		}
 
+		zap.L().Info("[generateClient] cleaning stale device", zap.String("instance", id))
 		s.clients.Delete(id)
 		if err := s.deleteDeviceIfExists(ctx, client); err != nil {
-			zap.L().Error("failed to hard logout", zap.Error(err))
+			zap.L().Error("[generateClient] hard logout failed", zap.String("instance", id), zap.Error(err))
 			return nil, err
 		}
 
 		device := s.container.NewDevice()
 		client = whatsmeow.NewClient(device, s.logger)
-		s.clients.Store(id, client) // replaces old client
+		s.clients.Store(id, client)
+		zap.L().Info("[generateClient] fresh client created", zap.String("instance", id))
 	}
 
 	return client, nil
@@ -315,25 +333,34 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 }
 
 func (s *Whatsmiau) observeAndQrCode(ctx context.Context, id string, client *whatsmeow.Client) (string, error) {
-	ctx, c := context.WithTimeout(ctx, 15*time.Second)
-	defer c()
+	const qrWaitTimeout = 45 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, qrWaitTimeout)
+	defer cancel()
 
-	zap.L().Debug("starting observe and qr code", zap.String("id", id))
+	zap.L().Info("[observeAndQrCode] waiting up to 45s for QR", zap.String("instance", id))
 	go s.observeConnection(client, id)
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
+	start := time.Now()
 	for {
 		select {
 		case <-ticker.C:
 			qrCode, ok := s.qrCache.Load(id)
 			if ok && len(qrCode) > 0 {
-				zap.L().Debug("got qr code from cache", zap.String("id", id))
+				zap.L().Info("[observeAndQrCode] QR ready",
+					zap.String("instance", id),
+					zap.Duration("elapsed", time.Since(start)),
+				)
 				return qrCode, nil
 			}
 		case <-ctx.Done():
-			zap.L().Debug("observe and qr code context done", zap.String("id", id), zap.Error(ctx.Err()))
+			zap.L().Error("[observeAndQrCode] timeout reached",
+				zap.String("instance", id),
+				zap.Duration("elapsed", time.Since(start)),
+				zap.Error(ctx.Err()),
+			)
 			return "", ctx.Err()
 		}
 	}

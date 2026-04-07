@@ -13,6 +13,7 @@ COPY . .
 # Install additional dependencies and update go.mod
 RUN go get github.com/golang-jwt/jwt/v5
 RUN go get golang.org/x/crypto/bcrypt
+RUN go get -u go.mau.fi/whatsmeow@latest
 RUN go mod tidy
 
 # Enable CGO (SQLite); build whole module
