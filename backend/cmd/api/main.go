@@ -97,6 +97,7 @@ func main() {
 	leads.Patch("/:id/status", leadHandler.UpdateStatus)
 	leads.Put("/:id", leadHandler.UpdateLead)
 	leads.Delete("/:id", leadHandler.DeleteLead)
+	leads.Post("/bulk-send", leadHandler.BulkSend)
 
 	// AI Analysis Routes
 	leads.Post("/analyze/bulk", aiHandler.AnalyzeLeadsBulk) // Análise em massa

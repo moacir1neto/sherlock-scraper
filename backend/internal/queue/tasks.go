@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -30,8 +31,8 @@ type SherlockCNPJResponse struct {
 }
 
 const (
-	// TaskTypeEnrichLead defines the task identifier for lead enrichment.
-	TaskTypeEnrichLead = "enrich:lead"
+	TaskTypeEnrichLead    = "enrich:lead"
+	TaskTypeBulkMessage   = "lead:bulk-message"
 )
 
 // EnrichLeadPayload contains data for the enrich lead task
@@ -50,6 +51,143 @@ func NewEnrichLeadTask(leadID, companyName string) (*asynq.Task, error) {
 		return nil, err
 	}
 	return asynq.NewTask(TaskTypeEnrichLead, payload), nil
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BULK MESSAGE — Task + Handler
+// ═══════════════════════════════════════════════════════════════
+
+// BulkMessagePayload carries the minimum data for a single message dispatch.
+type BulkMessagePayload struct {
+	LeadID     string `json:"lead_id"`
+	InstanceID string `json:"instance_id"`
+}
+
+// NewBulkMessageTask creates a new Asynq task for sending a prospection message.
+func NewBulkMessageTask(leadID, instanceID string) (*asynq.Task, error) {
+	payload, err := json.Marshal(BulkMessagePayload{
+		LeadID:     leadID,
+		InstanceID: instanceID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TaskTypeBulkMessage, payload, asynq.MaxRetry(3)), nil
+}
+
+// HandleBulkMessageTask processes a single prospection message.
+// Retryable errors (network) are returned without SkipRetry.
+// Permanent errors (missing lead, no phone) are wrapped with SkipRetry.
+func HandleBulkMessageTask(ctx context.Context, t *asynq.Task) error {
+	var payload BulkMessagePayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	log.Printf("📨 [BulkMessage] Iniciando disparo para Lead %s (instance: %s)",
+		payload.LeadID, payload.InstanceID)
+
+	// 1. Fetch lead from database
+	var lead domain.Lead
+	if err := database.DB.First(&lead, "id = ?", payload.LeadID).Error; err != nil {
+		log.Printf("❌ [BulkMessage] Lead %s não encontrado: %v", payload.LeadID, err)
+		return fmt.Errorf("lead not found: %w", asynq.SkipRetry)
+	}
+
+	// 2. Validate phone number
+	if lead.Telefone == "" {
+		log.Printf("⏭️  [BulkMessage] Lead '%s' sem telefone. Pulando.", lead.Empresa)
+		return fmt.Errorf("lead has no phone: %w", asynq.SkipRetry)
+	}
+
+	// 3. Extract icebreaker from AI analysis (if available)
+	messageText := buildProspectionMessage(lead)
+	log.Printf("💬 [BulkMessage] Mensagem para '%s': %.80s...", lead.Empresa, messageText)
+
+	// 4. Send via WhatsMiau API
+	if err := sendViaWhatsMiau(payload.InstanceID, lead.Telefone, messageText); err != nil {
+		log.Printf("⚠️  [BulkMessage] Falha ao enviar para '%s': %v (retry possível)", lead.Empresa, err)
+		return err // retryable — Asynq will retry
+	}
+
+	// 5. Update kanban status to "contatado"
+	lead.KanbanStatus = domain.StatusContatado
+	if err := database.DB.Model(&lead).Update("kanban_status", domain.StatusContatado).Error; err != nil {
+		log.Printf("⚠️  [BulkMessage] Erro ao atualizar status do lead '%s': %v", lead.Empresa, err)
+		return err
+	}
+
+	log.Printf("✅ [BulkMessage] Mensagem enviada com sucesso para '%s' (%s) → status: contatado",
+		lead.Empresa, lead.Telefone)
+
+	return nil
+}
+
+// buildProspectionMessage extracts the icebreaker from AIAnalysis or falls back to a generic greeting.
+func buildProspectionMessage(lead domain.Lead) string {
+	if len(lead.AIAnalysis) > 0 {
+		var analysis map[string]interface{}
+		if err := json.Unmarshal(lead.AIAnalysis, &analysis); err == nil {
+			if icebreaker, ok := analysis["icebreaker_whatsapp"].(string); ok && icebreaker != "" {
+				return icebreaker
+			}
+		}
+	}
+
+	return fmt.Sprintf(
+		"Olá! Tudo bem? Vi que a %s atua no segmento de %s e gostaria de apresentar uma solução que pode ajudar vocês. Podemos conversar?",
+		lead.Empresa, lead.Nicho,
+	)
+}
+
+// sendViaWhatsMiau performs an HTTP POST to the WhatsMiau /v1/message/sendText/:instance endpoint.
+func sendViaWhatsMiau(instanceID, phone, text string) error {
+	apiURL := os.Getenv("WHATSMIau_API_URL")
+	if apiURL == "" {
+		apiURL = "http://whatsmiau-api:8080"
+	}
+
+	// WhatsMiau Evolution route is /v1/message/sendText/:instance
+	endpoint := fmt.Sprintf("%s/v1/message/sendText/%s", apiURL, instanceID)
+
+	body := map[string]interface{}{
+		"number":     phone,
+		"text":       text,
+		"delay":      1200, // Simula tempo de digitação
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Adiciona apikey se configurada
+	if apiToken := os.Getenv("WHATSMIau_API_TOKEN"); apiToken != "" {
+		req.Header.Set("apikey", apiToken)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("whatsmiau connection error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("whatsmiau returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	log.Printf("📡 [BulkMessage] WhatsMiau response %d: %s", resp.StatusCode, string(respBody))
+	return nil
 }
 
 // HandleEnrichLeadTask processes the enrich lead task
