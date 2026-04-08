@@ -304,8 +304,8 @@ func (h *LeadHandler) CreateLead(c *fiber.Ctx) error {
 }
 
 type BulkSendReq struct {
-	LeadIDs    []string `json:"lead_ids"`
-	InstanceID string   `json:"instance_id"`
+	Leads      []ports.BulkSendLead `json:"leads"`
+	InstanceID string               `json:"instance_id"`
 }
 
 func (h *LeadHandler) BulkSend(c *fiber.Ctx) error {
@@ -314,23 +314,26 @@ func (h *LeadHandler) BulkSend(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
-	if len(req.LeadIDs) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "lead_ids is required"})
+	if len(req.Leads) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "leads array is required"})
 	}
 
 	if req.InstanceID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "instance_id is required"})
 	}
 
-	enqueued, err := h.service.EnqueueBulkSend(c.Context(), req.LeadIDs, req.InstanceID)
+	campaignID := uuid.New().String()
+
+	enqueued, err := h.service.EnqueueBulkSend(c.Context(), req.Leads, req.InstanceID, campaignID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{
-		"message":  fmt.Sprintf("%d mensagens enfileiradas com sucesso", enqueued),
-		"enqueued": enqueued,
-		"total":    len(req.LeadIDs),
+		"campaign_id": campaignID,
+		"message":     fmt.Sprintf("%d mensagens enfileiradas com sucesso", enqueued),
+		"enqueued":    enqueued,
+		"total":       len(req.Leads),
 	})
 }
 

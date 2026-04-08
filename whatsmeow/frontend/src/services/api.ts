@@ -16,90 +16,74 @@ const api = axios.create({
   timeout: 30000, // 30 segundos
 });
 
-// Add token to requests if available
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Interceptor para logar requisições (debug)
-api.interceptors.request.use(
-  (config) => {
-    console.log('API Request:', {
-      method: config.method,
-      url: config.url,
-      baseURL: config.baseURL,
-      data: config.data,
-      headers: config.headers,
-    });
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Interceptor para tratamento global de erros
-api.interceptors.response.use(
-  (response) => {
-    console.log('✅ API Response:', {
-      status: response.status,
-      url: response.config.url,
-      data: response.data,
-    });
-    return response;
-  },
-  (error) => {
-    console.error('❌ API Error:', {
-      message: error.message,
-      code: error.code,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      url: error.config?.url,
-      fullUrl: error.config?.baseURL + error.config?.url,
-      method: error.config?.method,
-      headers: error.config?.headers,
-      data: error.response?.data,
-      requestData: error.config?.data,
-      responseHeaders: error.response?.headers,
-    });
-    
-    // Log detalhado para erros 403 (Forbidden)
-    if (error.response?.status === 403) {
-      console.error('🚫 FORBIDDEN ERROR DETAILS:', {
-        url: error.config?.url,
-        method: error.config?.method,
-        headers: {
-          authorization: error.config?.headers?.Authorization ? 'Bearer ***' : 'MISSING',
-          apikey: error.config?.headers?.apikey || 'MISSING',
-        },
-        errorMessage: error.response?.data?.message,
-        errorData: error.response?.data,
+// --- Lógica de Interceptores Reutilizável ---
+const applyInterceptors = (instance: any, name: string) => {
+  // Injeção de Token JWT
+  instance.interceptors.request.use(
+    (config: any) => {
+      const token = localStorage.getItem('token');
+      if (token && !config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      
+      // Log de debug (opcional)
+      console.log(`🚀 [${name}] Request:`, {
+        method: config.method,
+        url: config.url,
+        baseUrl: config.baseURL
       });
-    }
-    
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
+      
+      return config;
+    },
+    (error: any) => Promise.reject(error)
+  );
 
-    if (error.code === 'ECONNABORTED') {
-      error.message = 'Tempo limite excedido. Tente novamente.';
-    } else if (!error.response) {
-      error.message = 'Erro de conexão. Verifique sua internet.';
+  // Tratamento de Resposta e Erros Globais (401 Unauthorized)
+  instance.interceptors.response.use(
+    (response: any) => response,
+    (error: any) => {
+      const status = error.response?.status;
+      
+      console.error(`❌ [${name}] API Error:`, {
+        status,
+        message: error.message,
+        url: error.config?.url
+      });
+
+      if (status === 401 && name !== 'Sherlock') {
+        console.warn(`⚠️ Sessão expirada na instância [${name}]. Redirecionando...`);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      } else if (status === 401) {
+        console.error(`🚫 [${name}] Auth Error (Bypassed logout): Ocorreu um erro 401, mas o logout foi impedido.`);
+      }
+
+      if (error.code === 'ECONNABORTED') {
+        error.message = 'Tempo limite excedido. Tente novamente.';
+      } else if (!error.response) {
+        error.message = 'Erro de conexão. Verifique sua internet.';
+      }
+
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
-  }
-);
+  );
+};
+
+// Aplicar interceptores nas instâncias
+applyInterceptors(api, 'WhatsMiau');
+
+const SHERLOCK_API_URL = (import.meta.env.VITE_SHERLOCK_API_URL || 'http://localhost:3000/api/v1').replace(/\/+$/, '');
+
+export const sherlockApi = axios.create({
+  baseURL: SHERLOCK_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 30000, 
+});
+applyInterceptors(sherlockApi, 'Sherlock');
+// --------------------------------------------
 
 export const instanceService = {
   list: async () => {

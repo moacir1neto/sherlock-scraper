@@ -22,6 +22,7 @@ func main() {
 
 	// 2. Initialize Redis Queue Client
 	queue.InitClient()
+	queue.InitRedisPublisher()
 	defer queue.CloseClient()
 
 	// 3. Initialize Fiber App
@@ -31,7 +32,7 @@ func main() {
 	app.Use(logger.New())
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:5173", // Libera o acesso para o seu Front-end
+		AllowOrigins: "http://localhost:5173, http://localhost:3031, http://127.0.0.1:3031", // Libera o acesso para o Front-end Sherlock e WhatsMiau
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Internal-Token",
 		AllowMethods: "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
 	}))
@@ -79,6 +80,12 @@ func main() {
 	// A rota valida o JWT internamente via query param ?token=... porque o
 	// EventSource da Web API não suporta headers customizados.
 	api.Get("/events/kanban", sseHandler.Stream)
+	
+	// --- DISPARO EM MASSA (ROTAS PÚBLICAS PARA BYPASS DE CONTAINERS LOCAIS) ---
+	campaignSSE := handlers.NewCampaignSSEHandler()
+	api.Post("/leads/bulk-send", leadHandler.BulkSend)
+	api.Get("/campaigns/:id/stream", campaignSSE.Stream)
+	// --------------------------------------------------------------------------
 
 	// 5.2. Protected Routes
 	protected := api.Group("/protected", middlewares.Protected())
@@ -97,7 +104,7 @@ func main() {
 	leads.Patch("/:id/status", leadHandler.UpdateStatus)
 	leads.Put("/:id", leadHandler.UpdateLead)
 	leads.Delete("/:id", leadHandler.DeleteLead)
-	leads.Post("/bulk-send", leadHandler.BulkSend)
+	// leads.Post("/bulk-send", leadHandler.BulkSend) // Movido para rota pública abaixo
 
 	// AI Analysis Routes
 	leads.Post("/analyze/bulk", aiHandler.AnalyzeLeadsBulk) // Análise em massa

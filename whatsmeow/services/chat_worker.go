@@ -28,13 +28,13 @@ func RunChatWorkers(
 	chatRepo interfaces.ChatRepository,
 	messageRepo interfaces.MessageRepository,
 	broadcaster ChatBroadcaster,
-	publisher interfaces.LeadEventPublisher,
+	kanbanSvc KanbanAutomation,
 ) {
 	for i := 0; i < chatWorkerCount; i++ {
 		go func(workerID int) {
 			for job := range ch {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				if err := processChatJob(ctx, job, chatRepo, messageRepo, broadcaster, publisher); err != nil {
+				if err := processChatJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc); err != nil {
 					zap.L().Error("chat worker failed", zap.Int("worker", workerID), zap.String("type", job.Type), zap.String("instance", job.InstanceID), zap.Error(err))
 				}
 				cancel()
@@ -44,10 +44,10 @@ func RunChatWorkers(
 	zap.L().Info("chat workers started", zap.Int("count", chatWorkerCount))
 }
 
-func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, publisher interfaces.LeadEventPublisher) error {
+func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation) error {
 	switch job.Type {
 	case "message":
-		return processMessageJob(ctx, job, chatRepo, messageRepo, broadcaster, publisher)
+		return processMessageJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc)
 	case "receipt":
 		return processReceiptJob(ctx, job, chatRepo, messageRepo, broadcaster)
 	default:
@@ -55,7 +55,7 @@ func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfa
 	}
 }
 
-func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, publisher interfaces.LeadEventPublisher) error {
+func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation) error {
 	if job.MessageData == nil || job.MessageData.Key == nil {
 		return nil
 	}
@@ -101,27 +101,24 @@ func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo inte
 		})
 	}
 
-	// Publica evento de lead apenas para mensagens RECEBIDAS de contatos individuais.
-	// Regras:
-	//   !d.Key.FromMe       → ignora mensagens enviadas por nós mesmos
-	//   !isGroupJID(jid)    → ignora grupos (@g.us)
-	//   len(phone) <= 15    → ignora listas de transmissão (JIDs com 18+ dígitos
-	//                         ex: "120363404701403742@s.whatsapp.net") que chegam
-	//                         com domínio @s.whatsapp.net mas não são contatos reais
-	if publisher != nil && !d.Key.FromMe && !isGroupJID(remoteJid) {
+	// Automação Kanban (apenas para contatos individuais)
+	if kanbanSvc != nil && !isGroupJID(remoteJid) {
 		phone := phoneFromJID(remoteJid)
 		if phone != "" && len(phone) <= 15 {
-			// Goroutine separada: falha no publisher nunca atrasa a resposta ao chat
+			// Goroutine separada para não travar o worker principal
 			go func() {
-				pubCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				autoCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				if err := publisher.PublishIncomingMessage(pubCtx, d.Key.Id, phone, job.InstanceID); err != nil {
-					// Apenas warning — não retorna erro ao worker principal
-					zap.L().Warn("[ChatWorker] falha ao publicar evento de lead",
-						zap.String("phone", phone),
-						zap.String("instance_id", job.InstanceID),
-						zap.Error(err),
-					)
+
+				var err error
+				if !d.Key.FromMe {
+					err = kanbanSvc.ProcessIncomingMessage(autoCtx, job.InstanceID, phone)
+				} else {
+					err = kanbanSvc.ProcessOutgoingMessage(autoCtx, job.InstanceID, phone)
+				}
+
+				if err != nil {
+					zap.L().Warn("[ChatWorker] falha na automação kanban", zap.String("phone", phone), zap.Error(err))
 				}
 			}()
 		}

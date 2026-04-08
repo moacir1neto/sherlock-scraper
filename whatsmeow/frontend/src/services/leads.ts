@@ -1,4 +1,4 @@
-import api from './api';
+import { api, sherlockApi } from './api';
 import type { AIAnalysis, KanbanStatus, Lead, LeadListResponse } from '../types';
 
 export interface CreateLeadRequest {
@@ -58,4 +58,22 @@ export const leadsService = {
   // Gera dossiês em lote para múltiplos leads
   analyzeBulk: (ids: string[], skill: 'raiox' | 'email' | 'call' = 'raiox') =>
     api.post<{ processed: number; failed: number }>('/admin/leads/analyze/bulk', { ids, skill }),
+
+  // Inicia envio em massa de mensagens WhatsApp  
+  bulkSend: async (leads: Partial<Lead>[], instanceId: string) => {
+    // Pipeline Injection: Enviamos os dados do lead em vez de apenas IDs
+    const payload = leads.map(l => ({
+      id: l.id,
+      phone: l.phone,
+      name: l.name,
+      company_name: l.name, // Compatibilidade com campo da API Sherlock
+      ai_analysis: l.ai_analysis
+    }));
+
+    const response = await sherlockApi.post('leads/bulk-send', {
+      leads: payload,
+      instance_id: instanceId,
+    });
+    return response;
+  },
 };

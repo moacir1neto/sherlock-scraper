@@ -12,7 +12,9 @@
 package phoneutil
 
 import (
+	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -48,6 +50,62 @@ func StrictClean(phone string) string {
 	}
 
 	return clean
+}
+
+// NormalizeForWhatsApp aplica a "Regra de Ouro do 9º Dígito" para garantir
+// compatibilidade total com a API do WhatsApp (WhatsMiau/Evolution).
+//
+// Regras aplicadas em ordem:
+//  1. Remove todos os caracteres não-numéricos.
+//  2. Remove zero à esquerda (ex: "048..." → "48...").
+//  3. Garante o DDI 55.
+//  4. Isola o DDD (2 dígitos após o 55).
+//  5. DDDs ≤ 28 (SP/RJ/ES): se número local tiver 8 dígitos, insere o "9".
+//  6. DDDs > 28 (demais estados, ex: SC/48, RS/51): se número local tiver
+//     9 dígitos iniciando com "9", remove o dígito extra.
+//
+// Retorna erro se o número for vazio ou inválido (< 10 dígitos após limpeza).
+func NormalizeForWhatsApp(phone string) (string, error) {
+	clean := reNonDigits.ReplaceAllString(strings.TrimSpace(phone), "")
+	if clean == "" {
+		return "", fmt.Errorf("phoneutil: número vazio após limpeza")
+	}
+
+	// Remove zero à esquerda do DDD (ex: "04899999999" → "4899999999")
+	if clean[0] == '0' {
+		clean = clean[1:]
+	}
+
+	// Garante o DDI 55
+	if !strings.HasPrefix(clean, "55") {
+		clean = "55" + clean
+	}
+
+	// Após DDI, precisamos de pelo menos DDD(2) + número(8) = 12 dígitos totais.
+	if len(clean) < 12 {
+		return "", fmt.Errorf("phoneutil: número inválido (muito curto após normalização): %q", phone)
+	}
+
+	dddStr := clean[2:4]
+	ddd, err := strconv.Atoi(dddStr)
+	if err != nil {
+		return "", fmt.Errorf("phoneutil: DDD inválido %q no número %q", dddStr, phone)
+	}
+
+	// Número local = tudo após DDI(2) + DDD(2)
+	local := clean[4:]
+
+	switch {
+	case ddd <= 28 && len(local) == 8:
+		// DDDs de SP/RJ/ES: número legado de 8 dígitos → insere o "9" obrigatório
+		clean = "55" + dddStr + "9" + local
+
+	case ddd > 28 && len(local) == 9 && local[0] == '9':
+		// Demais DDDs (ex: SC/48, RS/51): remove o "9" extra incompatível com a API
+		clean = "55" + dddStr + local[1:]
+	}
+
+	return clean, nil
 }
 
 // StripWAJID extrai a parte numérica de um JID do WhatsApp.

@@ -98,8 +98,19 @@ func (l *Lead) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 func (l *Lead) BeforeSave(tx *gorm.DB) (err error) {
-	if l.Telefone != "" {
-		l.Telefone = phoneutil.StrictClean(l.Telefone)
+	if l.Telefone == "" {
+		return
 	}
+
+	normalized, normErr := phoneutil.NormalizeForWhatsApp(l.Telefone)
+	if normErr != nil {
+		// Número inválido: persiste vazio para evitar envios com JID corrompido.
+		l.Telefone = ""
+		l.LinkWhatsapp = ""
+		return
+	}
+
+	l.Telefone = normalized
+	l.LinkWhatsapp = "https://wa.me/" + normalized
 	return
 }

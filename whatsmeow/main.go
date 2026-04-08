@@ -11,6 +11,7 @@ import (
 	"github.com/verbeux-ai/whatsmiau/lib/whatsmiau"
 	"github.com/verbeux-ai/whatsmiau/repositories/chats"
 	"github.com/verbeux-ai/whatsmiau/repositories/instances"
+	"github.com/verbeux-ai/whatsmiau/repositories/leads"
 	"github.com/verbeux-ai/whatsmiau/repositories/messages"
 	"github.com/verbeux-ai/whatsmiau/repositories/scheduled_messages"
 	"github.com/verbeux-ai/whatsmiau/server/routes"
@@ -55,14 +56,17 @@ func main() {
 	hub := routes.Load(app)
 
 	// Start chat persistence workers (enqueue from event handler, persist in background, broadcast via WS)
-	// O RedisLeadEventPublisher publica no canal Redis quando uma mensagem é recebida,
-	// permitindo que o Sherlock CRM mova o lead automaticamente no Kanban.
+	// O KanbanAutomation move o lead automaticamente no CRM quando recebe ou envia mensagens.
 	if chatRepo, err := chats.NewSQL(); err == nil {
 		if messageRepo, err := messages.NewSQL(); err == nil {
 			ch := services.NewChatJobChan()
 			whatsmiau.Get().SetChatJobChan(ch)
-			leadPublisher := services.NewRedisLeadEventPublisher(services.Redis())
-			services.RunChatWorkers(ch, chatRepo, messageRepo, hub, leadPublisher)
+			
+			leadRepo, _ := leads.NewSQL()
+			instancesRepo := instances.NewRedis(services.Redis())
+			kanbanSvc := services.NewKanbanAutomation(leadRepo, instancesRepo, hub)
+			
+			services.RunChatWorkers(ch, chatRepo, messageRepo, hub, kanbanSvc)
 		}
 	}
 

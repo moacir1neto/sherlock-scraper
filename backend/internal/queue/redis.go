@@ -1,0 +1,56 @@
+// Package queue expõe um client go-redis para que os workers publiquem
+// eventos de progresso em canais Redis Pub/Sub (campaigns:logs:<id>).
+//
+// O client é inicializado junto ao Asynq client em InitClient() e
+// reutiliza a mesma variável REDIS_ADDR do restante do sistema.
+package queue
+
+import (
+	"context"
+	"log"
+	"os"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+)
+
+// RedisPublisher é o client go-redis usado exclusivamente para Publish.
+// Separado do Asynq client para não misturar responsabilidades.
+var RedisPublisher *redis.Client
+
+// CampaignLogChannel retorna o nome do canal Redis para uma campanha.
+func CampaignLogChannel(campaignID string) string {
+	return "campaigns:logs:" + campaignID
+}
+
+// InitRedisPublisher cria o client go-redis reutilizando REDIS_ADDR.
+// Deve ser chamado em main.go logo após InitClient().
+func InitRedisPublisher() {
+	addr := os.Getenv("REDIS_ADDR")
+	if addr == "" {
+		addr = "localhost:6379"
+	}
+
+	RedisPublisher = redis.NewClient(&redis.Options{
+		Addr:         addr,
+		DialTimeout:  5 * time.Second,
+		WriteTimeout: 3 * time.Second,
+	})
+
+	log.Printf("[Queue] 📡 Redis publisher configurado em %q", addr)
+}
+
+// PublishCampaignEvent publica um payload JSON no canal da campanha.
+// Usa timeout curto de 2s para não bloquear o worker em caso de falha Redis.
+func PublishCampaignEvent(campaignID, payload string) {
+	if RedisPublisher == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := RedisPublisher.Publish(ctx, CampaignLogChannel(campaignID), payload).Err(); err != nil {
+		log.Printf("[Queue] ⚠️  Falha ao publicar evento (campaign=%s): %v", campaignID, err)
+	}
+}

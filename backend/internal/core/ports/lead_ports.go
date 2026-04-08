@@ -36,6 +36,13 @@ type LeadRepository interface {
 	DeleteScrapeJob(ctx context.Context, id string) error
 }
 
+type BulkSendLead struct {
+	ID          string `json:"id"`
+	Phone       string `json:"phone"`
+	CompanyName string `json:"company_name"`
+	AIAnalysis  string `json:"ai_analysis"`
+}
+
 type LeadService interface {
 	ImportCSV(ctx context.Context, csvData [][]string, nicho string, jobID *string) error
 	CreateLead(ctx context.Context, lead *domain.Lead) error
@@ -46,7 +53,7 @@ type LeadService interface {
 	UpdateLead(ctx context.Context, lead *domain.Lead) error
 	DeleteLead(ctx context.Context, id string) error
 
-	EnqueueBulkSend(ctx context.Context, leadIDs []string, instanceID string) (int, error)
+	EnqueueBulkSend(ctx context.Context, leads []BulkSendLead, instanceID, campaignID string) (int, error)
 
 	CreateJob(ctx context.Context, nicho, localizacao string) (*domain.ScrapingJob, error)
 	UpdateJob(ctx context.Context, job *domain.ScrapingJob) error

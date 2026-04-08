@@ -66,7 +66,7 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "if [ ! -d node_modules ]; then npm install --legacy-peer-deps; fi && npm run dev"
     depends_on:
       - api
 

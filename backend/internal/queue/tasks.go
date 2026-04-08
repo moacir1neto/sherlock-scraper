@@ -14,6 +14,7 @@ import (
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
+	"github.com/digitalcombo/sherlock-scraper/backend/pkg/phoneutil"
 	"github.com/hibiken/asynq"
 )
 
@@ -57,68 +58,113 @@ func NewEnrichLeadTask(leadID, companyName string) (*asynq.Task, error) {
 // BULK MESSAGE — Task + Handler
 // ═══════════════════════════════════════════════════════════════
 
-// BulkMessagePayload carries the minimum data for a single message dispatch.
+// BulkMessagePayload carries the data for a single message dispatch injected by the CRM.
 type BulkMessagePayload struct {
-	LeadID     string `json:"lead_id"`
-	InstanceID string `json:"instance_id"`
+	LeadID      string `json:"lead_id"`
+	InstanceID  string `json:"instance_id"`
+	CampaignID  string `json:"campaign_id"`
+	Phone       string `json:"phone"`
+	CompanyName string `json:"company_name"`
+	AIAnalysis  string `json:"ai_analysis"`
+}
+
+// CampaignEvent é o payload JSON publicado no canal Redis campaigns:logs:<id>.
+// O front-end consome via SSE para exibir progresso em tempo real.
+type CampaignEvent struct {
+	Type    string `json:"type"`    // "start", "success", "error", "skip"
+	LeadID  string `json:"lead_id"`
+	Empresa string `json:"empresa"`
+	Message string `json:"message"`
 }
 
 // NewBulkMessageTask creates a new Asynq task for sending a prospection message.
-func NewBulkMessageTask(leadID, instanceID string) (*asynq.Task, error) {
-	payload, err := json.Marshal(BulkMessagePayload{
-		LeadID:     leadID,
-		InstanceID: instanceID,
-	})
+func NewBulkMessageTask(payload BulkMessagePayload) (*asynq.Task, error) {
+	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-	return asynq.NewTask(TaskTypeBulkMessage, payload, asynq.MaxRetry(3)), nil
+	return asynq.NewTask(TaskTypeBulkMessage, data, asynq.MaxRetry(3)), nil
 }
 
-// HandleBulkMessageTask processes a single prospection message.
+// publishEvent serializa e publica um CampaignEvent no canal Redis da campanha.
+func publishEvent(campaignID, eventType, leadID, empresa, message string) {
+	evt := CampaignEvent{
+		Type:    eventType,
+		LeadID:  leadID,
+		Empresa: empresa,
+		Message: message,
+	}
+	data, err := json.Marshal(evt)
+	if err != nil {
+		log.Printf("[BulkMessage] ⚠️ Falha ao serializar evento: %v", err)
+		return
+	}
+	PublishCampaignEvent(campaignID, string(data))
+}
+
+// HandleBulkMessageTask processes a single prospection message as a pass-through broker.
 // Retryable errors (network) are returned without SkipRetry.
-// Permanent errors (missing lead, no phone) are wrapped with SkipRetry.
+// Permanent errors (no phone) are wrapped with SkipRetry.
 func HandleBulkMessageTask(ctx context.Context, t *asynq.Task) error {
 	var payload BulkMessagePayload
 	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	log.Printf("📨 [BulkMessage] Iniciando disparo para Lead %s (instance: %s)",
-		payload.LeadID, payload.InstanceID)
-
-	// 1. Fetch lead from database
-	var lead domain.Lead
-	if err := database.DB.First(&lead, "id = ?", payload.LeadID).Error; err != nil {
-		log.Printf("❌ [BulkMessage] Lead %s não encontrado: %v", payload.LeadID, err)
-		return fmt.Errorf("lead not found: %w", asynq.SkipRetry)
+	empresa := payload.CompanyName
+	if empresa == "" {
+		empresa = "Desconhecido"
 	}
 
+	log.Printf("📨 [BulkMessage] Iniciando disparo cego para Lead %s (%s) (instance: %s)",
+		payload.LeadID, empresa, payload.InstanceID)
+
+	// 1. Evento START — notifica front-end que o processamento iniciou
+	publishEvent(payload.CampaignID, "start", payload.LeadID, empresa,
+		fmt.Sprintf("Iniciando envio para %s...", empresa))
+
 	// 2. Validate phone number
-	if lead.Telefone == "" {
-		log.Printf("⏭️  [BulkMessage] Lead '%s' sem telefone. Pulando.", lead.Empresa)
+	if payload.Phone == "" {
+		log.Printf("⏭️  [BulkMessage] Lead '%s' sem telefone. Pulando.", empresa)
+		publishEvent(payload.CampaignID, "skip", payload.LeadID, empresa,
+			fmt.Sprintf("⚠️ %s sem telefone cadastrado", empresa))
 		return fmt.Errorf("lead has no phone: %w", asynq.SkipRetry)
 	}
 
-	// 3. Extract icebreaker from AI analysis (if available)
-	messageText := buildProspectionMessage(lead)
-	log.Printf("💬 [BulkMessage] Mensagem para '%s': %.80s...", lead.Empresa, messageText)
+	// 3. Normalize phone
+	phone, normErr := phoneutil.NormalizeForWhatsApp(payload.Phone)
+	if normErr != nil {
+		log.Printf("⏭️  [BulkMessage] Lead '%s' com telefone inválido (%q). Pulando.",
+			empresa, payload.Phone)
+		publishEvent(payload.CampaignID, "skip", payload.LeadID, empresa,
+			fmt.Sprintf("⚠️ Telefone inválido para %s", empresa))
+		return fmt.Errorf("invalid phone number for lead %s: %w", empresa, asynq.SkipRetry)
+	}
 
-	// 4. Send via WhatsMiau API
-	if err := sendViaWhatsMiau(payload.InstanceID, lead.Telefone, messageText); err != nil {
-		log.Printf("⚠️  [BulkMessage] Falha ao enviar para '%s': %v (retry possível)", lead.Empresa, err)
+	// 4. Converter payload string back temporariamente para domain.Lead para reaproveitar construção de mensagem
+	leadMock := domain.Lead{ Empresa: empresa, AIAnalysis: []byte(payload.AIAnalysis) }
+	
+	// 5. Extract icebreaker from AI analysis (if available)
+	messageText := buildProspectionMessage(leadMock)
+	log.Printf("💬 [BulkMessage] Mensagem para '%s': %.80s...", empresa, messageText)
+
+	// 6. Send via WhatsMiau API
+	if err := sendViaWhatsMiau(payload.InstanceID, phone, messageText); err != nil {
+		log.Printf("⚠️  [BulkMessage] Falha ao enviar para '%s': %v (retry possível)", empresa, err)
+		publishEvent(payload.CampaignID, "error", payload.LeadID, empresa,
+			fmt.Sprintf("❌ Falha ao enviar para %s", empresa))
 		return err // retryable — Asynq will retry
 	}
 
-	// 5. Update kanban status to "contatado"
-	lead.KanbanStatus = domain.StatusContatado
-	if err := database.DB.Model(&lead).Update("kanban_status", domain.StatusContatado).Error; err != nil {
-		log.Printf("⚠️  [BulkMessage] Erro ao atualizar status do lead '%s': %v", lead.Empresa, err)
-		return err
-	}
+	// NOTA ARQUITETURAL: Não atualizamos o Kanban aqui (database.DB.Model). 
+	// O WhatsMiau é dono do CRM e atualizará quando o Webhook/Disparo confirmar o envio.
 
-	log.Printf("✅ [BulkMessage] Mensagem enviada com sucesso para '%s' (%s) → status: contatado",
-		lead.Empresa, lead.Telefone)
+	// 8. Evento SUCCESS — notifica front-end que o envio foi concluído
+	publishEvent(payload.CampaignID, "success", payload.LeadID, empresa,
+		fmt.Sprintf("✅ Enviado com sucesso para %s", empresa))
+
+	log.Printf("✅ [BulkMessage] Mensagem enviada com sucesso para '%s' (%s) → disparo concluído",
+		empresa, phone)
 
 	return nil
 }

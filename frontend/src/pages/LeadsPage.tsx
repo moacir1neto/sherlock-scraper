@@ -7,6 +7,7 @@ import { useLeads } from '@/hooks/useLeads';
 import ListView from '@/components/leads/ListView';
 import { KanbanBoard } from '@/pages/KanbanBoard';
 import LeadDetailsModal from '@/components/leads/LeadDetailsModal';
+import BulkSendModal from '@/components/leads/BulkSendModal';
 import { Lead } from '@/types';
 
 type ViewMode = 'list' | 'kanban';
@@ -19,6 +20,7 @@ const LeadsPage: React.FC = () => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkSendModalOpen, setIsBulkSendModalOpen] = useState(false);
   const [isBulkAnalyzing, setIsBulkAnalyzing] = useState(false);
   
   const { 
@@ -31,6 +33,7 @@ const LeadsPage: React.FC = () => {
     updateLead, 
     analyzeLead, 
     analyzeLeadsBulk,
+    bulkSendLeads,
     setLeads 
   } = useLeads();
 
@@ -153,24 +156,38 @@ const LeadsPage: React.FC = () => {
           {/* Bulk AI Action */}
           <AnimatePresence>
             {selectedIds.length > 0 && view === 'list' && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9, x: 20 }}
-                animate={{ opacity: 1, scale: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.9, x: 20 }}
-                onClick={handleBulkAnalyze}
-                disabled={isBulkAnalyzing}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-500/20 group disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isBulkAnalyzing ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Brain size={16} className="group-hover:rotate-12 transition-transform" />
-                )}
-                <span>
-                  {isBulkAnalyzing ? 'Analisando...' : `Analisar ${selectedIds.length} Leads`}
-                </span>
-                {!isBulkAnalyzing && <Sparkles size={14} className="text-white/60" />}
-              </motion.button>
+              <>
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.9, x: 20 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, x: 20 }}
+                  onClick={handleBulkAnalyze}
+                  disabled={isBulkAnalyzing}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-500/20 group disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isBulkAnalyzing ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Brain size={16} className="group-hover:rotate-12 transition-transform" />
+                  )}
+                  <span>
+                    {isBulkAnalyzing ? 'Analisando...' : `Analisar IA (${selectedIds.length})`}
+                  </span>
+                  {!isBulkAnalyzing && <Sparkles size={14} className="text-white/60" />}
+                </motion.button>
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.9, x: 20 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, x: 20 }}
+                  onClick={() => setIsBulkSendModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-lg shadow-green-500/20 group"
+                >
+                  <img src="/whatsapp-logo.svg" alt="WhatsApp" className="w-4 h-4 object-contain brightness-0 invert opacity-90 group-hover:scale-110 transition-transform" onError={(e) => e.currentTarget.style.display = 'none'} />
+                  <span>
+                    Disparar WhatsApp ({selectedIds.length})
+                  </span>
+                </motion.button>
+              </>
             )}
           </AnimatePresence>
 
@@ -267,6 +284,16 @@ const LeadsPage: React.FC = () => {
             setSelectedLead({ ...selectedLead, ai_analysis: analysis });
           }
           return analysis;
+        }}
+      />
+      
+      {/* Bulk Send Modal */}
+      <BulkSendModal 
+        isOpen={isBulkSendModalOpen}
+        onClose={() => setIsBulkSendModalOpen(false)}
+        selectedLeads={leads.filter((l) => selectedIds.includes(l.ID))}
+        onStartCampaign={async (instanceId: string) => {
+          return await bulkSendLeads(selectedIds, instanceId);
         }}
       />
     </>

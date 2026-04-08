@@ -15,6 +15,7 @@ import { LeadDetailsModal } from './LeadDetailsModal';
 import { useAIAnalysis } from '../../contexts/AIAnalysisContext';
 import { LeadsKanban } from './LeadsKanban';
 import { useLeadsRealtime } from '../../hooks/useLeadsRealtime';
+import { BulkSendModal } from './BulkSendModal';
 
 type ViewMode = 'list' | 'kanban';
 
@@ -218,6 +219,7 @@ function LeadsView({ scrape, onBack }: LeadsViewProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [analyzingBulk, setAnalyzingBulk] = useState(false);
+  const [bulkSendModalOpen, setBulkSendModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   const { analyzingIds, startBulkAnalysis, subscribe } = useAIAnalysis();
@@ -590,23 +592,40 @@ function LeadsView({ scrape, onBack }: LeadsViewProps) {
             </div>
           ) : (
             /* Estado: leads selecionados prontos para disparar */
-            <button
-              onClick={handleAnalyzeBulk}
-              disabled={analyzingBulk}
-              className="flex items-center gap-2.5 px-6 py-3 rounded-full shadow-2xl
-                         bg-purple-600 hover:bg-purple-700 disabled:bg-purple-500
-                         text-white font-semibold text-sm transition-colors"
-            >
-              {analyzingBulk
-                ? <Loader2 size={16} className="animate-spin" />
-                : <Brain size={16} />}
-              {analyzingBulk
-                ? 'Iniciando...'
-                : `Gerar Dossiê IA (${selectedIds.size})`}
-            </button>
+            <div className="flex bg-purple-600 rounded-full shadow-2xl overflow-hidden divide-x divide-purple-500/50">
+              <button
+                onClick={handleAnalyzeBulk}
+                disabled={analyzingBulk}
+                className="flex items-center gap-2.5 px-6 py-3 hover:bg-purple-700 disabled:bg-purple-500 text-white font-semibold text-sm transition-colors"
+                title="Gerar Dossiê de IA"
+              >
+                {analyzingBulk ? <Loader2 size={16} className="animate-spin" /> : <Brain size={16} />}
+                {analyzingBulk ? 'Iniciando...' : `Dossiê IA (${selectedIds.size})`}
+              </button>
+              <button
+                onClick={() => setBulkSendModalOpen(true)}
+                className="flex items-center gap-2.5 px-6 py-3 hover:bg-purple-700 text-white font-semibold text-sm transition-colors"
+                title="Disparar WhatsApp em Massa"
+              >
+                <img src="/whatsapp-logo.svg" alt="WhatsApp" className="w-4 h-4 object-contain brightness-0 invert opacity-90" onError={(e) => e.currentTarget.style.display = 'none'} />
+                Disparo ({selectedIds.size})
+              </button>
+            </div>
           )}
         </div>
       )}
+
+      {/* Modal de Disparo */}
+      <BulkSendModal
+        isOpen={bulkSendModalOpen}
+        onClose={() => setBulkSendModalOpen(false)}
+        selectedLeads={leads.filter((l) => selectedIds.has(l.id))}
+        onStartCampaign={async (instanceId, leadIds) => {
+          const res = await leadsService.bulkSend(leadIds, instanceId);
+          toast.success(res.data.message || 'Campanha iniciada com sucesso!');
+          return res.data.campaign_id;
+        }}
+      />
     </div>
   );
 }

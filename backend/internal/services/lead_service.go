@@ -68,39 +68,48 @@ const (
 	maxDelay = 60
 )
 
-func (s *leadService) EnqueueBulkSend(ctx context.Context, leadIDs []string, instanceID string) (int, error) {
-	if len(leadIDs) == 0 {
-		return 0, errors.New("lead_ids cannot be empty")
+func (s *leadService) EnqueueBulkSend(ctx context.Context, leads []ports.BulkSendLead, instanceID, campaignID string) (int, error) {
+	if len(leads) == 0 {
+		return 0, errors.New("leads array cannot be empty")
 	}
 
 	enqueued := 0
 	cumulativeDelay := time.Duration(0)
 
-	for i, id := range leadIDs {
+	for i, lead := range leads {
 		if i > 0 {
 			randomSeconds := minDelay + rand.IntN(maxDelay-minDelay+1)
 			cumulativeDelay += time.Duration(randomSeconds) * time.Second
 		}
 
-		task, err := queue.NewBulkMessageTask(id, instanceID)
+		payload := queue.BulkMessagePayload{
+			LeadID:      lead.ID,
+			InstanceID:  instanceID,
+			CampaignID:  campaignID,
+			Phone:       lead.Phone,
+			CompanyName: lead.CompanyName,
+			AIAnalysis:  lead.AIAnalysis,
+		}
+
+		task, err := queue.NewBulkMessageTask(payload)
 		if err != nil {
-			log.Printf("⚠️  [BulkSend] Erro ao criar task para lead %s: %v", id, err)
+			log.Printf("⚠️  [BulkSend] Erro ao criar task para lead %s: %v", lead.ID, err)
 			continue
 		}
 
 		info, err := queue.Client.Enqueue(task, asynq.ProcessIn(cumulativeDelay))
 		if err != nil {
-			log.Printf("⚠️  [BulkSend] Erro ao enfileirar lead %s: %v", id, err)
+			log.Printf("⚠️  [BulkSend] Erro ao enfileirar lead %s: %v", lead.ID, err)
 			continue
 		}
 
 		log.Printf("📨 [BulkSend] Lead %s enfileirado | delay=%v | queue=%s | task_id=%s",
-			id, cumulativeDelay, info.Queue, info.ID)
+			lead.ID, cumulativeDelay, info.Queue, info.ID)
 		enqueued++
 	}
 
 	log.Printf("✅ [BulkSend] %d/%d leads enfileirados | delay total estimado: %v",
-		enqueued, len(leadIDs), cumulativeDelay)
+		enqueued, len(leads), cumulativeDelay)
 
 	return enqueued, nil
 }
