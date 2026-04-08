@@ -18,8 +18,14 @@ interface LogEvent {
   message: string;
 }
 
+interface MappedInstance {
+  instanceName: string;
+  status: string;
+  [key: string]: any;
+}
+
 export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign }: BulkSendModalProps) {
-  const [instances, setInstances] = useState<any[]>([]);
+  const [instances, setInstances] = useState<MappedInstance[]>([]);
   const [selectedInstance, setSelectedInstance] = useState<string>('');
   const [loadingInstances, setLoadingInstances] = useState(false);
 
@@ -43,7 +49,7 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
     try {
       const data = await instanceService.list();
       
-      let rawList: any[] = [];
+      let rawList: MappedInstance[] = [];
       if (Array.isArray(data)) {
         rawList = data.map((item: any) => {
           if (item.instance) {
@@ -58,7 +64,7 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
             status: item.status || 'close',
             ...item,
           };
-        }).filter((item: any) => item.instanceName);
+        }).filter((item: MappedInstance) => item.instanceName);
       } else if (data && typeof data === 'object') {
         const instancesArray = (data as any).instances || (data as any).data || [];
         if (Array.isArray(instancesArray)) {
@@ -66,7 +72,7 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
             instanceName: item.instanceName || item.instance?.instanceName || item.id || item.ID || '',
             status: item.status || item.instance?.status || 'close',
             ...item,
-          })).filter((item: any) => item.instanceName);
+          })).filter((item: MappedInstance) => item.instanceName);
         }
       }
 
@@ -118,12 +124,13 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
   const startSSE = (id: string) => {
     const token = localStorage.getItem('token');
     // Usa VITE_SHERLOCK_API_URL ou fallback direto para o backend em Go para não cair no proxy do WhatsMiau
-    const sherlockUrl = import.meta.env.VITE_SHERLOCK_API_URL || 'http://localhost:3000/api/v1';
+    const env = import.meta.env as any;
+    const sherlockUrl = env.VITE_SHERLOCK_API_URL || 'http://localhost:3000/api/v1';
     
     // Conecta no SSE do Sherlock: http://localhost:3000/api/v1/campaigns/{id}/stream
-    // (Bypass de token aplicado no backend para evitar 401 por descasamento de JWT_SECRET)
+    // Já injetamos o token caso o backend volte a exigir a verificação.
     const baseUrl = sherlockUrl.replace(/\/+$/, '');
-    const es = new EventSource(`${baseUrl}/campaigns/${id}/stream`);
+    const es = new EventSource(`${baseUrl}/campaigns/${id}/stream?token=${token || ''}`);
     eventSourceRef.current = es;
 
     es.onmessage = (event) => {
@@ -136,9 +143,9 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
           if (data.type !== 'start') {
              // Remove start event to avoid clutter
              newLogs = newLogs.filter((l) => !(l.lead_id === data.lead_id && l.type === 'start'));
-             setProgress((p) => Math.min(p + 1, total));
+             setProgress((p: number) => Math.min(p + 1, total));
           }
-          return [...newLogs, data];
+          return [data, ...newLogs];
         });
         
         scrollToBottom();

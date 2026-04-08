@@ -87,6 +87,7 @@ services:
       SHERLOCK_URL: "http://api:3000"
       INTERNAL_API_TOKEN: "9a3c8f650547ee1b91c947c40f7c792bc303d5bb857f3bbb2c0f0af1c8d98e70"
       GEMINI_API_KEY: "${GEMINI_API_KEY}"
+      JWT_SECRET: "my_dev_super_secret"
     volumes:
       - whatsmiau_data:/app/data
     depends_on:
