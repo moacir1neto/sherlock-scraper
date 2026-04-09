@@ -141,6 +141,35 @@ func HandleBulkMessageTask(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("invalid phone number for lead %s: %w", empresa, asynq.SkipRetry)
 	}
 
+	// 3.1 FAIL-FAST VALIDATION: Verificar se o número existe na Meta antes de tentar o envio
+	exists, validatedJid, err := checkWhatsAppExistence(payload.InstanceID, phone)
+	if err != nil {
+		// Erro de rede ou timeout: Retornamos erro normal para o Asynq fazer retry agendado
+		return fmt.Errorf("falha ao validar existência no whatsapp: %v", err)
+	}
+
+	if !exists {
+		log.Printf("⏭️  [BulkMessage] Lead '%s' (%s) não possui conta no WhatsApp. Cancelando.", empresa, phone)
+		publishEvent(payload.CampaignID, "skip", payload.LeadID, empresa,
+			fmt.Sprintf("❌ Sem WhatsApp: Disparo cancelado para %s", empresa))
+
+		// Atualiza o Lead no banco de dados para StatusPerdido
+		dbErr := database.DB.Model(&domain.Lead{}).Where("id = ?", payload.LeadID).Updates(map[string]interface{}{
+			"kanban_status":    domain.StatusPerdido,
+			"notas_prospeccao": "Número sem WhatsApp (Fail-Fast Validated)",
+		}).Error
+		if dbErr != nil {
+			log.Printf("⚠️  [BulkMessage] Erro ao atualizar status do lead %s: %v", payload.LeadID, dbErr)
+		}
+
+		// Cancela a tarefa permanentemente no Asynq
+		return fmt.Errorf("%w: número inexistente na Meta", asynq.SkipRetry)
+	}
+
+	// Se existe, usamos o JID oficial validado (corrige problemas de 9º dígito)
+	phone = validatedJid
+	log.Printf("🎯 [BulkMessage] Número validado na Meta para '%s': %s", empresa, phone)
+
 	// 4. Converter payload string back temporariamente para domain.Lead para reaproveitar construção de mensagem
 	leadMock := domain.Lead{ Empresa: empresa, AIAnalysis: []byte(payload.AIAnalysis) }
 	
@@ -234,6 +263,68 @@ func sendViaWhatsMiau(instanceID, phone, text string) error {
 
 	log.Printf("📡 [BulkMessage] WhatsMiau response %d: %s", resp.StatusCode, string(respBody))
 	return nil
+}
+
+// WhatsAppExistsItem mapeia o item individual da checagem do WhatsMiau
+type WhatsAppExistsItem struct {
+	Exists bool   `json:"exists"`
+	Jid    string `json:"jid"`
+}
+
+// CheckWhatsAppResponse mapeia a lista de retorno do WhatsMiau
+type CheckWhatsAppResponse []WhatsAppExistsItem
+
+// checkWhatsAppExistence consulta o WhatsMiau para verificar se o número está na rede Meta.
+// Reutiliza o endpoint /v1/chat/whatsappNumbers/:instance (padrão Evolution/WhatsMiau).
+func checkWhatsAppExistence(instanceID, phone string) (bool, string, error) {
+	apiURL := os.Getenv("WHATSMIau_API_URL")
+	if apiURL == "" {
+		apiURL = "http://whatsmiau-api:8080"
+	}
+
+	endpoint := fmt.Sprintf("%s/v1/chat/whatsappNumbers/%s", apiURL, instanceID)
+
+	body := map[string]interface{}{
+		"numbers": []string{phone},
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return false, "", err
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return false, "", err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if apiToken := os.Getenv("WHATSMIau_API_TOKEN"); apiToken != "" {
+		req.Header.Set("apikey", apiToken)
+	}
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return false, "", fmt.Errorf("whatsmiau returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var results CheckWhatsAppResponse
+	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+		return false, "", err
+	}
+
+	if len(results) > 0 {
+		return results[0].Exists, results[0].Jid, nil
+	}
+
+	return false, "", nil
 }
 
 // HandleEnrichLeadTask processes the enrich lead task

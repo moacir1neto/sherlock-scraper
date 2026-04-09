@@ -85,48 +85,32 @@ func (r *leadRepository) ListScrapeJobs(ctx context.Context) ([]*domain.Scraping
 	return jobs, err
 }
 
-// FindByPhone busca o lead mais recentemente criado cujo telefone, após
-// normalização (remoção de não-dígitos via regexp_replace no PostgreSQL),
-// corresponda a qualquer valor da lista variants.
-//
-// Retorna (nil, nil) quando nenhum lead é encontrado — o caller deve tratar
-// isso como "lead desconhecido", e não como erro.
-//
-// A normalização é feita pelo banco para evitar que registros antigos com
-// formatos inconsistentes sejam ignorados.
+
 func (r *leadRepository) FindByPhone(ctx context.Context, variants []string) (*domain.Lead, error) {
 	if len(variants) == 0 {
 		return nil, errors.New("phoneutil: no variants provided to FindByPhone")
 	}
 
-	var lead domain.Lead
-	// regexp_replace(telefone, '[^0-9]', '', 'g') normaliza o telefone no banco
-	// IN ? é expandido pelo GORM para IN ($1, $2, ...) com os valores corretos
+	var leads []*domain.Lead
+	
 	err := r.db.WithContext(ctx).
 		Where("regexp_replace(telefone, '[^0-9]', '', 'g') IN ?", variants).
 		Order("created_at DESC").
-		First(&lead).Error
+		Limit(1).
+		Find(&leads).Error
 
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // não encontrado não é erro de sistema
-		}
 		return nil, err
 	}
-	return &lead, nil
+
+	if len(leads) == 0 {
+		return nil, nil 
+	}
+
+	return leads[0], nil
 }
 
-// UpdateStatusConditional atualiza kanban_status para newStatus somente se o
-// status atual NÃO estiver na lista blockedStatuses.
-//
-// A operação é executada em uma única query UPDATE com a cláusula
-// "AND kanban_status NOT IN (?)" — garantindo atomicidade sem race condition
-// mesmo com múltiplas instâncias do servidor rodando em paralelo.
-//
-// Retorna:
-//   - (true, nil)  → linha atualizada com sucesso
-//   - (false, nil) → nenhuma linha afetada (lead inexistente ou status final)
-//   - (false, err) → erro de banco de dados
+
 func (r *leadRepository) UpdateStatusConditional(
 	ctx context.Context,
 	id string,
@@ -163,8 +147,7 @@ func (r *leadRepository) UpdateStatusIdempotent(
 ) (bool, error) {
 	var updated bool
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 1. Tenta registrar a mensagem como processada.
-		// clause.OnConflict{DoNothing: true} garante que se o ID já existir, não faz nada e não dá erro.
+		
 		res := tx.Clauses(clause.OnConflict{
 			DoNothing: true,
 		}).Create(&domain.ProcessedMessage{
@@ -173,13 +156,12 @@ func (r *leadRepository) UpdateStatusIdempotent(
 			ProcessedAt: time.Now(),
 		})
 
-		// Se RowsAffected for 0, a mensagem já foi processada antes.
+		
 		if res.RowsAffected == 0 {
 			updated = false
 			return nil
 		}
 
-		// 2. Se a mensagem é nova, procede com a atualização condicional.
 		blocked := make([]string, len(blockedStatuses))
 		for i, s := range blockedStatuses {
 			blocked[i] = string(s)
