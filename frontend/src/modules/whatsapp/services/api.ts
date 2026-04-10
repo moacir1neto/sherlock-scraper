@@ -13,7 +13,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
     ...(API_KEY && { apikey: API_KEY }),
   },
-  timeout: 30000, // 30 segundos
+  timeout: 60000, // 60 segundos — backend QR generation pode levar até 45s
 });
 
 // Add token to requests if available

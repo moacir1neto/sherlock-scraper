@@ -8,11 +8,13 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
+	"github.com/digitalcombo/sherlock-scraper/backend/pkg/phoneutil"
 	"github.com/hibiken/asynq"
 )
 
@@ -30,8 +32,8 @@ type SherlockCNPJResponse struct {
 }
 
 const (
-	// TaskTypeEnrichLead defines the task identifier for lead enrichment.
-	TaskTypeEnrichLead = "enrich:lead"
+	TaskTypeEnrichLead    = "enrich:lead"
+	TaskTypeBulkMessage   = "lead:bulk-message"
 )
 
 // EnrichLeadPayload contains data for the enrich lead task
@@ -50,6 +52,279 @@ func NewEnrichLeadTask(leadID, companyName string) (*asynq.Task, error) {
 		return nil, err
 	}
 	return asynq.NewTask(TaskTypeEnrichLead, payload), nil
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BULK MESSAGE — Task + Handler
+// ═══════════════════════════════════════════════════════════════
+
+// BulkMessagePayload carries the data for a single message dispatch injected by the CRM.
+type BulkMessagePayload struct {
+	LeadID      string `json:"lead_id"`
+	InstanceID  string `json:"instance_id"`
+	CampaignID  string `json:"campaign_id"`
+	Phone       string `json:"phone"`
+	CompanyName string `json:"company_name"`
+	AIAnalysis  string `json:"ai_analysis"`
+}
+
+// CampaignEvent é o payload JSON publicado no canal Redis campaigns:logs:<id>.
+// O front-end consome via SSE para exibir progresso em tempo real.
+type CampaignEvent struct {
+	Type    string `json:"type"`    // "start", "success", "error", "skip"
+	LeadID  string `json:"lead_id"`
+	Empresa string `json:"empresa"`
+	Message string `json:"message"`
+}
+
+// NewBulkMessageTask creates a new Asynq task for sending a prospection message.
+func NewBulkMessageTask(payload BulkMessagePayload) (*asynq.Task, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TaskTypeBulkMessage, data, asynq.MaxRetry(3)), nil
+}
+
+// publishEvent serializa e publica um CampaignEvent no canal Redis da campanha.
+func publishEvent(campaignID, eventType, leadID, empresa, message string) {
+	evt := CampaignEvent{
+		Type:    eventType,
+		LeadID:  leadID,
+		Empresa: empresa,
+		Message: message,
+	}
+	data, err := json.Marshal(evt)
+	if err != nil {
+		log.Printf("[BulkMessage] ⚠️ Falha ao serializar evento: %v", err)
+		return
+	}
+	PublishCampaignEvent(campaignID, string(data))
+}
+
+// HandleBulkMessageTask processes a single prospection message as a pass-through broker.
+// Retryable errors (network) are returned without SkipRetry.
+// Permanent errors (no phone) are wrapped with SkipRetry.
+func HandleBulkMessageTask(ctx context.Context, t *asynq.Task) error {
+	var payload BulkMessagePayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	empresa := payload.CompanyName
+	if empresa == "" {
+		empresa = "Desconhecido"
+	}
+
+	log.Printf("📨 [BulkMessage] Iniciando disparo cego para Lead %s (%s) (instance: %s)",
+		payload.LeadID, empresa, payload.InstanceID)
+
+	// 1. Evento START — notifica front-end que o processamento iniciou
+	publishEvent(payload.CampaignID, "start", payload.LeadID, empresa,
+		fmt.Sprintf("Iniciando envio para %s...", empresa))
+
+	// 2. Validate phone number
+	if payload.Phone == "" {
+		log.Printf("⏭️  [BulkMessage] Lead '%s' sem telefone. Pulando.", empresa)
+		publishEvent(payload.CampaignID, "skip", payload.LeadID, empresa,
+			fmt.Sprintf("⚠️ %s sem telefone cadastrado", empresa))
+		return fmt.Errorf("lead has no phone: %w", asynq.SkipRetry)
+	}
+
+	// 3. Normalize phone
+	phone, normErr := phoneutil.NormalizeForWhatsApp(payload.Phone)
+	if normErr != nil {
+		log.Printf("⏭️  [BulkMessage] Lead '%s' com telefone inválido (%q). Pulando.",
+			empresa, payload.Phone)
+		publishEvent(payload.CampaignID, "skip", payload.LeadID, empresa,
+			fmt.Sprintf("⚠️ Telefone inválido para %s", empresa))
+		return fmt.Errorf("invalid phone number for lead %s: %w", empresa, asynq.SkipRetry)
+	}
+
+	// 3.1 FAIL-FAST VALIDATION: Verificar se o número existe na Meta antes de tentar o envio
+	exists, validatedJid, err := checkWhatsAppExistence(payload.InstanceID, phone)
+	if err != nil {
+		// Erro de rede ou timeout: Retornamos erro normal para o Asynq fazer retry agendado
+		return fmt.Errorf("falha ao validar existência no whatsapp: %v", err)
+	}
+
+	if !exists {
+		log.Printf("⏭️  [BulkMessage] Lead '%s' (%s) não possui conta no WhatsApp. Cancelando.", empresa, phone)
+		publishEvent(payload.CampaignID, "skip", payload.LeadID, empresa,
+			fmt.Sprintf("❌ Sem WhatsApp: Disparo cancelado para %s", empresa))
+
+		// Atualiza o Lead no banco de dados para StatusPerdido
+		dbErr := database.DB.Model(&domain.Lead{}).Where("id = ?", payload.LeadID).Updates(map[string]interface{}{
+			"kanban_status":    domain.StatusPerdido,
+			"notas_prospeccao": "Número sem WhatsApp (Fail-Fast Validated)",
+		}).Error
+		if dbErr != nil {
+			log.Printf("⚠️  [BulkMessage] Erro ao atualizar status do lead %s: %v", payload.LeadID, dbErr)
+		}
+
+		// Cancela a tarefa permanentemente no Asynq
+		return fmt.Errorf("%w: número inexistente na Meta", asynq.SkipRetry)
+	}
+
+	// Se existe, usamos o JID oficial validado (corrige problemas de 9º dígito)
+	phone = validatedJid
+	log.Printf("🎯 [BulkMessage] Número validado na Meta para '%s': %s", empresa, phone)
+
+	// 4. Converter payload string back temporariamente para domain.Lead para reaproveitar construção de mensagem
+	leadMock := domain.Lead{ Empresa: empresa, AIAnalysis: []byte(payload.AIAnalysis) }
+	
+	// 5. Extract icebreaker from AI analysis (if available)
+	messageText := buildProspectionMessage(leadMock)
+	log.Printf("💬 [BulkMessage] Mensagem para '%s': %.80s...", empresa, messageText)
+
+	// 6. Send via WhatsMiau API
+	if err := sendViaWhatsMiau(payload.InstanceID, phone, messageText); err != nil {
+		log.Printf("⚠️  [BulkMessage] Falha ao enviar para '%s': %v (retry possível)", empresa, err)
+		publishEvent(payload.CampaignID, "error", payload.LeadID, empresa,
+			fmt.Sprintf("❌ Falha ao enviar para %s", empresa))
+		return err // retryable — Asynq will retry
+	}
+
+	// NOTA ARQUITETURAL: Não atualizamos o Kanban aqui (database.DB.Model). 
+	// O WhatsMiau é dono do CRM e atualizará quando o Webhook/Disparo confirmar o envio.
+
+	// 8. Evento SUCCESS — notifica front-end que o envio foi concluído
+	publishEvent(payload.CampaignID, "success", payload.LeadID, empresa,
+		fmt.Sprintf("✅ Enviado com sucesso para %s", empresa))
+
+	log.Printf("✅ [BulkMessage] Mensagem enviada com sucesso para '%s' (%s) → disparo concluído",
+		empresa, phone)
+
+	return nil
+}
+
+// buildProspectionMessage extracts the icebreaker from AIAnalysis or falls back to a generic greeting.
+func buildProspectionMessage(lead domain.Lead) string {
+	if len(lead.AIAnalysis) > 0 {
+		var analysis map[string]interface{}
+		if err := json.Unmarshal(lead.AIAnalysis, &analysis); err == nil {
+			if icebreaker, ok := analysis["icebreaker_whatsapp"].(string); ok && icebreaker != "" {
+				return icebreaker
+			}
+		}
+	}
+
+	return fmt.Sprintf(
+		"Olá! Tudo bem? Vi que a %s atua no segmento de %s e gostaria de apresentar uma solução que pode ajudar vocês. Podemos conversar?",
+		lead.Empresa, lead.Nicho,
+	)
+}
+
+// sendViaWhatsMiau performs an HTTP POST to the WhatsMiau /v1/message/sendText/:instance endpoint.
+func sendViaWhatsMiau(instanceID, phone, text string) error {
+	apiURL := os.Getenv("WHATSMIau_API_URL")
+	if apiURL == "" {
+		apiURL = "http://whatsmiau-api:8080"
+	}
+
+	// WhatsMiau Evolution route is /v1/message/sendText/:instance
+	endpoint := fmt.Sprintf("%s/v1/message/sendText/%s", apiURL, instanceID)
+
+	body := map[string]interface{}{
+		"number":     phone,
+		"text":       text,
+		"delay":      1200, // Simula tempo de digitação
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Adiciona apikey se configurada
+	if apiToken := os.Getenv("WHATSMIau_API_TOKEN"); apiToken != "" {
+		req.Header.Set("apikey", apiToken)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("whatsmiau connection error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("whatsmiau returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	log.Printf("📡 [BulkMessage] WhatsMiau response %d: %s", resp.StatusCode, string(respBody))
+	return nil
+}
+
+// WhatsAppExistsItem mapeia o item individual da checagem do WhatsMiau
+type WhatsAppExistsItem struct {
+	Exists bool   `json:"exists"`
+	Jid    string `json:"jid"`
+}
+
+// CheckWhatsAppResponse mapeia a lista de retorno do WhatsMiau
+type CheckWhatsAppResponse []WhatsAppExistsItem
+
+// checkWhatsAppExistence consulta o WhatsMiau para verificar se o número está na rede Meta.
+// Reutiliza o endpoint /v1/chat/whatsappNumbers/:instance (padrão Evolution/WhatsMiau).
+func checkWhatsAppExistence(instanceID, phone string) (bool, string, error) {
+	apiURL := os.Getenv("WHATSMIau_API_URL")
+	if apiURL == "" {
+		apiURL = "http://whatsmiau-api:8080"
+	}
+
+	endpoint := fmt.Sprintf("%s/v1/chat/whatsappNumbers/%s", apiURL, instanceID)
+
+	body := map[string]interface{}{
+		"numbers": []string{phone},
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return false, "", err
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return false, "", err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if apiToken := os.Getenv("WHATSMIau_API_TOKEN"); apiToken != "" {
+		req.Header.Set("apikey", apiToken)
+	}
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return false, "", fmt.Errorf("whatsmiau returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var results CheckWhatsAppResponse
+	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+		return false, "", err
+	}
+
+	if len(results) > 0 {
+		return results[0].Exists, results[0].Jid, nil
+	}
+
+	return false, "", nil
 }
 
 // HandleEnrichLeadTask processes the enrich lead task

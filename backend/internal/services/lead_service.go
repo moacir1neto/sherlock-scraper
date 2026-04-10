@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"math/rand/v2"
 	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
@@ -11,6 +13,7 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
 	"github.com/digitalcombo/sherlock-scraper/backend/pkg/csvparser"
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 )
 
 type leadService struct {
@@ -58,6 +61,57 @@ func (s *leadService) ImportCSV(ctx context.Context, csvData [][]string, nicho s
 	}
 
 	return nil
+}
+
+const (
+	minDelay = 30
+	maxDelay = 60
+)
+
+func (s *leadService) EnqueueBulkSend(ctx context.Context, leads []ports.BulkSendLead, instanceID, campaignID string) (int, error) {
+	if len(leads) == 0 {
+		return 0, errors.New("leads array cannot be empty")
+	}
+
+	enqueued := 0
+	cumulativeDelay := time.Duration(0)
+
+	for i, lead := range leads {
+		if i > 0 {
+			randomSeconds := minDelay + rand.IntN(maxDelay-minDelay+1)
+			cumulativeDelay += time.Duration(randomSeconds) * time.Second
+		}
+
+		payload := queue.BulkMessagePayload{
+			LeadID:      lead.ID,
+			InstanceID:  instanceID,
+			CampaignID:  campaignID,
+			Phone:       lead.Phone,
+			CompanyName: lead.CompanyName,
+			AIAnalysis:  lead.AIAnalysis,
+		}
+
+		task, err := queue.NewBulkMessageTask(payload)
+		if err != nil {
+			log.Printf("⚠️  [BulkSend] Erro ao criar task para lead %s: %v", lead.ID, err)
+			continue
+		}
+
+		info, err := queue.Client.Enqueue(task, asynq.ProcessIn(cumulativeDelay))
+		if err != nil {
+			log.Printf("⚠️  [BulkSend] Erro ao enfileirar lead %s: %v", lead.ID, err)
+			continue
+		}
+
+		log.Printf("📨 [BulkSend] Lead %s enfileirado | delay=%v | queue=%s | task_id=%s",
+			lead.ID, cumulativeDelay, info.Queue, info.ID)
+		enqueued++
+	}
+
+	log.Printf("✅ [BulkSend] %d/%d leads enfileirados | delay total estimado: %v",
+		enqueued, len(leads), cumulativeDelay)
+
+	return enqueued, nil
 }
 
 func (s *leadService) CreateLead(ctx context.Context, lead *domain.Lead) error {
@@ -115,3 +169,9 @@ func (s *leadService) ListJobs(ctx context.Context) ([]*domain.ScrapingJob, erro
 func (s *leadService) DeleteJob(ctx context.Context, id string) error {
 	return s.repo.DeleteScrapeJob(ctx, id)
 }
+
+// formatDelay returns a human-friendly string for a duration.
+func formatDelay(d time.Duration) string {
+	return fmt.Sprintf("%.0fs", d.Seconds())
+}
+

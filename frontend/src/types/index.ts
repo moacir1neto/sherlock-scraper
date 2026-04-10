@@ -13,6 +13,7 @@ export type KanbanStatus =
   | 'contatado'
   | 'reuniao_agendada'
   | 'negociacao'
+  | 'em_conversa'
   | 'ganho'
   | 'perdido'
   | string;

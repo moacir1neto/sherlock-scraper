@@ -268,6 +268,22 @@ export function useLeads() {
     }
   }, []);
 
+  const bulkSendLeads = useCallback(async (leadIds: string[], instanceId: string) => {
+    try {
+      const res = await axios.post(
+        `${API_URL()}/protected/leads/bulk-send`,
+        { lead_ids: leadIds, instance_id: instanceId },
+        { headers: authHeaders() }
+      );
+      toast.success(res.data.message || 'Campanha enfileirada com sucesso!');
+      return res.data.campaign_id;
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Falha ao iniciar envio em massa';
+      toast.error(errorMsg);
+      throw error;
+    }
+  }, []);
+
   return {
     leads,
     scrapeJobs,
@@ -282,6 +298,7 @@ export function useLeads() {
     deleteScrapeJob,
     analyzeLead,
     analyzeLeadsBulk,
+    bulkSendLeads,
     enrichCNPJ,
     setLeads
   };

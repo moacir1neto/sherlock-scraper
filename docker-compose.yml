@@ -66,7 +66,7 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "if [ ! -d node_modules ]; then npm install --legacy-peer-deps; fi && npm run dev"
     depends_on:
       - api
 
@@ -79,12 +79,15 @@ services:
       - "8081:8080"
     environment:
       PORT: "8080"
+      DEBUG_MODE: "true"
+      DEBUG_WHATSMEOW: "true"
       DIALECT_DB: "postgres"
       DB_URL: "postgres://postgres:password@db:5432/whatsmiau?sslmode=disable"
       REDIS_URL: "redis:6379"
       SHERLOCK_URL: "http://api:3000"
       INTERNAL_API_TOKEN: "9a3c8f650547ee1b91c947c40f7c792bc303d5bb857f3bbb2c0f0af1c8d98e70"
       GEMINI_API_KEY: "${GEMINI_API_KEY}"
+      JWT_SECRET: "my_dev_super_secret"
     volumes:
       - whatsmiau_data:/app/data
     depends_on:

@@ -302,3 +302,38 @@ func (h *LeadHandler) CreateLead(c *fiber.Ctx) error {
 	fmt.Printf("[CreateLead] Lead created successfully: ID=%s Empresa=%s\n", lead.ID, lead.Empresa)
 	return c.Status(fiber.StatusCreated).JSON(lead)
 }
+
+type BulkSendReq struct {
+	Leads      []ports.BulkSendLead `json:"leads"`
+	InstanceID string               `json:"instance_id"`
+}
+
+func (h *LeadHandler) BulkSend(c *fiber.Ctx) error {
+	var req BulkSendReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if len(req.Leads) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "leads array is required"})
+	}
+
+	if req.InstanceID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "instance_id is required"})
+	}
+
+	campaignID := uuid.New().String()
+
+	enqueued, err := h.service.EnqueueBulkSend(c.Context(), req.Leads, req.InstanceID, campaignID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"campaign_id": campaignID,
+		"message":     fmt.Sprintf("%d mensagens enfileiradas com sucesso", enqueued),
+		"enqueued":    enqueued,
+		"total":       len(req.Leads),
+	})
+}
+

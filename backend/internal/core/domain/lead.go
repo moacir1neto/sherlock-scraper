@@ -6,17 +6,20 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+
+	"github.com/digitalcombo/sherlock-scraper/backend/pkg/phoneutil"
 )
 
 type KanbanStatus string
 
 const (
-	StatusProspeccao     KanbanStatus = "prospeccao"
-	StatusContatado      KanbanStatus = "contatado"
+	StatusProspeccao      KanbanStatus = "prospeccao"
+	StatusContatado       KanbanStatus = "contatado"
 	StatusReuniaoAgendada KanbanStatus = "reuniao_agendada"
-	StatusNegociacao     KanbanStatus = "negociacao"
-	StatusGanho          KanbanStatus = "ganho"
-	StatusPerdido        KanbanStatus = "perdido"
+	StatusNegociacao      KanbanStatus = "negociacao"
+	StatusEmConversa      KanbanStatus = "em_conversa" // Mantido por compatibilidade; automação usa StatusContatado
+	StatusGanho           KanbanStatus = "ganho"
+	StatusPerdido         KanbanStatus = "perdido"
 )
 
 type ScrapingStatus string
@@ -91,5 +94,23 @@ func (l *Lead) BeforeCreate(tx *gorm.DB) (err error) {
 	if l.Status == "" {
 		l.Status = StatusCapturado
 	}
+	return
+}
+
+func (l *Lead) BeforeSave(tx *gorm.DB) (err error) {
+	if l.Telefone == "" {
+		return
+	}
+
+	normalized, normErr := phoneutil.NormalizeForWhatsApp(l.Telefone)
+	if normErr != nil {
+		// Número inválido: persiste vazio para evitar envios com JID corrompido.
+		l.Telefone = ""
+		l.LinkWhatsapp = ""
+		return
+	}
+
+	l.Telefone = normalized
+	l.LinkWhatsapp = "https://wa.me/" + normalized
 	return
 }
