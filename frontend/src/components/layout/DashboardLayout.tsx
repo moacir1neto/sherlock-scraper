@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { LogOut, Menu, X, Zap, Database, Settings, Home, Briefcase } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
+import { BulkCampaignProvider } from '@/contexts/BulkCampaignContext';
+import CampaignProgressBadge from '@/components/leads/CampaignProgressBadge';
 
 const DashboardLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -24,6 +26,7 @@ const DashboardLayout: React.FC = () => {
   ];
 
   return (
+    <BulkCampaignProvider>
     <div className="flex h-screen bg-[#09090b] text-white overflow-hidden selection:bg-blue-500/30">
       <Toaster position="top-right" toastOptions={{ style: { background: '#18181b', color: '#fff', border: '1px solid #27272a' } }} />
       
@@ -93,7 +96,9 @@ const DashboardLayout: React.FC = () => {
           <Outlet />
         </main>
       </div>
+      <CampaignProgressBadge />
     </div>
+    </BulkCampaignProvider>
   );
 };
 
