@@ -35,9 +35,15 @@ func (k *kanbanAutomation) process(ctx context.Context, instanceID, phone, targe
 	}
 	instance := &instancesList[0]
 
+	if instance.CompanyID == nil {
+		zap.L().Warn("[KanbanAutomation] instance has no company_id", zap.String("instance_id", instanceID))
+		return nil
+	}
+	companyID := *instance.CompanyID
+
 	variants := []string{phone, "55" + phone} // simplified variant check, should match what FindByPhone handles natively
-	
-	lead, err := k.leadRepo.FindByPhone(ctx, instance.CompanyID, variants)
+
+	lead, err := k.leadRepo.FindByPhone(ctx, companyID, variants)
 	if err != nil {
 		zap.L().Error("[KanbanAutomation] failed to search lead", zap.Error(err))
 		return err
@@ -59,7 +65,7 @@ func (k *kanbanAutomation) process(ctx context.Context, instanceID, phone, targe
 		return nil
 	}
 
-	err = k.leadRepo.UpdateStatus(ctx, lead.ID, instance.CompanyID, targetStatus)
+	err = k.leadRepo.UpdateStatus(ctx, lead.ID, companyID, targetStatus)
 	if err != nil {
 		zap.L().Error("[KanbanAutomation] failed to update lead status", zap.Error(err))
 		return err
