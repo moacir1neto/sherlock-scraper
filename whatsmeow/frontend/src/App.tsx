@@ -4,6 +4,8 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { AIAnalysisProvider } from './contexts/AIAnalysisContext';
+import { BulkCampaignProvider } from './contexts/BulkCampaignContext';
+import CampaignProgressBadge from './components/CampaignProgressBadge';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Instances } from './pages/Instances';
@@ -51,6 +53,7 @@ function App() {
           <AuthProvider>
             <NotificationProvider>
             <AIAnalysisProvider>
+            <BulkCampaignProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route
@@ -222,6 +225,8 @@ function App() {
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            <CampaignProgressBadge />
+            </BulkCampaignProvider>
             </AIAnalysisProvider>
             </NotificationProvider>
             <Toaster
