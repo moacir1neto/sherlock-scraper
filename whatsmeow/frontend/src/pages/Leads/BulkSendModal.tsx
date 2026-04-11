@@ -1,21 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Send, AlertTriangle, CheckCircle, Smartphone, Loader2 } from 'lucide-react';
 import { Lead } from '../../types';
 import { instanceService } from '../../services/api';
+import { useBulkCampaign } from '../../contexts/BulkCampaignContext';
 
 interface BulkSendModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedLeads: Lead[];
   onStartCampaign: (instanceId: string, leads: Partial<Lead>[]) => Promise<string>;
-}
-
-interface LogEvent {
-  id: string;
-  type: 'start' | 'success' | 'error' | 'skip';
-  lead_id: string;
-  empresa: string;
-  message: string;
 }
 
 interface MappedInstance {
@@ -28,18 +21,14 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
   const [instances, setInstances] = useState<MappedInstance[]>([]);
   const [selectedInstance, setSelectedInstance] = useState<string>('');
   const [loadingInstances, setLoadingInstances] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
 
-  const [isSending, setIsSending] = useState(false);
-  const [campaignId, setCampaignId] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [logs, setLogs] = useState<LogEvent[]>([]);
-  
-  const logsEndRef = useRef<HTMLDivElement>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const { isSending, isComplete, progress, logs, startTracking } = useBulkCampaign();
   const total = selectedLeads.length;
+  const isActive = isSending || isComplete;
 
   useEffect(() => {
-    if (isOpen && !isSending && instances.length === 0) {
+    if (isOpen && !isActive && instances.length === 0) {
       loadInstances();
     }
   }, [isOpen]);
@@ -48,7 +37,7 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
     setLoadingInstances(true);
     try {
       const data = await instanceService.list();
-      
+
       let rawList: MappedInstance[] = [];
       if (Array.isArray(data)) {
         rawList = data.map((item: any) => {
@@ -76,7 +65,6 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
         }
       }
 
-      // Sincroniza o status real de cada instância (igual ao Instances.tsx)
       const instancesWithStatus = await Promise.all(
         rawList.map(async (inst) => {
           try {
@@ -84,9 +72,9 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
             const state = statusData.instance?.state || statusData.status || inst.status || 'close';
             return {
               ...inst,
-              status: state === 'open' ? 'open' : state === 'connecting' ? 'connecting' : 'close'
+              status: state === 'open' ? 'open' : state === 'connecting' ? 'connecting' : 'close',
             };
-          } catch (err) {
+          } catch {
             return inst;
           }
         })
@@ -108,84 +96,18 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
 
   const startCampaign = async () => {
     if (!selectedInstance) return;
-    setIsSending(true);
-    setLogs([]);
-    setProgress(0);
-    
+    setIsStarting(true);
     try {
       const id = await onStartCampaign(selectedInstance, selectedLeads);
-      setCampaignId(id);
-      startSSE(id);
-    } catch (error) {
-      setIsSending(false);
+      startTracking(id, selectedLeads.length);
+    } catch {
+      // error handled by caller
+    } finally {
+      setIsStarting(false);
     }
-  };
-
-  const startSSE = (id: string) => {
-    const token = localStorage.getItem('token');
-    // Usa VITE_SHERLOCK_API_URL ou fallback direto para o backend em Go para não cair no proxy do WhatsMiau
-    const env = import.meta.env as any;
-    const sherlockUrl = env.VITE_SHERLOCK_API_URL || 'http://localhost:3000/api/v1';
-    
-    // Conecta no SSE do Sherlock: http://localhost:3000/api/v1/campaigns/{id}/stream
-    // Já injetamos o token caso o backend volte a exigir a verificação.
-    const baseUrl = sherlockUrl.replace(/\/+$/, '');
-    const es = new EventSource(`${baseUrl}/campaigns/${id}/stream?token=${token || ''}`);
-    eventSourceRef.current = es;
-
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as LogEvent;
-        data.id = `${Date.now()}-${Math.random()}`;
-
-        setLogs((prev) => {
-          let newLogs = [...prev];
-          if (data.type !== 'start') {
-             // Remove start event to avoid clutter
-             newLogs = newLogs.filter((l) => !(l.lead_id === data.lead_id && l.type === 'start'));
-             setProgress((p: number) => Math.min(p + 1, total));
-          }
-          return [data, ...newLogs];
-        });
-        
-        scrollToBottom();
-      } catch (err) {
-        console.error('Erro ao processar evento SSE', err);
-      }
-    };
-
-    es.onerror = (err) => {
-      console.error('Erro de conexão SSE:', err);
-      es.close();
-    };
-  };
-
-  useEffect(() => {
-    if (progress >= total && progress > 0 && eventSourceRef.current) {
-      eventSourceRef.current.close();
-      setIsSending(false);
-    }
-  }, [progress, total]);
-
-  useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) eventSourceRef.current.close();
-    };
-  }, []);
-
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
   };
 
   const handleClose = () => {
-    if (isSending) return;
-    if (eventSourceRef.current) eventSourceRef.current.close();
-    setCampaignId(null);
-    setLogs([]);
-    setProgress(0);
-    setIsSending(false);
     onClose();
   };
 
@@ -195,7 +117,7 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={handleClose}>
-      <div 
+      <div
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col transition-all duration-300"
         style={{ maxHeight: 'calc(100vh - 40px)' }}
         onClick={(e) => e.stopPropagation()}
@@ -208,19 +130,17 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Disparo em Massa</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Envio para {total} leads selecionados</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Envio para {selectedLeads.length} leads selecionados</p>
             </div>
           </div>
-          {!isSending && (
-            <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-              <X size={20} />
-            </button>
-          )}
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <X size={20} />
+          </button>
         </div>
 
         {/* Body */}
         <div className="p-6 flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 flex flex-col gap-6">
-          {!campaignId ? (
+          {!isActive ? (
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Instância do WhatsApp</label>
               <div className="relative">
@@ -244,9 +164,7 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
                     >
                       {instances.map((inst, i) => {
                         const name = inst?.instanceName || 'Instância Desconhecida';
-                        const status = inst?.status || 'close';
-                        const isConnected = status === 'open';
-                        
+                        const isConnected = inst?.status === 'open';
                         return (
                           <option key={`${name}-${i}`} value={name}>
                             {name} {isConnected ? '🟢 (Conectada)' : '🔴 (Offline)'}
@@ -265,35 +183,41 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
                 <span className="text-sm font-bold text-gray-900 dark:text-white">{progress}/{total} ({progressPercent}%)</span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                <div 
+                <div
                   className="bg-primary-600 h-full transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
+              {isSending && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1.5">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
+                  </span>
+                  Rodando em segundo plano — você pode minimizar este modal
+                </p>
+              )}
             </div>
           )}
 
           {/* Logs */}
-          {campaignId && (
+          {isActive && logs.length > 0 && (
             <div className="flex-1 min-h-[300px] max-h-[400px] border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-900 flex flex-col font-mono text-sm shadow-inner relative overflow-hidden">
               <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 text-gray-400 text-xs flex justify-between items-center">
                 <span>terminal_logs</span>
-                {isSending && <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                </span>}
+                {isSending && (
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  </span>
+                )}
               </div>
               <div className="p-4 flex-1 overflow-y-auto space-y-2 custom-scrollbar text-gray-300">
-                {logs.length === 0 && isSending && (
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Aguardando processamento...</span>
-                  </div>
-                )}
-                
                 {logs.map((log) => (
                   <div key={log.id} className="flex gap-2">
-                    <span className="shrink-0 text-gray-600">{new Date().toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                    <span className="shrink-0 text-gray-600">
+                      {new Date().toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
                     <span className={`${
                       log.type === 'start' ? 'text-blue-400' :
                       log.type === 'success' ? 'text-green-400' :
@@ -304,7 +228,6 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
                     </span>
                   </div>
                 ))}
-                <div ref={logsEndRef} />
               </div>
             </div>
           )}
@@ -314,23 +237,23 @@ export function BulkSendModal({ isOpen, onClose, selectedLeads, onStartCampaign 
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end gap-3">
           <button
             onClick={handleClose}
-            disabled={isSending}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
-            {campaignId && !isSending ? 'Fechar' : 'Cancelar'}
+            {isComplete ? 'Fechar' : isSending ? 'Minimizar' : 'Cancelar'}
           </button>
-          
-          {!campaignId && (
+
+          {!isActive && (
             <button
               onClick={startCampaign}
-              disabled={isSending || instances.length === 0 || !selectedInstance}
+              disabled={isStarting || instances.length === 0 || !selectedInstance}
               className="flex items-center gap-2 px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Send size={16} />
-              Iniciar Campanha
+              {isStarting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {isStarting ? 'Iniciando...' : 'Iniciar Campanha'}
             </button>
           )}
-          {campaignId && !isSending && (
+
+          {isComplete && (
             <button
               onClick={handleClose}
               className="flex items-center gap-2 px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg shadow-sm font-medium transition-colors"
