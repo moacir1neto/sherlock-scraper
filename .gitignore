@@ -62,3 +62,15 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+
+
+## ias
+
+graphify-out
+
+docs
+.claude
+.agents
+.cursor
+
+am-project.config.md
