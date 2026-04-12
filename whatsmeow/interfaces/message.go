@@ -1,11 +1,17 @@
 package interfaces
 
 import (
+	"errors"
 	"time"
 
 	"github.com/verbeux-ai/whatsmiau/models"
 	"golang.org/x/net/context"
 )
+
+// ErrMessageDuplicate is returned by MessageRepository.Create when the message
+// already exists (unique constraint on chat_id + wa_message_id). Callers should
+// treat this as a no-op, not as a fatal error.
+var ErrMessageDuplicate = errors.New("message already exists")
 
 type MessageRepository interface {
 	Create(ctx context.Context, msg *models.Message) error

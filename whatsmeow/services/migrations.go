@@ -745,6 +745,39 @@ func RunMigrations() error {
 		zap.L().Warn("migrations: could not assign default company to super_admin", zap.Error(err))
 	}
 
+	// Super Vendedor: novos campos em company_ai_settings
+	addAICol := func(col, def string) {
+		var q string
+		if env.Env.DBDialect == "postgres" {
+			q = fmt.Sprintf("ALTER TABLE company_ai_settings ADD COLUMN IF NOT EXISTS %s %s", col, def)
+		} else {
+			q = fmt.Sprintf("ALTER TABLE company_ai_settings ADD COLUMN %s %s", col, def)
+		}
+		if _, err := db.Exec(q); err != nil {
+			if !strings.Contains(err.Error(), "already exists") && !strings.Contains(err.Error(), "duplicate column") {
+				zap.L().Warn("ai_settings migration: add column", zap.String("col", col), zap.Error(err))
+			}
+		}
+	}
+	addAICol("agent_enabled", "BOOLEAN NOT NULL DEFAULT FALSE")
+	addAICol("agent_system_prompt", "TEXT NOT NULL DEFAULT ''")
+
+	// Pausa da IA por conversa (chats)
+	addChatsAIPaused := func() {
+		var q string
+		if env.Env.DBDialect == "postgres" {
+			q = "ALTER TABLE chats ADD COLUMN IF NOT EXISTS ai_paused BOOLEAN NOT NULL DEFAULT FALSE"
+		} else {
+			q = "ALTER TABLE chats ADD COLUMN ai_paused BOOLEAN NOT NULL DEFAULT FALSE"
+		}
+		if _, err := db.Exec(q); err != nil {
+			if !strings.Contains(err.Error(), "already exists") && !strings.Contains(err.Error(), "duplicate column") {
+				zap.L().Warn("chats migration: add ai_paused", zap.Error(err))
+			}
+		}
+	}
+	addChatsAIPaused()
+
 	zap.L().Info("Migrations completed successfully")
 	return nil
 }

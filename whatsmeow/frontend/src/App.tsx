@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { AIAnalysisProvider } from './contexts/AIAnalysisContext';
 import { BulkCampaignProvider } from './contexts/BulkCampaignContext';
+import { useHandoffSSE } from './hooks/useHandoffSSE';
 import CampaignProgressBadge from './components/CampaignProgressBadge';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -17,6 +18,13 @@ import { SuperAdmin } from './pages/SuperAdmin';
 import { Admin } from './pages/Admin';
 import { Profile } from './pages/Profile';
 import { Monitoramento, IncidentesPage, AuditoriaPage } from './pages/Monitoramento';
+
+// HandoffSSEWatcher precisa estar dentro do AuthProvider para acessar isAuthenticated.
+function HandoffSSEWatcher() {
+  const { isAuthenticated } = useAuth();
+  useHandoffSSE(isAuthenticated);
+  return null;
+}
 
 function RootRedirect() {
   const { isAuthenticated, loading } = useAuth();
@@ -51,6 +59,7 @@ function App() {
       <ThemeProvider>
         <BrowserRouter>
           <AuthProvider>
+            <HandoffSSEWatcher />
             <NotificationProvider>
             <AIAnalysisProvider>
             <BulkCampaignProvider>

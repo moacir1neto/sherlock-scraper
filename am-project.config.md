@@ -15,7 +15,7 @@ project_status=active
 
 project_type=split-front-back
 
-project_mode=existing
+project_mode=imported
 
 default_language=pt-BR
 
@@ -86,7 +86,7 @@ has_api_routes=true
 has_background_jobs=true
 has_file_upload=false
 has_multitenancy=false
-has_whatsapp_channel=false
+has_whatsapp_channel=true
 has_email_channel=false
 has_human_handoff=false
 has_audit_logs=true
@@ -135,9 +135,9 @@ uses_openai=false
 uses_gemini=false
 uses_evolution=false
 uses_email=false
-uses_whatsapp=false
+uses_whatsapp=true
 
-integration_notes=Docker provável para rodar PostgreSQL e Redis localmente e em produção.
+integration_notes=Docker Compose para infra (PostgreSQL, Redis). Integração nativa com WhatsApp via biblioteca/módulo whatsmeow (Go).
 
 ---
 
@@ -296,7 +296,7 @@ orchestrator_notes=
 
 ## 18. Documentos Esperados
 
-required_docs=business/overview.md,business/features.md,technical/architecture.md,technical/database.md
+required_docs=business/overview.md,business/features.md,technical/architecture.md,technical/database.md,technical/auth-and-security.md,technical/infra-and-deploy.md,technical/integrations.md
 
 optional_docs=technical/infra-and-deploy.md,technical/auth-and-security.md,technical/integrations.md,decisions/
 

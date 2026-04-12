@@ -9,11 +9,14 @@ import (
 	"github.com/verbeux-ai/whatsmiau/services"
 )
 
-func Load(app *echo.Echo) *ws.Hub {
+func Load(app *echo.Echo, handoffHub *services.HandoffHub) *ws.Hub {
 	app.Pre(middleware.Simplify(middleware.AuthOrJWT))
 
 	v1 := app.Group("/v1")
 	V1(v1)
+
+	// SSE endpoint para alertas de handoff do Super Vendedor (auth via query param)
+	HandoffSSE(v1, handoffHub)
 
 	hub := ws.NewHub()
 	chatHandler := ws.NewChatHandler(hub, instances.NewRedis(services.Redis()))

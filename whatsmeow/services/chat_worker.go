@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -29,12 +30,14 @@ func RunChatWorkers(
 	messageRepo interfaces.MessageRepository,
 	broadcaster ChatBroadcaster,
 	kanbanSvc KanbanAutomation,
+	salesAgent *SalesAgentService,
+	publisher interfaces.LeadEventPublisher,
 ) {
 	for i := 0; i < chatWorkerCount; i++ {
 		go func(workerID int) {
 			for job := range ch {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				if err := processChatJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc); err != nil {
+				if err := processChatJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc, salesAgent, publisher); err != nil {
 					zap.L().Error("chat worker failed", zap.Int("worker", workerID), zap.String("type", job.Type), zap.String("instance", job.InstanceID), zap.Error(err))
 				}
 				cancel()
@@ -44,10 +47,10 @@ func RunChatWorkers(
 	zap.L().Info("chat workers started", zap.Int("count", chatWorkerCount))
 }
 
-func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation) error {
+func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation, salesAgent *SalesAgentService, publisher interfaces.LeadEventPublisher) error {
 	switch job.Type {
 	case "message":
-		return processMessageJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc)
+		return processMessageJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc, salesAgent, publisher)
 	case "receipt":
 		return processReceiptJob(ctx, job, chatRepo, messageRepo, broadcaster)
 	default:
@@ -55,7 +58,7 @@ func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfa
 	}
 }
 
-func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation) error {
+func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation, salesAgent *SalesAgentService, publisher interfaces.LeadEventPublisher) error {
 	if job.MessageData == nil || job.MessageData.Key == nil {
 		return nil
 	}
@@ -93,6 +96,10 @@ func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo inte
 		}
 	}
 	if err := messageRepo.Create(ctx, msg); err != nil {
+		if errors.Is(err, interfaces.ErrMessageDuplicate) {
+			zap.L().Debug("duplicate message ignored", zap.String("wa_id", msg.WAMessageID), zap.String("chat_id", msg.ChatID))
+			return nil
+		}
 		return err
 	}
 	if broadcaster != nil {
@@ -122,6 +129,40 @@ func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo inte
 				}
 			}()
 		}
+	}
+
+	// LeadEventPublisher: publica mensagem recebida no Redis para o Sherlock CRM
+	// consumir via Pub/Sub. Apenas para contatos individuais (não próprias, não grupo).
+	if publisher != nil && !d.Key.FromMe && !isGroupJID(remoteJid) {
+		phone := phoneFromJID(remoteJid)
+		if phone != "" && len(phone) <= 15 {
+			go func() {
+				pubCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := publisher.PublishIncomingMessage(pubCtx, msg.WAMessageID, phone, job.InstanceID); err != nil {
+					zap.L().Warn("[LeadPublisher] falha ao publicar evento",
+						zap.String("phone", phone),
+						zap.String("instance", job.InstanceID),
+						zap.Error(err),
+					)
+				}
+			}()
+		}
+	}
+
+	// Super Vendedor: processa apenas mensagens recebidas (não próprias, não grupo)
+	if salesAgent != nil && !d.Key.FromMe && !isGroupJID(remoteJid) {
+		go func() {
+			agentCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := salesAgent.ProcessIncoming(agentCtx, chat.ID, job.InstanceID, remoteJid); err != nil {
+				zap.L().Warn("[SalesAgent] erro ao processar mensagem",
+					zap.String("chat", chat.ID),
+					zap.String("instance", job.InstanceID),
+					zap.Error(err),
+				)
+			}
+		}()
 	}
 
 	return nil
