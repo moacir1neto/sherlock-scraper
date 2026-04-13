@@ -19,6 +19,7 @@ export interface ChatItem {
   updated_at?: string;
   sector_id?: string | null;
   status?: 'aguardando' | 'atendendo' | 'finalizado' | string;
+  ai_paused?: boolean;
 }
 
 export interface MessageItem {
@@ -1467,6 +1468,23 @@ export function Chat() {
     }
   };
 
+  const handleResumeAgent = async (chat: ChatItem) => {
+    if (!instanceId) return;
+    try {
+      await fetch(`/v1/instance/${instanceId}/chats/${chat.id}/resume-agent`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+      });
+      setChats((prev) =>
+        prev.map((c) => (c.id === chat.id ? { ...c, ai_paused: false } : c))
+      );
+      setSelectedChat((prev) => (prev && prev.id === chat.id ? { ...prev, ai_paused: false } : prev));
+      toast.success('Agente de IA retomado');
+    } catch {
+      toast.error('Erro ao retomar agente de IA');
+    }
+  };
+
   const handleChangeSector = async (chat: ChatItem, sectorId: string | null) => {
     if (!instanceId) return;
     setChangingSector(true);
@@ -1806,6 +1824,16 @@ export function Chat() {
                     )}
                   </div>
                 </div>
+                {selectedChat.ai_paused && (
+                  <button
+                    type="button"
+                    onClick={() => handleResumeAgent(selectedChat)}
+                    className="ml-2 px-3 py-1.5 rounded-md bg-green-600 text-white text-xs font-medium hover:bg-green-700 inline-flex items-center gap-1"
+                    title="IA pausada por handoff — clique para retomar respostas automáticas"
+                  >
+                    🤖 Retomar IA
+                  </button>
+                )}
                 {selectedChat.status === 'atendendo' && (
                   <>
                     <button

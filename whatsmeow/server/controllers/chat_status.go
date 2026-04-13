@@ -146,6 +146,40 @@ func (s *ChatStatus) Attend(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "atendendo"})
 }
 
+// ResumeAgent zera ai_paused=false, retomando as respostas automáticas do Super Vendedor para este chat.
+// PUT /v1/instance/:id/chats/:chatId/resume-agent
+func (s *ChatStatus) ResumeAgent(c echo.Context) error {
+	instanceID := c.Param("id")
+	chatID := c.Param("chatId")
+	if instanceID == "" || chatID == "" {
+		return utils.HTTPFail(c, http.StatusBadRequest, nil, "instance id and chat id are required")
+	}
+	if err := s.ensureInstanceAccess(c, instanceID); err != nil {
+		return err
+	}
+	chat, err := s.chatRepo.GetByID(c.Request().Context(), chatID)
+	if err != nil || chat == nil || chat.InstanceID != instanceID {
+		return utils.HTTPFail(c, http.StatusNotFound, nil, "chat not found")
+	}
+	if err := s.chatRepo.ResumeAgent(c.Request().Context(), chatID); err != nil {
+		return utils.HTTPFail(c, http.StatusInternalServerError, err, "failed to resume agent")
+	}
+	if s.auditRepo != nil {
+		userID, _ := c.Get("user_id").(string)
+		userEmail, _ := c.Get("user_email").(string)
+		_ = s.auditRepo.Create(c.Request().Context(), &models.AuditLog{
+			UserID:     &userID,
+			UserEmail:  userEmail,
+			Action:     "resume_agent",
+			EntityType: "chat",
+			EntityID:   chatID,
+			OldValue:   `{"ai_paused":true}`,
+			NewValue:   `{"ai_paused":false}`,
+		})
+	}
+	return c.JSON(http.StatusOK, map[string]bool{"ai_paused": false})
+}
+
 // Finish muda o status do chat para "finalizado".
 func (s *ChatStatus) Finish(c echo.Context) error {
 	instanceID := c.Param("id")

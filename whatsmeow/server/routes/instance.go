@@ -65,6 +65,7 @@ func Instance(group *echo.Group) {
 		protected.PUT("/:id/chats/:chatId/sector", chatStatusCtrl.UpdateSector)
 		protected.POST("/:id/chats/:chatId/attend", chatStatusCtrl.Attend)
 		protected.POST("/:id/chats/:chatId/finish", chatStatusCtrl.Finish)
+		protected.PUT("/:id/chats/:chatId/resume-agent", chatStatusCtrl.ResumeAgent)
 
 		// Tags do chat (por conversa)
 		if tagRepo, errTag := tags.NewSQL(); errTag == nil {

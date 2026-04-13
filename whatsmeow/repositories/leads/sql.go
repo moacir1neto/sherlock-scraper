@@ -130,12 +130,12 @@ func (r *SQLLead) Update(ctx context.Context, lead *models.Lead) error {
 	query := `UPDATE leads
 		SET name=$1, phone=$2, address=$3, website=$4, email=$5,
 		    kanban_status=$6, enrichment_status=$7, notes=$8,
-		    estimated_value=$9, tags=$10, updated_at=$11
-		WHERE id=$12 AND company_id=$13`
+		    estimated_value=$9, tags=$10, link_whatsapp=$11, updated_at=$12
+		WHERE id=$13 AND company_id=$14`
 	res, err := r.db.ExecContext(ctx, query,
 		lead.Name, lead.Phone, lead.Address, lead.Website, lead.Email,
 		lead.KanbanStatus, lead.EnrichmentStatus, lead.Notes,
-		lead.EstimatedValue, lead.Tags, lead.UpdatedAt,
+		lead.EstimatedValue, lead.Tags, lead.LinkWhatsapp, lead.UpdatedAt,
 		lead.ID, lead.CompanyID,
 	)
 	if err != nil {

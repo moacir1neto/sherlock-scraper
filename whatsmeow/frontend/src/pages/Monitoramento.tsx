@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, FileSearch, RefreshCw } from 'lucide-react';
+import { AlertCircle, FileSearch, RefreshCw, Radio, Trash2, PauseCircle, PlayCircle } from 'lucide-react';
 import { incidentService } from '../services/incident';
 import { Incident } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useSystemLogsSSE, type SystemLogEntry, type LogLevel, type LogCategory } from '../hooks/useSystemLogsSSE';
 
 export function Monitoramento() {
   const location = useLocation();
@@ -11,6 +12,7 @@ export function Monitoramento() {
   const { user } = useAuth();
   const isIncidentes = location.pathname.includes('/incidentes');
   const isAuditoria = location.pathname.includes('/auditoria');
+  const isLogs = location.pathname.includes('/logs');
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -43,6 +45,17 @@ export function Monitoramento() {
           >
             <FileSearch size={18} />
             Auditoria
+          </button>
+          <button
+            onClick={() => navigate('/super-admin/monitoramento/logs')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+              isLogs
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <Radio size={18} />
+            Logs ao Vivo
           </button>
         </nav>
       </div>
@@ -345,6 +358,211 @@ export function AuditoriaPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Logs ao Vivo ──────────────────────────────────────────────────────────────
+
+const MAX_LOG_ENTRIES = 500;
+
+const LEVEL_STYLES: Record<LogLevel, string> = {
+  info:  'bg-blue-100  dark:bg-blue-900/30  text-blue-700  dark:text-blue-300',
+  warn:  'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  error: 'bg-red-100   dark:bg-red-900/30   text-red-700   dark:text-red-300',
+};
+
+const CATEGORY_LABELS: Record<LogCategory, string> = {
+  system:   'Sistema',
+  whatsapp: 'WhatsApp',
+  campaign: 'Campanha',
+  agent:    'Agente IA',
+};
+
+const CATEGORY_STYLES: Record<LogCategory, string> = {
+  system:   'bg-gray-200  dark:bg-gray-700  text-gray-700  dark:text-gray-200',
+  whatsapp: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  campaign: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+  agent:    'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
+};
+
+export function LogsAoVivoPage() {
+  const { user, isAuthenticated } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
+
+  const [logs, setLogs] = useState<(SystemLogEntry & { id: number })[]>([]);
+  const [paused, setPaused] = useState(false);
+  const [filterLevel, setFilterLevel] = useState<LogLevel | 'all'>('all');
+  const [filterCategory, setFilterCategory] = useState<LogCategory | 'all'>('all');
+  const [search, setSearch] = useState('');
+  const counterRef = useRef(0);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const pausedRef = useRef(false);
+  pausedRef.current = paused;
+
+  const handleLog = useCallback((entry: SystemLogEntry) => {
+    if (pausedRef.current) return;
+    setLogs((prev) => {
+      const next = [...prev, { ...entry, id: ++counterRef.current }];
+      return next.length > MAX_LOG_ENTRIES ? next.slice(next.length - MAX_LOG_ENTRIES) : next;
+    });
+  }, []);
+
+  useSystemLogsSSE(isAuthenticated, isSuperAdmin, handleLog);
+
+  // Auto-scroll para o fim quando não estiver pausado
+  useEffect(() => {
+    if (!paused) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs, paused]);
+
+  const filtered = logs.filter((e) => {
+    if (filterLevel !== 'all' && e.level !== filterLevel) return false;
+    if (filterCategory !== 'all' && e.category !== filterCategory) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!e.message.toLowerCase().includes(q) && !(e.detail ?? '').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const countByLevel = (lvl: LogLevel) => logs.filter((e) => e.level === lvl).length;
+
+  const formatTime = (ts: string) => {
+    try { return new Date(ts).toLocaleTimeString('pt-BR'); } catch { return ts; }
+  };
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="flex items-center justify-center py-24 text-gray-500 dark:text-gray-400">
+        Acesso restrito a super_admin.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Cabeçalho e contadores */}
+      <div className="flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Radio size={18} className={paused ? 'text-gray-400' : 'text-green-500 animate-pulse'} />
+            Logs ao Vivo
+          </h2>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{logs.length} / {MAX_LOG_ENTRIES}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Badges por nível */}
+          {(['error', 'warn', 'info'] as LogLevel[]).map((lvl) => (
+            <button
+              key={lvl}
+              onClick={() => setFilterLevel((f) => f === lvl ? 'all' : lvl)}
+              className={`px-2 py-0.5 rounded-full text-xs font-medium transition-opacity ${LEVEL_STYLES[lvl]} ${filterLevel !== 'all' && filterLevel !== lvl ? 'opacity-40' : ''}`}
+            >
+              {lvl.toUpperCase()} {countByLevel(lvl)}
+            </button>
+          ))}
+
+          {/* Filtro categoria */}
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value as LogCategory | 'all')}
+            className="text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-2 py-1"
+          >
+            <option value="all">Todos</option>
+            {(Object.keys(CATEGORY_LABELS) as LogCategory[]).map((c) => (
+              <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+            ))}
+          </select>
+
+          {/* Busca */}
+          <input
+            type="text"
+            placeholder="Filtrar mensagem…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-2 py-1 w-40"
+          />
+
+          {/* Pausar / Retomar */}
+          <button
+            onClick={() => setPaused((p) => !p)}
+            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium ${
+              paused
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+            }`}
+          >
+            {paused ? <><PlayCircle size={14} /> Retomar</> : <><PauseCircle size={14} /> Pausar</>}
+          </button>
+
+          {/* Limpar */}
+          <button
+            onClick={() => setLogs([])}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-medium hover:bg-gray-300 dark:hover:bg-gray-600"
+          >
+            <Trash2 size={14} /> Limpar
+          </button>
+        </div>
+      </div>
+
+      {/* Feed de logs */}
+      <div className="bg-gray-950 rounded-xl border border-gray-800 overflow-hidden">
+        <div className="h-[60vh] overflow-y-auto p-3 space-y-1 font-mono text-xs">
+          {filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500">
+              <Radio size={32} className="opacity-30" />
+              <span>{logs.length === 0 ? 'Aguardando eventos…' : 'Nenhum log corresponde aos filtros.'}</span>
+            </div>
+          )}
+          {filtered.map((entry) => (
+            <div
+              key={entry.id}
+              className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-800/60 transition-colors"
+            >
+              {/* Timestamp */}
+              <span className="text-gray-500 shrink-0 pt-0.5 w-20">{formatTime(entry.timestamp)}</span>
+
+              {/* Level badge */}
+              <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${LEVEL_STYLES[entry.level]}`}>
+                {entry.level}
+              </span>
+
+              {/* Category badge */}
+              <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] ${CATEGORY_STYLES[entry.category]}`}>
+                {CATEGORY_LABELS[entry.category]}
+              </span>
+
+              {/* Instance */}
+              {entry.instance && (
+                <span className="shrink-0 text-gray-500 truncate max-w-[80px]" title={entry.instance}>
+                  [{entry.instance.slice(0, 8)}]
+                </span>
+              )}
+
+              {/* Mensagem + detalhe */}
+              <span className="text-gray-200 break-all flex-1">
+                {entry.message}
+                {entry.detail && (
+                  <span className="text-gray-400 ml-2">— {entry.detail.slice(0, 120)}</span>
+                )}
+              </span>
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Rodapé */}
+        <div className="px-4 py-2 border-t border-gray-800 flex items-center justify-between text-[10px] text-gray-500">
+          <span>
+            {paused
+              ? '⏸ Pausado — novos eventos não serão exibidos'
+              : '● Conectado — recebendo eventos em tempo real'}
+          </span>
+          <span>{filtered.length} evento(s) visíveis</span>
+        </div>
+      </div>
     </div>
   );
 }

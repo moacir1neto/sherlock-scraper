@@ -74,3 +74,10 @@ docs
 .cursor
 
 am-project.config.md
+
+
+.env.example
+
+whatsmeow/.env.example
+
+.env    

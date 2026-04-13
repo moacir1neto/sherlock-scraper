@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -158,6 +159,18 @@ func (s *Lead) GetByID(c echo.Context) error {
 	return c.JSON(http.StatusOK, lead)
 }
 
+// buildWhatsAppLink gera o link wa.me a partir do telefone, removendo não-dígitos.
+// Retorna string vazia se phone estiver vazio.
+var nonDigit = regexp.MustCompile(`[^0-9]`)
+
+func buildWhatsAppLink(phone string) string {
+	digits := nonDigit.ReplaceAllString(phone, "")
+	if digits == "" {
+		return ""
+	}
+	return "https://wa.me/" + digits
+}
+
 func (s *Lead) Update(c echo.Context) error {
 	companyID, _ := c.Get("company_id").(string)
 	if companyID == "" {
@@ -183,7 +196,10 @@ func (s *Lead) Update(c echo.Context) error {
 	}
 
 	existing.Name = req.Name
-	existing.Phone = req.Phone
+	if req.Phone != existing.Phone {
+		existing.Phone = req.Phone
+		existing.LinkWhatsapp = buildWhatsAppLink(req.Phone)
+	}
 	existing.Address = req.Address
 	existing.Website = req.Website
 	existing.Email = req.Email

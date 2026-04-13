@@ -261,6 +261,15 @@ function LeadsView({ scrape, onBack }: LeadsViewProps) {
     return unsub;
   }, [scrape.id, subscribe]);
 
+  // Revalida lista ao retornar para a aba (ex.: telefone alterado no banco enquanto estava em outra tela)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchLeads();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [fetchLeads]);
+
   // Reset seleção ao mudar de página ou filtro
   useEffect(() => {
     setSelectedIds(new Set());

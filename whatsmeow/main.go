@@ -17,6 +17,7 @@ import (
 	"github.com/verbeux-ai/whatsmiau/server/routes"
 	"github.com/verbeux-ai/whatsmiau/services"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 )
@@ -55,7 +56,16 @@ func main() {
 
 	// Super Vendedor: HandoffHub para alertas SSE em tempo real
 	handoffHub := services.NewHandoffHub()
-	hub := routes.Load(app, handoffHub)
+
+	// System Logs: hub SSE para painel de logs em tempo real (super_admin)
+	systemLogHub := services.NewSystemLogHub()
+	// Injeta o HubZapCore no logger global para capturar Info/Warn/Error automaticamente
+	zapCore := services.NewHubZapCore(systemLogHub, zapcore.InfoLevel)
+	zap.ReplaceGlobals(zap.L().WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return zapcore.NewTee(core, zapCore)
+	})))
+
+	hub := routes.Load(app, handoffHub, systemLogHub)
 
 	// Start chat persistence workers (enqueue from event handler, persist in background, broadcast via WS)
 	// O KanbanAutomation move o lead automaticamente no CRM quando recebe ou envia mensagens.
@@ -72,7 +82,11 @@ func main() {
 			var salesAgent *services.SalesAgentService
 			if db, err := services.DB(); err == nil {
 				salesAgent = services.NewSalesAgentService(db, instancesRepo, whatsmiau.Get(), handoffHub)
-				zap.L().Info("Super Vendedor inicializado")
+				if env.Env.GeminiAPIKey == "" {
+					zap.L().Warn("Super Vendedor: GEMINI_API_KEY não configurada — agente inicializado mas respostas automáticas estão desativadas")
+				} else {
+					zap.L().Info("Super Vendedor inicializado")
+				}
 			} else {
 				zap.L().Warn("Super Vendedor desativado: falha ao abrir DB", zap.Error(err))
 			}
@@ -82,7 +96,7 @@ func main() {
 			publisher := services.NewRedisLeadEventPublisher(services.Redis())
 			zap.L().Info("LeadEventPublisher (Redis) inicializado")
 
-			services.RunChatWorkers(ch, chatRepo, messageRepo, hub, kanbanSvc, salesAgent, publisher)
+			services.RunChatWorkers(ch, chatRepo, messageRepo, hub, kanbanSvc, salesAgent, publisher, systemLogHub)
 		}
 	}
 

@@ -32,12 +32,13 @@ func RunChatWorkers(
 	kanbanSvc KanbanAutomation,
 	salesAgent *SalesAgentService,
 	publisher interfaces.LeadEventPublisher,
+	logHub *SystemLogHub,
 ) {
 	for i := 0; i < chatWorkerCount; i++ {
 		go func(workerID int) {
 			for job := range ch {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				if err := processChatJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc, salesAgent, publisher); err != nil {
+				if err := processChatJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc, salesAgent, publisher, logHub); err != nil {
 					zap.L().Error("chat worker failed", zap.Int("worker", workerID), zap.String("type", job.Type), zap.String("instance", job.InstanceID), zap.Error(err))
 				}
 				cancel()
@@ -47,10 +48,10 @@ func RunChatWorkers(
 	zap.L().Info("chat workers started", zap.Int("count", chatWorkerCount))
 }
 
-func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation, salesAgent *SalesAgentService, publisher interfaces.LeadEventPublisher) error {
+func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation, salesAgent *SalesAgentService, publisher interfaces.LeadEventPublisher, logHub *SystemLogHub) error {
 	switch job.Type {
 	case "message":
-		return processMessageJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc, salesAgent, publisher)
+		return processMessageJob(ctx, job, chatRepo, messageRepo, broadcaster, kanbanSvc, salesAgent, publisher, logHub)
 	case "receipt":
 		return processReceiptJob(ctx, job, chatRepo, messageRepo, broadcaster)
 	default:
@@ -58,7 +59,7 @@ func processChatJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfa
 	}
 }
 
-func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation, salesAgent *SalesAgentService, publisher interfaces.LeadEventPublisher) error {
+func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo interfaces.ChatRepository, messageRepo interfaces.MessageRepository, broadcaster ChatBroadcaster, kanbanSvc KanbanAutomation, salesAgent *SalesAgentService, publisher interfaces.LeadEventPublisher, logHub *SystemLogHub) error {
 	if job.MessageData == nil || job.MessageData.Key == nil {
 		return nil
 	}
@@ -105,6 +106,25 @@ func processMessageJob(ctx context.Context, job whatsmiau.ChatJob, chatRepo inte
 	if broadcaster != nil {
 		broadcaster.BroadcastEvent(job.InstanceID, "new_message", map[string]interface{}{
 			"chat_id": chat.ID, "message": msg, "instance_id": job.InstanceID,
+		})
+	}
+
+	// Logs em tempo real: publica evento de mensagem WA no painel de monitoramento
+	if logHub != nil && !isGroupJID(remoteJid) {
+		direction := "recebida"
+		if d.Key.FromMe {
+			direction = "enviada"
+		}
+		detail := ""
+		if preview != "" {
+			detail = preview
+		}
+		logHub.Publish(SystemLogEvent{
+			Level:    LogLevelInfo,
+			Category: LogCategoryMessage,
+			Message:  "Mensagem " + direction + " — " + chat.Name,
+			Detail:   detail,
+			Instance: job.InstanceID,
 		})
 	}
 

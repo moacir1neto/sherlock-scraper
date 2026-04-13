@@ -17,7 +17,7 @@ import { Login } from './pages/Login';
 import { SuperAdmin } from './pages/SuperAdmin';
 import { Admin } from './pages/Admin';
 import { Profile } from './pages/Profile';
-import { Monitoramento, IncidentesPage, AuditoriaPage } from './pages/Monitoramento';
+import { Monitoramento, IncidentesPage, AuditoriaPage, LogsAoVivoPage } from './pages/Monitoramento';
 
 // HandoffSSEWatcher precisa estar dentro do AuthProvider para acessar isAuthenticated.
 function HandoffSSEWatcher() {
@@ -143,6 +143,7 @@ function App() {
               >
                 <Route path="incidentes" element={<IncidentesPage />} />
                 <Route path="auditoria" element={<AuditoriaPage />} />
+                <Route path="logs" element={<LogsAoVivoPage />} />
                 <Route index element={<Navigate to="incidentes" replace />} />
               </Route>
               <Route

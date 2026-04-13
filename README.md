@@ -1,249 +1,104 @@
-# Sherlock Scraper
+# 🔎 Sherlock Scraper — B2B Lead Management & Campaigns
 
-![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)
-![Fiber](https://img.shields.io/badge/Fiber-v2-00ACD7?logo=go&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-Alpine-DC382D?logo=redis&logoColor=white)
-![Postgres](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![License](https://img.shields.io/badge/License-Proprietary-333333)
+![Go Version](https://img.shields.io/badge/Go-1.21-00ADD8?style=flat&logo=go)
+![React Version](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=flat&logo=postgresql)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-Plataforma B2B de prospecção ativa que combina scraping automatizado (Google Maps, Casa dos Dados), análise de leads por IA (Google Gemini) e **disparo de mensagens em massa via WhatsApp** com orquestração em filas Redis. O motor de campanhas roda em background, valida números na rede Meta antes do envio e entrega logs em tempo real para o frontend via SSE.
+## 📌 Visão Geral
 
----
+Sherlock Scraper é um sistema avançado de CRM e prospecção B2B (Business-to-Business) focado na captação automatizada de leads e orquestração de disparos de mensagens via WhatsApp. Combinando raspagem de dados com um motor robusto de campanhas em background, a plataforma garante entregabilidade em alta performance e escalabilidade. O Sherlock orquestra envios em lote integrando-se via REST HTTP com seu provedor de infraestrutura core (WhatsMiau / Evolution API) atuando em contêineres de componentes isolados para prevenir gargalos estruturais e falhas de runtime.
 
-## Arquitetura
+## 🏗️ Arquitetura do Sistema
+
+O fluxo principal de integração de campanhas opera estritamente de maneira assíncrona, assegurando processamento ininterrupto e uma experiência UX altamente fluida (sem telas travadas) no Frontend Web.
 
 ```mermaid
-flowchart LR
-    subgraph Frontend
-        UI["React / Vite\n:5173"]
-    end
+sequenceDiagram
+    participant F as Frontend (React)
+    participant A as API Go (Fiber)
+    participant R as Redis (Asynq/PubSub)
+    participant W as Worker (Go Asynq)
+    participant WM as WhatsMiau API
+    participant WA as WhatsApp
 
-    subgraph API["Sherlock API (Go Fiber) :3000"]
-        Router["Router\n/api/v1"]
-        SSE["SSE Handler\n/campaigns/:id/stream"]
-    end
+    F->>A: Cria Campanha em Lote
+    A->>R: Enfileira Task (Asynq)
+    A-->>F: Campanha Iniciada (Retorna Task ID)
+    
+    R->>W: Consome Task (Em Background)
+    W->>+WM: Checa Número (POST /v1/chat/whatsappNumbers/:instance)
+    WM-->>-W: Retorna True/False
+    
+    W->>+WM: Envia Mensagem (POST /v1/message/sendText/:instance)
+    WM-->>-W: Confirma Envio
 
-    subgraph Queue["Background Workers"]
-        Asynq["Asynq Server\nConcurrency: 5"]
-        Worker["HandleBulkMessageTask"]
-    end
-
-    subgraph Infra
-        Redis["Redis\n:6379"]
-        PG["PostgreSQL 15\n:5432"]
-    end
-
-    subgraph External["WhatsMiau (WhatsApp Gateway)"]
-        WAPI["WhatsMiau API\n:8080"]
-        WA["WhatsApp\n(Meta)"]
-    end
-
-    UI -- "POST /leads/bulk-send" --> Router
-    Router -- "Enqueue Task" --> Redis
-    Redis -- "Dequeue" --> Asynq
-    Asynq --> Worker
-
-    Worker -- "POST /v1/chat/whatsappNumbers/:instance\n(Fail-Fast Validation)" --> WAPI
-    Worker -- "POST /v1/message/sendText/:instance" --> WAPI
-    WAPI --> WA
-
-    Worker -- "PUBLISH campaigns:logs:<id>" --> Redis
-    Redis -- "SUBSCRIBE" --> SSE
-    SSE -- "text/event-stream" --> UI
-
-    Worker -- "GORM" --> PG
-    Router -- "GORM" --> PG
+    WM->>WA: Disparo de Mensagem na Rede Meta
+    
+    W->>R: Publica Evento no Redis Pub/Sub (campaigns:logs:<id>)
+    R->>A: Recebe Eventos (Pub/Sub Subscriber)
+    A->>F: Streaming em Tempo Real (SSE - GET /api/v1/campaigns/:id/stream)
 ```
 
----
+## 🚀 Features Principais
 
-## Features
+* **Motor em Background (Asynq + Redis):** Processamento robusto de filas independente do Core da API principal, mitigando travamento de rotas sistêmicas, com rotinas seguras de repescagem.
+* **Comunicação Desacoplada (WhatsMiau API):** O worker processa os leads e invoca os endpoints do WhatsMiau externamente (`/v1/chat/whatsappNumbers/:instance` e `/v1/message/sendText/:instance`), eliminando sobreposição da engine do WhatsApp no monorepo do backend.
+* **Streaming em Tempo Real (SSE):** Front-end recebe e imprime logs textuais do disparo das mensagens progressivamente em frações de segundo diretamente via Server-Sent Events, alimentado por um barramento Pub/Sub no Redis.
+* **Fail-Fast Validation:** O background checker atua preemptivamente validando o cadastro dos telefones na rede antes de desperdiçar ciclos HTTP no disparo.
+* **Arquitetura Limpa:** O design prioriza SOLID, separação concisa de papéis (Domain, Services, Queue, Controllers) e manutenibilidade contínua.
 
-- **Motor de Campanhas em Background** — Workers Asynq processam filas com concorrência configurável (critical/default/low) e retry automático.
-- **Fail-Fast Validation** — Cada número é verificado na rede Meta (`/v1/chat/whatsappNumbers`) antes do envio. Números inexistentes são marcados como `Perdido` e a task cancelada sem retry.
-- **Isolamento do Core** — O worker consome a WhatsMiau API exclusivamente via HTTP. Nenhum código da pasta `/whatsmeow` é alterado.
-- **Streaming SSE** — Endpoint `GET /api/v1/campaigns/:id/stream` retransmite eventos Redis Pub/Sub (`campaigns:logs:<id>`) para o frontend em tempo real.
-- **Heartbeat 30s** — Mantém a conexão SSE viva em proxies reversos e load balancers.
-- **Scraping Automatizado** — Google Maps via Playwright + CNPJ via Casa dos Dados (bridge Python).
-- **Deep Enrichment** — Extração de redes sociais, Facebook Pixel, GTM e Google Reviews por lead.
-- **Análise de IA** — Google Gemini gera icebreakers personalizados por lead para prospecção.
-- **Kanban Automation** — Redis Pub/Sub (`whatsapp:messages:received`) move leads automaticamente ao receber mensagem WhatsApp.
-- **Pipeline Customizável** — Criação de pipelines e estágios sob medida, incluindo geração por IA.
+## 💻 Tech Stack
 
----
+| Camada | Tecnologia Principal | Descrição Resumida |
+| --- | --- | --- |
+| **API Principal** | Golang (Fiber) | Framework HTTP performático. Tipagem forte, sintaxe expressiva |
+| **Background / Filas**| Asynq | Orquestração de Jobs transacionais nativos em Go |
+| **Mensageria em Memória**| Redis | Backing do Asynq Queue Manager e Barramento do Pub/Sub |
+| **Persistência de Dados** | PostgreSQL 15 (GORM) | Onde Leads, Logs e o histórico do CRM repousam |
+| **UI SaaS Web** | React 18 + Vite | Single Page Application limpa e reativa |
+| **Gateway WhatsApp** | WhatsMiau | Motor mensageiro principal no ecossistema Sherlock |
 
-## Tech Stack
+## ⚙️ Pré-requisitos e Instalação
 
-| Camada | Tecnologia | Função |
-|:---|:---|:---|
-| **API** | Go 1.25 + Fiber v2 | Backend RESTful, JWT Auth (HS256), CORS |
-| **ORM** | GORM + pgx | Modelagem relacional, JSONB, AutoMigrate |
-| **Fila** | Asynq + Redis | Enqueue/dequeue de tasks (enrich, bulk-message) |
-| **Mensageria** | Redis Pub/Sub | Eventos de campanha e Kanban em tempo real |
-| **Streaming** | SSE (fasthttp) | Entrega de logs para o frontend |
-| **WhatsApp** | WhatsMiau (Whatsmeow) | Gateway WhatsApp Web multi-instância |
-| **IA** | Google Gemini (generative-ai-go) | Análise e icebreaker para leads |
-| **Scraper** | Python + Playwright | Google Maps + Casa dos Dados |
-| **Frontend** | React 18 + Vite + TypeScript | SPA com Kanban, CSV Upload, Streaming |
-| **Banco** | PostgreSQL 15 | Persistência de leads, pipelines, settings |
-| **Infra** | Docker Compose | Orquestração de 6 serviços |
+### Instalação Simplificada
 
----
+A infraestrutura é auto-contida. Sendo assim, instale em seu ambiente:
+- **Docker Engine** `24.x+` e **Docker Compose** `v2.x+`
 
-## Pré-requisitos
+### Configuração e Execução
 
-- [Docker Engine](https://docs.docker.com/engine/install/) `>= 24.x`
-- [Docker Compose](https://docs.docker.com/compose/) `>= v2.x`
+1. Execute o clone do repositório correspondente e encontre-se no root (`sherlock-scraper/`).
+2. Configurar as credenciais é requisito vital. Navegue para `backend/` e estabeleça no `.env` local as rotas de API da mensageria e o DB. Exemplo simplificado:
+    ```env
+    WHATSMIau_API_URL=http://whatsmiau-api:8080
+    WHATSMIau_API_TOKEN=seu_token_aqui_opcional
+    ```
+3. Inicialize a orquestração via Docker-Compose. Todos os serviços subirão orquestrados:
+    ```bash
+    docker compose up -d --build
+    ```
+4. Gere as credenciais admin para acessar o CRM recém inicializado e logar no front (Via terminal local):
+    ```bash
+    docker compose exec api go run cmd/seed/main.go
+    ```
 
-Nenhuma instalação local de Go, Node.js ou Python é necessária.
+## 📁 Estrutura de Diretórios (Resumo Arquitetural)
 
----
-
-## Instalação
-
-### 1. Clone e configure
-
-```bash
-git clone <seu-repositorio>
-cd sherlock-scraper
-cp .env.example .env
+```text
+sherlock-scraper/backend/
+├── cmd/
+│   ├── api/                   # Entrypoint Core e injetores (Main HTTP)
+│   └── seed/                  # Operadores de DML base
+├── internal/
+│   ├── core/                  # Entidades agnósticas a Frameworks (Interfaces de Ports)
+│   ├── handlers/              # Endpoint Handlers do Fiber
+│   ├── middlewares/           # Segurança e Lifecycle HTTP (JWTs, Logger)
+│   ├── queue/                 # Definição e Processadores Asynq Trabalhadores
+│   ├── services/              # Aplicação de Casos de Uso Práticos
+│   └── sse/                   # Broadcasters de Server Sent Events 
+└── pkg/
+    ├── csvparser/             # Extração sanitária rápida de Leads
+    └── phoneutil/             # Tratamento Regex inteligente de números Brasileiros
 ```
-
-### 2. Variáveis de Ambiente
-
-As variáveis críticas estão no `docker-compose.yml` e nos arquivos `.env`:
-
-| Variável | Onde | Descrição |
-|:---|:---|:---|
-| `DATABASE_URL` | docker-compose.yml | Connection string do PostgreSQL |
-| `JWT_SECRET` | docker-compose.yml | Chave secreta para assinatura JWT |
-| `REDIS_ADDR` | docker-compose.yml | Endereço do Redis (`redis:6379`) |
-| `WHATSMIau_API_URL` | docker-compose.yml | URL da API WhatsMiau (`http://whatsmiau-api:8080`) |
-| `WHATSMIau_API_TOKEN` | docker-compose.yml | Token de autenticação da API WhatsMiau |
-| `INTERNAL_API_TOKEN` | docker-compose.yml | Token para comunicação server-to-server |
-| `GEMINI_API_KEY` | .env (raiz) | Chave da API Google Gemini |
-| `GOOGLE_PLACES_API_KEY` | .env (raiz) | Chave da API Google Places |
-
-### 3. Build e Start
-
-```bash
-docker compose up -d --build
-```
-
-Na primeira execução, crie o usuário admin:
-
-```bash
-docker compose exec api go run cmd/seed/main.go
-```
-
-### 4. Acesse
-
-| Serviço | URL |
-|:---|:---|
-| **Sherlock CRM** | [http://localhost:5173](http://localhost:5173) |
-| **Sherlock API** | [http://localhost:3000/api/v1](http://localhost:3000/api/v1) |
-| **WhatsMiau API** | [http://localhost:8081](http://localhost:8081) |
-| **WhatsMiau UI** | [http://localhost:3031](http://localhost:3031) |
-| **PostgreSQL** | `localhost:5432` |
-
----
-
-## Estrutura de Diretórios
-
-```
-sherlock-scraper/
-├── backend/
-│   ├── cmd/
-│   │   ├── api/main.go              # Entrypoint — Fiber + DI + Workers
-│   │   └── seed/main.go             # Seeder admin
-│   ├── internal/
-│   │   ├── core/
-│   │   │   ├── domain/              # Entidades (Lead, User, Pipeline, Setting)
-│   │   │   └── ports/               # Interfaces (repositórios, broadcasters)
-│   │   ├── database/                # Conexão GORM, AutoMigrate
-│   │   ├── handlers/                # Controllers HTTP (Auth, Lead, Scrape, AI, SSE)
-│   │   │   ├── campaign_sse_handler.go   # SSE streaming de campanhas
-│   │   │   └── redis_subscriber.go       # Subscriber Kanban automation
-│   │   ├── middlewares/             # JWT Auth, Internal Token
-│   │   ├── queue/                   # Motor Asynq (client, server, tasks, redis pub/sub)
-│   │   │   ├── client.go            # Asynq client init
-│   │   │   ├── server.go            # Asynq server + mux handlers
-│   │   │   ├── tasks.go             # HandleBulkMessageTask, HandleEnrichLeadTask
-│   │   │   └── redis.go             # Redis publisher (campaigns:logs)
-│   │   ├── repositories/            # Acesso ao banco (GORM)
-│   │   ├── services/                # Lógica de negócio (Auth, Lead, AI, Kanban)
-│   │   └── sse/                     # Hub in-memory + RedisBroadcaster
-│   └── pkg/
-│       ├── csvparser/               # Parser de CSV
-│       └── phoneutil/               # Normalização de telefone para WhatsApp
-├── frontend/                        # SPA React/Vite (TypeScript)
-├── whatsmeow/                       # WhatsMiau — Gateway WhatsApp (subprojeto)
-├── main.py                          # Scraper Python (Google Maps)
-├── bridge_api.py                    # Bridge API (Casa dos Dados / CNPJ)
-├── docker-compose.yml               # Orquestração de 6 serviços
-└── README.md
-```
-
----
-
-## Endpoints da API
-
-Rotas protegidas exigem `Authorization: Bearer <token>`.
-
-### Auth
-| Método | Rota | Auth |
-|:---|:---|:---|
-| `POST` | `/api/v1/auth/register` | ❌ |
-| `POST` | `/api/v1/auth/login` | ❌ |
-
-### Campanhas (Disparo em Massa)
-| Método | Rota | Auth | Descrição |
-|:---|:---|:---|:---|
-| `POST` | `/api/v1/leads/bulk-send` | ❌ | Enfileira leads para disparo |
-| `GET` | `/api/v1/campaigns/:id/stream` | ❌ | SSE — logs da campanha em tempo real |
-
-### Leads
-| Método | Rota | Auth |
-|:---|:---|:---|
-| `GET` | `/api/v1/protected/leads` | ✅ |
-| `POST` | `/api/v1/protected/leads` | ✅ |
-| `POST` | `/api/v1/protected/leads/upload` | ✅ |
-| `PATCH` | `/api/v1/protected/leads/:id/status` | ✅ |
-| `PUT` | `/api/v1/protected/leads/:id` | ✅ |
-| `DELETE` | `/api/v1/protected/leads/:id` | ✅ |
-
-### IA & Enrichment
-| Método | Rota | Auth |
-|:---|:---|:---|
-| `POST` | `/api/v1/protected/leads/:id/analyze` | ✅ |
-| `GET` | `/api/v1/protected/leads/:id/analysis` | ✅ |
-| `POST` | `/api/v1/protected/leads/analyze/bulk` | ✅ |
-| `POST` | `/api/v1/protected/leads/:id/enrich-cnpj` | ✅ |
-| `POST` | `/api/v1/protected/leads/:id/validate-cnpj` | ✅ |
-
-### Pipeline & Settings
-| Método | Rota | Auth |
-|:---|:---|:---|
-| `GET` | `/api/v1/protected/pipeline` | ✅ |
-| `POST` | `/api/v1/protected/pipeline` | ✅ |
-| `GET` | `/api/v1/protected/settings` | ✅ |
-| `PUT` | `/api/v1/protected/settings` | ✅ |
-
-### SSE & Scraping
-| Método | Rota | Auth |
-|:---|:---|:---|
-| `GET` | `/api/v1/events/kanban` | JWT via query |
-| `POST` | `/api/v1/protected/scrape` | ✅ |
-| `GET` | `/api/v1/protected/scrapes` | ✅ |
-
-### Internal (Server-to-Server)
-| Método | Rota | Auth |
-|:---|:---|:---|
-| `POST` | `/api/v1/internal/scrape-sync` | `X-Internal-Token` |
-| `POST` | `/api/v1/internal/scrape-start` | `X-Internal-Token` |
-| `GET` | `/api/v1/internal/scrape-status/:job_id` | `X-Internal-Token` |
-
----
-
-*Sherlock Scraper — Prospecção automatizada com precisão cirúrgica.* 🔎

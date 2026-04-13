@@ -144,15 +144,20 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 
 // ── Helpers internos ──────────────────────────────────────────────────────────
 
+// defaultCompanyID é o company_id padrão usado como fallback quando a instância
+// não tem empresa vinculada no Redis (ambiente single-tenant).
+const defaultCompanyID = "00000000-0000-0000-0000-000000000001"
+
 func (s *SalesAgentService) getCompanyIDByInstance(ctx context.Context, instanceID string) (string, error) {
 	instances, err := s.instanceRepo.List(ctx, instanceID)
-	if err != nil || len(instances) == 0 {
+	if err != nil {
 		return "", err
 	}
-	if instances[0].CompanyID == nil {
-		return "", nil
+	if len(instances) > 0 && instances[0].CompanyID != nil && *instances[0].CompanyID != "" {
+		return *instances[0].CompanyID, nil
 	}
-	return *instances[0].CompanyID, nil
+	// Instância sem empresa vinculada no Redis — usa empresa padrão (single-tenant).
+	return defaultCompanyID, nil
 }
 
 func (s *SalesAgentService) loadAgentSettings(ctx context.Context, companyID string) (*models.AISettings, error) {
@@ -323,7 +328,7 @@ type geminiAgentResponse struct {
 	} `json:"candidates"`
 }
 
-const geminiAgentModel = "gemini-2.0-flash"
+const geminiAgentModel = "gemini-2.0-flash-lite"
 
 func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*AgentResponse, error) {
 	apiKey := env.Env.GeminiAPIKey

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Phone, Globe, MapPin, Mail, Star, MessageCircle, Save,
-  Brain, Loader2, ChevronRight, AlertTriangle,
+  Brain, Loader2, ChevronRight, AlertTriangle, Pencil, Check, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal } from '../../components/Modal';
@@ -263,12 +263,19 @@ export function LeadDetailsModal({ lead, isOpen, onClose, onUpdated }: LeadDetai
   const [notes, setNotes] = useState('');
   const [kanbanStatus, setKanbanStatus] = useState<KanbanStatus>('prospeccao');
   const [saving, setSaving] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneValue, setPhoneValue] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
 
   useEffect(() => {
     if (isOpen && lead) {
       setNotes(lead.notes ?? '');
       setKanbanStatus(lead.kanban_status);
+      setPhoneValue(lead.phone ?? '');
+      setEditingPhone(false);
       setActiveTab('info');
+      // Revalida dados do lead ao abrir o modal para refletir edições externas (ex.: telefone alterado no banco)
+      leadsService.getById(lead.id).then((res) => onUpdated(res.data)).catch(() => {/* silencioso — exibe dados já carregados */});
     }
   }, [lead?.id, isOpen]);
 
@@ -295,6 +302,36 @@ export function LeadDetailsModal({ lead, isOpen, onClose, onUpdated }: LeadDetai
       toast.error('Falha ao salvar');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSavePhone = async () => {
+    const trimmed = phoneValue.trim();
+    if (trimmed === (lead.phone ?? '')) {
+      setEditingPhone(false);
+      return;
+    }
+    setSavingPhone(true);
+    try {
+      const payload: UpdateLeadRequest = {
+        name: lead.name,
+        phone: trimmed,
+        address: lead.address,
+        website: lead.website,
+        email: lead.email,
+        kanban_status: kanbanStatus,
+        notes: lead.notes ?? '',
+        estimated_value: lead.estimated_value,
+        tags: lead.tags,
+      };
+      const res = await leadsService.update(lead.id, payload);
+      onUpdated(res.data);
+      setEditingPhone(false);
+      toast.success('Telefone atualizado');
+    } catch {
+      toast.error('Falha ao salvar telefone');
+    } finally {
+      setSavingPhone(false);
     }
   };
 
@@ -375,21 +412,56 @@ export function LeadDetailsModal({ lead, isOpen, onClose, onUpdated }: LeadDetai
               )}
             </div>
 
-            {lead.phone && (
-              <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                <Phone size={16} className="mt-0.5 shrink-0 text-gray-400" />
-                <span>{lead.phone}</span>
-                <a
-                  href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-auto flex items-center gap-1 text-xs text-green-600 hover:text-green-700"
-                >
-                  <MessageCircle size={14} />
-                  WhatsApp
-                </a>
-              </div>
-            )}
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <Phone size={16} className="shrink-0 text-gray-400" />
+              {editingPhone ? (
+                <div className="flex items-center gap-1 flex-1">
+                  <input
+                    type="text"
+                    value={phoneValue}
+                    onChange={(e) => setPhoneValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSavePhone(); if (e.key === 'Escape') setEditingPhone(false); }}
+                    autoFocus
+                    className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5
+                               bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                               focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    placeholder="Ex: 48999999999"
+                  />
+                  <button
+                    onClick={handleSavePhone}
+                    disabled={savingPhone}
+                    className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
+                  >
+                    {savingPhone ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  </button>
+                  <button onClick={() => setEditingPhone(false)} className="p-1 text-gray-400 hover:text-gray-600">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <span className={lead.phone ? '' : 'text-gray-400 italic'}>{lead.phone || 'Sem telefone'}</span>
+                  <button
+                    onClick={() => { setPhoneValue(lead.phone ?? ''); setEditingPhone(true); }}
+                    className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    title="Editar telefone"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  {lead.phone && (
+                    <a
+                      href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-auto flex items-center gap-1 text-xs text-green-600 hover:text-green-700"
+                    >
+                      <MessageCircle size={14} />
+                      WhatsApp
+                    </a>
+                  )}
+                </>
+              )}
+            </div>
 
             {lead.email && (
               <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
