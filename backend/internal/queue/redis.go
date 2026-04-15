@@ -23,6 +23,27 @@ func CampaignLogChannel(campaignID string) string {
 	return "campaigns:logs:" + campaignID
 }
 
+// DossierLogChannel retorna o nome do canal Redis para o pipeline de dossier de um lead.
+// Cada lead tem canal exclusivo: dossier:logs:<lead_id>
+func DossierLogChannel(leadID string) string {
+	return "dossier:logs:" + leadID
+}
+
+// PublishDossierEvent publica um payload JSON no canal de dossier do lead.
+// Usa timeout curto de 2s para não bloquear o worker em caso de falha Redis.
+func PublishDossierEvent(leadID, payload string) {
+	if RedisPublisher == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := RedisPublisher.Publish(ctx, DossierLogChannel(leadID), payload).Err(); err != nil {
+		log.Printf("[Queue] ⚠️  Falha ao publicar evento dossier (lead=%s): %v", leadID, err)
+	}
+}
+
 // InitRedisPublisher cria o client go-redis reutilizando REDIS_ADDR.
 // Deve ser chamado em main.go logo após InitClient().
 func InitRedisPublisher() {

@@ -80,6 +80,8 @@ type Lead struct {
 	DueDate          *time.Time       `json:"due_date" gorm:"type:date"`
 	Tags             string           `json:"tags" gorm:"type:varchar(500)"`
 	LinkedLeadID     *uuid.UUID       `json:"linked_lead_id" gorm:"type:uuid"`
+	DossierData      datatypes.JSON   `json:"dossier_data" gorm:"type:jsonb"`
+	DossierAnalysis  string           `json:"dossier_analysis" gorm:"type:text"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

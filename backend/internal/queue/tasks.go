@@ -400,7 +400,7 @@ func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// D. Fazer requisição HTTP GET para o Website (timeout 10s)
-	enrichmentData, err := fetchAndParseWebsite(lead.Site, payload.CompanyName)
+	enrichmentData, err := FetchAndParseWebsite(lead.Site, payload.CompanyName)
 	if err != nil {
 		log.Printf("⚠️  Erro ao buscar website de '%s': %v", payload.CompanyName, err)
 
@@ -516,8 +516,9 @@ func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
 	return nil
 }
 
-// fetchAndParseWebsite fetches the website HTML and extracts social media and tracking data
-func fetchAndParseWebsite(websiteURL, companyName string) (*EnrichmentData, error) {
+// FetchAndParseWebsite fetches the website HTML and extracts social media and tracking data.
+// Exported so that dossier_service.go (pacote queue) can call it directly.
+func FetchAndParseWebsite(websiteURL, companyName string) (*EnrichmentData, error) {
 	// Create HTTP client with timeout
 	client := &http.Client{
 		Timeout: 10 * time.Second,

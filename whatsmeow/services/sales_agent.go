@@ -328,7 +328,7 @@ type geminiAgentResponse struct {
 	} `json:"candidates"`
 }
 
-const geminiAgentModel = "gemini-2.0-flash-lite"
+const geminiAgentModel = "gemini-2.5-flash"
 
 func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*AgentResponse, error) {
 	apiKey := env.Env.GeminiAPIKey
