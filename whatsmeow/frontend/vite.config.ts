@@ -8,6 +8,7 @@ export default defineConfig({
   server: {
     port: 3031,
     host: '0.0.0.0', // Permite acesso de fora do container
+    allowedHosts: ["whatsmiau.test"],
     watch: {
       usePolling: true, // Necessário para hot reload no Docker
     },
