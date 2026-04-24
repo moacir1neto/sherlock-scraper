@@ -345,7 +345,7 @@ type dossierGeminiResponse struct {
 
 func (s *DossierService) callGemini(ctx context.Context, apiKey, prompt string) (string, error) {
 	apiURL := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+		"https://generativelanguage.googleapis.com/v1/models/%s:generateContent?key=%s",
 		dossierLLMModel, apiKey,
 	)
 

@@ -289,22 +289,36 @@ func (s *Instance) Connect(ctx echo.Context) error {
 		zap.L().Error("failed to connect instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to connect instance")
 	}
-	if qrCode != "" {
+
+	// Already connected (no QR needed)
+	if qrCode == "ALREADY_CONNECTED" {
+		return ctx.JSON(http.StatusOK, dto.ConnectInstanceResponse{
+			Status:    "connected",
+			Message:   "instance already connected",
+			Connected: true,
+		})
+	}
+
+	// QR code ready
+	if qrCode != "" && qrCode != "ALREADY_CONNECTED" {
 		png, err := qrcode.Encode(qrCode, qrcode.Medium, 512)
 		if err != nil {
 			zap.L().Error("failed to encode qrcode", zap.Error(err))
 			return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to encode qrcode")
 		}
 		return ctx.JSON(http.StatusOK, dto.ConnectInstanceResponse{
-			Message:   "If instance restart this instance could be lost if you cannot connect",
+			Status:    "qr_ready",
+			Message:   "Escaneie o QR Code com seu WhatsApp",
 			Connected: false,
 			Base64:    "data:image/png;base64," + base64.StdEncoding.EncodeToString(png),
 		})
 	}
 
+	// Observer started but QR not ready yet
 	return ctx.JSON(http.StatusOK, dto.ConnectInstanceResponse{
-		Message:   "instance already connected",
-		Connected: true,
+		Status:    "generating",
+		Message:   "Negociando com WhatsApp...",
+		Connected: false,
 	})
 }
 

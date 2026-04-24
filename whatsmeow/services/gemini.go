@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -79,15 +80,24 @@ func (g *GeminiService) GenerateLeadStrategy(input LeadAnalysisInput, skill stri
 		skill = "raiox"
 	}
 
-	if g.apiKey == "" {
-		zap.L().Warn("GEMINI_API_KEY não configurada — retornando mock")
-		return g.mockOutput(input, skill), nil
-	}
-
 	prompt := buildGeminiPrompt(input, skill)
+
+	if g.apiKey == "" {
+		zap.L().Warn("[GeminiService] GEMINI_API_KEY ausente — tentando Groq")
+		if result, err := CallGroqForLeadAnalysis(context.Background(), prompt, skill); err == nil {
+			return result, nil
+		} else {
+			zap.L().Warn("[GeminiService] Groq também falhou — retornando mock", zap.Error(err))
+			return g.mockOutput(input, skill), nil
+		}
+	}
 
 	result, err := g.callGemini(prompt)
 	if err != nil {
+		zap.L().Warn("[GeminiService] Gemini falhou — tentando Groq", zap.Error(err))
+		if groqResult, groqErr := CallGroqForLeadAnalysis(context.Background(), prompt, skill); groqErr == nil {
+			return groqResult, nil
+		}
 		return nil, fmt.Errorf("gemini api error: %w", err)
 	}
 
@@ -124,7 +134,7 @@ type geminiResponse struct {
 
 func (g *GeminiService) callGemini(prompt string) (*LeadAnalysisOutput, error) {
 	apiURL := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s",
+		"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=%s",
 		g.apiKey,
 	)
 
@@ -151,7 +161,8 @@ func (g *GeminiService) callGemini(prompt string) (*LeadAnalysisOutput, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("gemini returned status %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("gemini returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var gemResp geminiResponse

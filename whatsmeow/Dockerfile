@@ -1,34 +1,30 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:alpine AS builder
 
 WORKDIR /app
 
-# Install gcc and SQLite dev libraries
-RUN apk add build-base sqlite-dev gcc musl-dev
+# Instala ferramentas de compilação
+RUN apk add --no-cache build-base sqlite-dev gcc musl-dev
 
+# Copia dependências e cacheia
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Copia o código e compila
 COPY . .
-
-# Install additional dependencies and update go.mod
-RUN go get github.com/golang-jwt/jwt/v5
-RUN go get golang.org/x/crypto/bcrypt
-RUN go get -u go.mau.fi/whatsmeow@latest
 RUN go mod tidy
-
-# Enable CGO (SQLite); build whole module
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o whatsmiau .
 
 FROM alpine:latest
 
-RUN apk update && apk add --no-cache ffmpeg mailcap
+# Instala apenas dependências de runtime
+RUN apk add --no-cache ffmpeg mailcap ca-certificates
 
 WORKDIR /app
 
+# Copia o binário e prepara diretórios
 COPY --from=builder /app/whatsmiau /app/whatsmiau
-
 RUN mkdir /app/data && chmod 777 -R /app/data
 
-EXPOSE 8081
+EXPOSE 3000
 
 ENTRYPOINT ["./whatsmiau"]

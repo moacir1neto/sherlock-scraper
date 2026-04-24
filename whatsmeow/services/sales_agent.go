@@ -102,11 +102,11 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 	phone := phoneFromJID(remoteJID)
 	lead, _ := s.findLeadByPhone(ctx, companyID, phone)
 
-	// 5. Montar prompt e chamar Gemini
+	// 5. Montar prompt e chamar IA (Gemini com fallback Groq)
 	prompt := s.buildPrompt(settings, history, lead)
-	agentResp, err := s.callGemini(ctx, prompt)
+	agentResp, err := s.callAI(ctx, prompt)
 	if err != nil {
-		return fmt.Errorf("gemini call: %w", err)
+		return fmt.Errorf("ai call: %w", err)
 	}
 
 	// 6. Executar ação
@@ -360,7 +360,7 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 	}
 
 	url := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+		"https://generativelanguage.googleapis.com/v1/models/%s:generateContent?key=%s",
 		geminiAgentModel, apiKey,
 	)
 
@@ -401,6 +401,21 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 	}
 
 	return &agentResp, nil
+}
+
+// callAI tenta Gemini primeiro; se falhar ou não estiver configurado, tenta Groq.
+func (s *SalesAgentService) callAI(ctx context.Context, prompt string) (*AgentResponse, error) {
+	if env.Env.GeminiAPIKey != "" {
+		resp, err := s.callGemini(ctx, prompt)
+		if err == nil {
+			return resp, nil
+		}
+		zap.L().Warn("[SalesAgent] Gemini falhou, tentando Groq", zap.Error(err))
+	}
+	if env.Env.GroqAPIKey != "" {
+		return CallGroqForAgent(ctx, prompt)
+	}
+	return nil, fmt.Errorf("nenhum provider de IA disponível (GEMINI_API_KEY e GROQ_API_KEY ausentes)")
 }
 
 // ── Envio de mensagem ─────────────────────────────────────────────────────────

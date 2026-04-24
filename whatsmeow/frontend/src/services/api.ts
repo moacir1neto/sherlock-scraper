@@ -73,7 +73,7 @@ const applyInterceptors = (instance: any, name: string) => {
 // Aplicar interceptores nas instâncias
 applyInterceptors(api, 'WhatsMiau');
 
-const SHERLOCK_API_URL = (import.meta.env.VITE_SHERLOCK_API_URL || 'http://localhost:3000/api/v1').replace(/\/+$/, '');
+const SHERLOCK_API_URL = (import.meta.env.VITE_SHERLOCK_API_URL || 'http://localhost:3005/api/v1').replace(/\/+$/, '');
 
 export const sherlockApi = axios.create({
   baseURL: SHERLOCK_API_URL,
@@ -103,49 +103,24 @@ export const instanceService = {
     return response.data;
   },
 
-  getQRCode: async (instanceId: string, retryCount: number = 0): Promise<{ Base64?: string; Connected: boolean; Message?: string }> => {
+  getQRCode: async (instanceId: string): Promise<{ Status: string; Base64?: string; Connected: boolean; Message?: string }> => {
     try {
-      // Aguarda um pouco antes de tentar obter o QR code (pode levar alguns segundos para gerar)
-      if (retryCount > 0) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-      
       const response = await api.post(`/instance/${instanceId}/connect`, {
         id: instanceId,
-      });
-      
-      // Se já está conectado
-      if (response.data.Connected) {
-        return { Connected: true, Message: response.data.Message };
-      }
-      
-      // Se tem QR code
-      if (response.data.Base64) {
-        return { Base64: response.data.Base64, Connected: false, Message: response.data.Message };
-      }
-      
-      // Se não tem QR code ainda e ainda temos tentativas, tenta novamente
-      if (retryCount < 5) {
-        return await instanceService.getQRCode(instanceId, retryCount + 1);
-      }
-      
-      throw new Error('QR Code não foi gerado após várias tentativas');
+      }, { timeout: 10000 }); // Short timeout — backend responds fast now
+
+      return {
+        Status: response.data.status || (response.data.Connected ? 'connected' : 'generating'),
+        Base64: response.data.Base64 || response.data.base64,
+        Connected: !!response.data.Connected || !!response.data.connected,
+        Message: response.data.Message || response.data.message,
+      };
     } catch (error: any) {
-      // Se for erro 404 ou instância não encontrada
       if (error.response?.status === 404) {
         throw new Error('Instância não encontrada. Certifique-se de que a instância foi criada corretamente.');
       }
-      
-      // Se for outro erro, tenta obter a imagem diretamente como fallback
-      try {
-        const imageResponse = await api.get(`/instance/connect/${instanceId}/image`, {
-          responseType: 'blob',
-        });
-        return { Base64: URL.createObjectURL(imageResponse.data), Connected: false };
-      } catch (imageError: any) {
-        const errorMessage = error.response?.data?.message || error.message || 'Erro ao obter QR Code';
-        throw new Error(errorMessage);
-      }
+      const errorMessage = error.response?.data?.message || error.message || 'Erro ao obter QR Code';
+      throw new Error(errorMessage);
     }
   },
 

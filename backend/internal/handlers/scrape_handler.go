@@ -60,7 +60,8 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 
 		// Run sherlock container with CLI args
 		cmd := exec.Command(
-			"docker-compose",
+			"docker",
+			"compose",
 			"-f", "/workspace/docker-compose.yml",
 			"run", "--rm",
 			"-e", fmt.Sprintf("SHERLOCK_NICHO=%s", req.Nicho),
@@ -204,7 +205,8 @@ func (h *ScrapeHandler) StartSync(c *fiber.Ctx) error {
 
 	var combinedBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx,
-		"docker-compose",
+		"docker",
+		"compose",
 		"-f", "/workspace/docker-compose.yml",
 		"run", "--rm",
 		"-e", fmt.Sprintf("SHERLOCK_NICHO=%s", req.Keyword),
@@ -289,7 +291,7 @@ func (h *ScrapeHandler) StartAsync(c *fiber.Ctx) error {
 	go func() {
 		var buf bytes.Buffer
 		cmd := exec.Command(
-			"docker-compose", "-f", "/workspace/docker-compose.yml",
+			"docker", "compose", "-f", "/workspace/docker-compose.yml",
 			"run", "--rm",
 			"-e", fmt.Sprintf("SHERLOCK_NICHO=%s", req.Keyword),
 			"-e", fmt.Sprintf("SHERLOCK_LOCALIZACAO=%s", req.Location),
