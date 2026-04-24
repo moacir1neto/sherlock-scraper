@@ -180,21 +180,21 @@ func (s *DossierService) investigateSocial(ctx context.Context, leadID string, l
 const dossierLLMModel = "gemini-2.5-flash"
 
 // dossierSystemPrompt é o prompt base para a análise de dossier.
-const dossierSystemPrompt = `Você é um Especialista Sênior em Inteligência Comercial B2B.
-Sua missão: analisar todos os dados coletados sobre um lead e gerar um dossiê de inteligência
-comercial completo, com insights acionáveis para o time de vendas.
+const dossierSystemPrompt = `Você é um Closer Especialista Sênior em Inteligência Comercial B2B e Vendas.
+Sua missão: analisar dados de um lead e gerar um dossiê de inteligência ULTRA-PERSUASIVO.
+O SEU PRODUTO: Criação de sites profissionais de alta conversão, automação de WhatsApp, SEO local e estruturação de presença digital.
 
-REGRAS DE HONESTIDADE (OBRIGATÓRIAS):
-- Dados marcados com ✅ estão disponíveis. Dados marcados com ❌ NÃO estão disponíveis.
-- Você SÓ pode fazer afirmações sobre dados ✅. NUNCA invente dados ❌.
-- O icebreaker DEVE citar pelo menos 1 dado REAL e ESPECÍFICO do lead.
-- Se quase tudo está ❌, o gap é sobre AUSÊNCIA de presença digital.
+REGRAS OBRIGATÓRIAS (PUNIÇÃO SE DESCUMPRIDAS):
+1. VERDADE ABSOLUTA: Use APENAS os dados marcados com ✅. NUNCA invente que o lead tem nota 0 ou 0 avaliações se a informação estiver ❌ (ausente). Se estiver ausente, foque na falta de visibilidade.
+2. ICEBREAKER (WhatsApp): Seja direto, humano e mostre que você pesquisou a empresa. Cite o NOME da empresa e um DADO REAL (ex: "Vi que vocês têm nota X no Google..."). Provoque curiosidade sem tentar vender na primeira mensagem.
+3. PITCH COMERCIAL: Foque na DOR (gap) e mostre o ROI claro do SEU PRODUTO. Mostre como um site profissional e automação vão dobrar as vendas deles. Seja agressivo comercialmente, mas polido.
+4. GAP CRÍTICO: Identifique a maior ferida digital deles (ex: usam Facebook como site, não têm Pixel, não têm site, nota baixa, etc).
 
-SCORES:
-- 0-3 (Iniciante): sem site, sem redes, menos de 20 reviews
-- 4-6 (Intermediário): redes ativas mas sem tracking digital
-- 7-8 (Avançado): tem GTM/Pixel mas com gaps evidentes
-- 9-10 (Expert): tracking completo e automação visível`
+SCORES DE MATURIDADE:
+- 0-3 (Iniciante): Usa Facebook/Instagram como site, sem site próprio, sem tracking.
+- 4-6 (Intermediário): Tem site básico, redes ativas, mas sem GTM/Pixel ou SEO forte.
+- 7-8 (Avançado): Tem GTM/Pixel, mas falta automação ou prova social robusta.
+- 9-10 (Expert): Tracking completo, automação visível, dominância no Google.`
 
 // dossierOutputSchema define o formato JSON esperado da resposta LLM.
 const dossierOutputSchema = `{
@@ -260,17 +260,27 @@ func buildDossierPrompt(lead *domain.Lead, agg *dossierAggregated) string {
 
 	// Google Maps
 	sb.WriteString("\n### Google Maps:\n")
-	if agg.Google != nil {
-		avail("Nota Google", agg.Google.NotaGeral)
-		avail("Total de Avaliações", agg.Google.TotalAvaliacoes)
-		if len(agg.Google.ComentariosRecentes) > 0 {
+	
+	// Fallback logic for Google Maps data: prefer live scrape, but fallback to CSV pre-scraped data
+	nota := lead.Rating
+	avaliacoes := lead.QtdAvaliacoes
+	
+	if agg.Google != nil && agg.Google.NotaGeral != "" && agg.Google.NotaGeral != "0.0" {
+		nota = agg.Google.NotaGeral
+		avaliacoes = agg.Google.TotalAvaliacoes
+	}
+	
+	if nota != "" && nota != "-" && nota != "0.0" {
+		avail("Nota Google", nota)
+		avail("Total de Avaliações", avaliacoes)
+		if agg.Google != nil && len(agg.Google.ComentariosRecentes) > 0 {
 			sb.WriteString("✅ Comentários recentes:\n")
 			for _, c := range agg.Google.ComentariosRecentes {
 				fmt.Fprintf(&sb, "  - %s\n", c)
 			}
 		}
 	} else {
-		sb.WriteString("❌ Google Maps: NÃO DISPONÍVEL\n")
+		sb.WriteString("❌ Google Maps: SEM AVALIAÇÕES OU NÃO DISPONÍVEL\n")
 	}
 
 	// Website

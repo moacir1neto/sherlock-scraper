@@ -109,7 +109,6 @@ func (s *AIService) GenerateLeadStrategy(input LeadAnalysisInput, settings domai
 	}
 	defer client.Close()
 
-	// Usa o modelo Gemini 2.5 Flash (estável em 2025/2026)
 	model := client.GenerativeModel("gemini-2.5-flash")
 
 	// Configura o modelo para retornar JSON

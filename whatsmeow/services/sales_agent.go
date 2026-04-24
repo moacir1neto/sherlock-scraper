@@ -287,9 +287,14 @@ func (s *SalesAgentService) buildPrompt(settings *models.AISettings, history []m
 	}
 
 	sb.WriteString("=== INSTRUÇÃO ===\n")
-	sb.WriteString("Com base no histórico acima, gere a próxima resposta do agente.\n")
-	sb.WriteString("Avalie se o lead demonstra clara intenção de fechar negócio (comprar, assinar, contratar).\n")
-	sb.WriteString("Responda APENAS com JSON válido, sem texto adicional:\n")
+	sb.WriteString("Com base no histórico acima e no dossiê do lead, gere a próxima resposta do agente.\n")
+	sb.WriteString("Seu objetivo principal é avançar o lead para a conversão e fechamento da venda de forma consultiva e persuasiva.\n")
+	sb.WriteString("Regras de atuação:\n")
+	sb.WriteString("1. Responda de forma clara e sempre termine com uma pergunta de fechamento ou de avanço na negociação.\n")
+	sb.WriteString("2. Se o lead apresentar uma objeção, use as informações da empresa e do dossiê para contorná-la e mostrar valor.\n")
+	sb.WriteString("3. Mantenha a resposta humana, natural, concisa e alinhada ao tom de voz.\n")
+	sb.WriteString("4. Defina acionar_humano como true APENAS se o lead fizer perguntas muito específicas que saem do contexto, se estiver irritado, ou se exigir expressamente falar com um atendente.\n")
+	sb.WriteString("Responda APENAS com JSON válido, sem texto adicional ou formatação markdown (sem ```json):\n")
 	sb.WriteString(`{"resposta": "<sua resposta>", "acionar_humano": <true|false>}`)
 
 	return sb.String()
@@ -360,7 +365,7 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 	}
 
 	url := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1/models/%s:generateContent?key=%s",
+		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
 		geminiAgentModel, apiKey,
 	)
 
