@@ -36,15 +36,21 @@ func NewSherlock(service *services.SherlockService, scrapeRepo interfaces.Scrape
 func (s *Sherlock) Extract(ctx echo.Context) error {
 	companyID, _ := ctx.Get("company_id").(string)
 	userID, _ := ctx.Get("user_id").(string)
-
-	if companyID == "" {
-		return utils.HTTPFail(ctx, http.StatusForbidden, nil, "company_id required")
-	}
+	userRole, _ := ctx.Get("user_role").(string)
 
 	var request dto.ExtractLeadsRequest
 	if err := ctx.Bind(&request); err != nil {
 		zap.L().Warn("failed to bind request body", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "failed to bind request body")
+	}
+
+	// Se for super_admin, permite passar company_id no body
+	if companyID == "" && userRole == "super_admin" {
+		companyID = request.CompanyID
+	}
+
+	if companyID == "" {
+		return utils.HTTPFail(ctx, http.StatusForbidden, nil, "company_id required")
 	}
 	if err := validator.New().Struct(&request); err != nil {
 		zap.L().Warn("invalid request body", zap.Error(err))
@@ -151,6 +157,14 @@ func (s *Sherlock) GetScrape(ctx echo.Context) error {
 	companyID, _ := ctx.Get("company_id").(string)
 	id := ctx.Param("id")
 
+	if companyID == "" {
+		if q := ctx.QueryParam("company_id"); q != "" {
+			if role, _ := ctx.Get("user_role").(string); role == "super_admin" {
+				companyID = q
+			}
+		}
+	}
+
 	scrape, err := s.scrapeRepo.GetByID(ctx.Request().Context(), id, companyID)
 	if err != nil {
 		if err == scrapeRepo.ErrNotFound {
@@ -166,6 +180,14 @@ func (s *Sherlock) GetScrape(ctx echo.Context) error {
 func (s *Sherlock) DeleteScrape(ctx echo.Context) error {
 	companyID, _ := ctx.Get("company_id").(string)
 	id := ctx.Param("id")
+
+	if companyID == "" {
+		if q := ctx.QueryParam("company_id"); q != "" {
+			if role, _ := ctx.Get("user_role").(string); role == "super_admin" {
+				companyID = q
+			}
+		}
+	}
 
 	if err := s.scrapeRepo.Delete(ctx.Request().Context(), id, companyID); err != nil {
 		if err == scrapeRepo.ErrNotFound {

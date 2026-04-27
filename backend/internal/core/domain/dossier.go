@@ -4,6 +4,7 @@ package domain
 type DossierStage string
 
 const (
+	DossierStageEnrich  DossierStage = "enrich"
 	DossierStageMaps    DossierStage = "maps"
 	DossierStageWebsite DossierStage = "website"
 	DossierStageSocial  DossierStage = "social"

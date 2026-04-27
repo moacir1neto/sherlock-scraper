@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Search, Loader2, Plus, Trash2, RefreshCw, ChevronRight,
   CheckCircle, XCircle, Clock, X,
@@ -51,6 +52,7 @@ function NewSearchModal({ onClose, onStarted }: NewSearchModalProps) {
   const [location, setLocation] = useState('');
   const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +62,12 @@ function NewSearchModal({ onClose, onStarted }: NewSearchModalProps) {
     }
     setLoading(true);
     try {
-      const res = await sherlockService.extract({ keyword: keyword.trim(), location: location.trim(), limit });
+      const res = await sherlockService.extract({ 
+        keyword: keyword.trim(), 
+        location: location.trim(), 
+        limit,
+        company_id: user?.company_id
+      });
       // Monta objeto provisório enquanto o backend processa
       const provisional: Scrape = {
         id: res.data.scrape_id,

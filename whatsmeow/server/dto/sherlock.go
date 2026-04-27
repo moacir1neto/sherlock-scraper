@@ -1,9 +1,10 @@
 package dto
 
 type ExtractLeadsRequest struct {
-	Keyword  string `json:"keyword" validate:"required,min=2"`
-	Location string `json:"location" validate:"required,min=2"`
-	Limit    int    `json:"limit" validate:"omitempty,min=1,max=100"`
+	CompanyID string `json:"company_id"` // Usado apenas por super_admin para especificar a empresa
+	Keyword   string `json:"keyword" validate:"required,min=2"`
+	Location  string `json:"location" validate:"required,min=2"`
+	Limit     int    `json:"limit" validate:"omitempty,min=1,max=100"`
 }
 
 type SherlockLead struct {

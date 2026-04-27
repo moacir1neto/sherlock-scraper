@@ -10,15 +10,16 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/pkg/phoneutil"
 	"github.com/hibiken/asynq"
+	"golang.org/x/sync/errgroup"
 )
 
-// SherlockCNPJResponse mapeia o retorno do microserviço bridge_api.py
 type SherlockCNPJResponse struct {
 	Success bool   `json:"success"`
 	Error   string `json:"error"`
@@ -34,12 +35,40 @@ type SherlockCNPJResponse struct {
 const (
 	TaskTypeEnrichLead    = "enrich:lead"
 	TaskTypeBulkMessage   = "lead:bulk-message"
+	TaskTypeEnrichCNPJ    = "enrich:cnpj"
 )
 
-// EnrichLeadPayload contains data for the enrich lead task
 type EnrichLeadPayload struct {
 	CompanyName string `json:"company_name"`
 	LeadID      string `json:"lead_id"`
+}
+
+func GetAsynqClient() *asynq.Client {
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+	return asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
+}
+
+type EnrichCNPJPayload struct {
+	LeadID      string `json:"lead_id"`
+	CompanyName string `json:"company_name"`
+}
+func NewEnrichCNPJTask(leadID, companyName string) (*asynq.Task, error) {
+	payload, err := json.Marshal(EnrichCNPJPayload{LeadID: leadID, CompanyName: companyName})
+	if err != nil {
+		return nil, err
+	}
+
+
+	delay := time.Duration(1+(time.Now().UnixNano()%5)) * time.Second
+
+	return asynq.NewTask(TaskTypeEnrichCNPJ, payload,
+		asynq.Queue("cnpj"),
+		asynq.MaxRetry(3),
+		asynq.ProcessIn(delay),
+	), nil
 }
 
 // NewEnrichLeadTask creates a new task to enrich a lead.
@@ -327,171 +356,170 @@ func checkWhatsAppExistence(instanceID, phone string) (bool, string, error) {
 	return false, "", nil
 }
 
-// HandleEnrichLeadTask processes the enrich lead task
-func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
-	var payload EnrichLeadPayload
-	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
-		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
-	}
+type EnrichmentResult struct {
+	WebsiteData *WebsiteData
+	GoogleData  *GoogleData
+	InstaData   *SocialData
+	FBData      *SocialData
+}
 
-	log.Printf("🔄 Processing task LEAD_ENRICH:%s (%s)", payload.LeadID, payload.CompanyName)
+// performLeadEnrichment executa o pipeline completo de enrichment para um lead e persiste os resultados.
+// Pode ser chamada diretamente (ex: pelo dossier pipeline) sem passar por um Asynq task handler.
+func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
+	companyName := lead.Empresa
 
-	// A. Buscar o Lead no banco de dados
-	var lead domain.Lead
-	if err := database.DB.First(&lead, "id = ?", payload.LeadID).Error; err != nil {
-		log.Printf("⚠️  Erro ao buscar lead %s: %v", payload.LeadID, err)
-		return fmt.Errorf("lead not found: %w", asynq.SkipRetry)
-	}
+	enrichCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
 
-	// B. Atualizar status para ENRIQUECENDO
-	lead.Status = domain.StatusEnriquecendo
-	if err := database.DB.Save(&lead).Error; err != nil {
-		log.Printf("⚠️  Erro ao atualizar status para ENRIQUECENDO: %v", err)
-		return err
-	}
+	var result EnrichmentResult
+	var mu sync.Mutex
 
-	log.Printf("📊 Lead '%s' agora está em status ENRIQUECENDO", payload.CompanyName)
+	g1, _ := errgroup.WithContext(enrichCtx)
 
-	// --- 🩺 INÍCIO DA CIRURGIA: BUSCA AUTOMÁTICA DE CNPJ ---
-	if lead.CNPJ == "" {
-		log.Printf("🔍 [Worker] Buscando CNPJ em background para: %s", lead.Empresa)
-		
-		log.Printf("🔍 [Worker] Solicitando enriquecimento via Sherlock API: %s", lead.Empresa)
-		
-		cnpjDetail, err := searchCasaDosDadosWorker(lead.Empresa)
-		
-		if err == nil && cnpjDetail != nil && cnpjDetail.Dados.CNPJ != "" {
-			lead.CNPJ = cnpjDetail.Dados.CNPJ
-			
-			// Enriquecimento opcional de campos se vierem da Casa dos Dados e estiverem vazios
-			updates := map[string]interface{}{"cnpj": lead.CNPJ}
-			
-			if cnpjDetail.Dados.Email != "" && lead.Email == "" {
-				lead.Email = cnpjDetail.Dados.Email
-				updates["email"] = lead.Email
+	hasWebsite := lead.Site != "" && strings.HasPrefix(strings.ToLower(lead.Site), "http")
+	if hasWebsite {
+		g1.Go(func() error {
+			data, err := FetchAndParseWebsite(lead.Site, companyName)
+			if err != nil {
+				log.Printf("⚠️  Website inacessível para '%s': %v", companyName, err)
+				return nil
 			}
-			
-			if cnpjDetail.Dados.Telefone != "" && lead.Telefone == "" {
-				lead.Telefone = cnpjDetail.Dados.Telefone
-				updates["telefone"] = lead.Telefone
-			}
+			mu.Lock()
+			result.WebsiteData = data
+			mu.Unlock()
+			return nil
+		})
+	}
 
-			database.DB.Model(&lead).Updates(updates)
-			log.Printf("✅ [Worker] Dados vinculados com sucesso via Sherlock (CNPJ: %s)", lead.CNPJ)
-		} else {
-			log.Printf("⚠️ [Worker] Sherlock não retornou dados (seguindo com fallback): %v", err)
+	g1.Go(func() error {
+		log.Printf("🔍 Buscando Google Reviews para: %s", lead.Empresa)
+		data, err := ScrapeGoogleReviews(lead.Empresa)
+		if err != nil {
+			log.Printf("⚠️  Google Reviews: %v", err)
+			return nil
+		}
+		mu.Lock()
+		result.GoogleData = data
+		mu.Unlock()
+		return nil
+	})
+
+	g1.Wait()
+
+	if result.WebsiteData != nil {
+		if result.WebsiteData.Instagram != "" && lead.Instagram == "" {
+			lead.Instagram = result.WebsiteData.Instagram
+			log.Printf("📷 Instagram encontrado: %s", lead.Instagram)
+		}
+		if result.WebsiteData.Facebook != "" && lead.Facebook == "" {
+			lead.Facebook = result.WebsiteData.Facebook
+			log.Printf("👥 Facebook encontrado: %s", lead.Facebook)
+		}
+		lead.TemPixel = result.WebsiteData.TemPixel
+		lead.TemGTM = result.WebsiteData.TemGTM
+		if lead.TemPixel {
+			log.Printf("🎯 Facebook Pixel detectado!")
+		}
+		if lead.TemGTM {
+			log.Printf("📈 Google Tag Manager detectado!")
 		}
 	}
-	// --- 🩺 FIM DA CIRURGIA ---
 
-	// C. Verificar se o Lead possui um Website
-	if lead.Site == "" || !strings.HasPrefix(strings.ToLower(lead.Site), "http") {
-		log.Printf("⏭️  Lead '%s' não possui website válido. Pulando enriquecimento web.", payload.CompanyName)
-
-		// Marca como enriquecido mesmo sem dados adicionais
+	if !hasWebsite && lead.Instagram == "" && lead.Facebook == "" {
+		log.Printf("⏭️  Lead '%s' sem website válido. Pulando Deep Enrichment.", companyName)
 		lead.Status = domain.StatusEnriquecido
-		if err := database.DB.Save(&lead).Error; err != nil {
+		if err := database.DB.Save(lead).Error; err != nil {
 			log.Printf("⚠️  Erro ao marcar lead como ENRIQUECIDO: %v", err)
 			return err
 		}
-
-		log.Printf("✅ Lead '%s' marcado como ENRIQUECIDO (sem website)", payload.CompanyName)
+		log.Printf("✅ Lead '%s' marcado como ENRIQUECIDO (sem website)", companyName)
 		return nil
 	}
 
-	// D. Fazer requisição HTTP GET para o Website (timeout 10s)
-	enrichmentData, err := FetchAndParseWebsite(lead.Site, payload.CompanyName)
-	if err != nil {
-		log.Printf("⚠️  Erro ao buscar website de '%s': %v", payload.CompanyName, err)
+	// ═══════════════════════════════════════════════════════════════
+	// PHASE 2: Instagram + Facebook — em paralelo
+	// ═══════════════════════════════════════════════════════════════
+	log.Printf("🕵️  Iniciando Deep Enrichment para: %s", companyName)
 
-		// Mesmo com erro, marca como enriquecido para não bloquear
-		lead.Status = domain.StatusEnriquecido
-		if err := database.DB.Save(&lead).Error; err != nil {
-			log.Printf("⚠️  Erro ao marcar lead como ENRIQUECIDO após falha: %v", err)
-			return err
-		}
+	g2, _ := errgroup.WithContext(enrichCtx)
 
-		log.Printf("⚠️  Lead '%s' marcado como ENRIQUECIDO (website inacessível)", payload.CompanyName)
-		return nil
+	if lead.Instagram != "" && strings.HasPrefix(lead.Instagram, "http") {
+		g2.Go(func() error {
+			log.Printf("🔍 Extraindo inteligência do Instagram...")
+			data := ScrapeInstagramProfile(lead.Instagram)
+			mu.Lock()
+			result.InstaData = data
+			mu.Unlock()
+			return nil
+		})
 	}
 
-	// E. Atualizar dados do Lead com informações extraídas
-	if enrichmentData.Instagram != "" && lead.Instagram == "" {
-		lead.Instagram = enrichmentData.Instagram
-		log.Printf("📷 Instagram encontrado: %s", enrichmentData.Instagram)
+	if lead.Facebook != "" && strings.HasPrefix(lead.Facebook, "http") {
+		g2.Go(func() error {
+			log.Printf("🔍 Extraindo inteligência do Facebook...")
+			data := ScrapeFacebookPage(lead.Facebook)
+			mu.Lock()
+			result.FBData = data
+			mu.Unlock()
+			return nil
+		})
 	}
 
-	if enrichmentData.Facebook != "" && lead.Facebook == "" {
-		lead.Facebook = enrichmentData.Facebook
-		log.Printf("👥 Facebook encontrado: %s", enrichmentData.Facebook)
-	}
+	g2.Wait()
 
-	lead.TemPixel = enrichmentData.TemPixel
-	if enrichmentData.TemPixel {
-		log.Printf("🎯 Facebook Pixel detectado!")
-	}
-
-	lead.TemGTM = enrichmentData.TemGTM
-	if enrichmentData.TemGTM {
-		log.Printf("📈 Google Tag Manager detectado!")
-	}
-
-	// F. DEEP ENRICHMENT - Scrape social media profiles
-	log.Printf("🕵️  Iniciando Deep Enrichment para: %s", payload.CompanyName)
-
-	// Initialize DeepData structure
+	// ═══════════════════════════════════════════════════════════════
+	// Consolidar resultados em DeepData
+	// ═══════════════════════════════════════════════════════════════
 	deepData := &DeepDataStructure{}
 
-	// Scrape Instagram if available
-	if lead.Instagram != "" && strings.HasPrefix(lead.Instagram, "http") {
-		log.Printf("🔍 Extraindo inteligência do Instagram...")
-		socialData := ScrapeInstagramProfile(lead.Instagram)
-
-		if socialData.Success {
+	if result.InstaData != nil {
+		if result.InstaData.Success {
 			deepData.Instagram = &SocialPlatformData{
-				Bio:          socialData.Bio,
-				LastPostDate: socialData.LastPostDate,
-				Posts:        socialData.RecentPosts,
+				Bio:          result.InstaData.Bio,
+				LastPostDate: result.InstaData.LastPostDate,
+				Posts:        result.InstaData.RecentPosts,
 			}
 			log.Printf("✨ Deep intelligence extraída do Instagram!")
 		} else {
-			log.Printf("⚠️  Instagram: %s", socialData.ErrorMessage)
+			log.Printf("⚠️  Instagram: %s", result.InstaData.ErrorMessage)
 		}
 	}
 
-	// Scrape Facebook if available (parallel to Instagram)
-	if lead.Facebook != "" && strings.HasPrefix(lead.Facebook, "http") {
-		log.Printf("🔍 Extraindo inteligência do Facebook...")
-		socialData := ScrapeFacebookPage(lead.Facebook)
-
-		if socialData.Success {
+	if result.FBData != nil {
+		if result.FBData.Success {
 			deepData.Facebook = &SocialPlatformData{
-				Bio:          socialData.Bio,
-				LastPostDate: socialData.LastPostDate,
-				Posts:        socialData.RecentPosts,
+				Bio:          result.FBData.Bio,
+				LastPostDate: result.FBData.LastPostDate,
+				Posts:        result.FBData.RecentPosts,
 			}
 			log.Printf("✨ Deep intelligence extraída do Facebook!")
 		} else {
-			log.Printf("⚠️  Facebook: %s", socialData.ErrorMessage)
+			log.Printf("⚠️  Facebook: %s", result.FBData.ErrorMessage)
 		}
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// GOOGLE REVIEWS EXTRACTION
-	// ═══════════════════════════════════════════════════════════════
-	log.Printf("🔍 Iniciando extração de avaliações do Google para: %s", lead.Empresa)
-	googleData, errGoogle := ScrapeGoogleReviews(lead.Empresa)
-
-	if errGoogle != nil {
-		log.Printf("⚠️  Aviso: Não foi possível extrair dados do Google: %v", errGoogle)
-	} else if googleData != nil {
-		deepData.Google = googleData
-		log.Printf("✨ Google Reviews extraído com sucesso! (Nota: %s, Avaliações: %s, Comentários: %d)",
-			googleData.NotaGeral, googleData.TotalAvaliacoes, len(googleData.ComentariosRecentes))
+	if result.GoogleData != nil {
+		deepData.Google = result.GoogleData
+		log.Printf("✨ Google Reviews consolidado (Nota: %s, Avaliações: %s, Comentários: %d)",
+			result.GoogleData.NotaGeral, result.GoogleData.TotalAvaliacoes,
+			len(result.GoogleData.ComentariosRecentes))
 	}
 
-	// Save DeepData as JSONB
-	if deepData.Instagram != nil || deepData.Facebook != nil {
+	// ═══════════════════════════════════════════════════════════════
+	// PHASE 3: Business Insights via LLM
+	// ═══════════════════════════════════════════════════════════════
+	if result.WebsiteData != nil && result.WebsiteData.RawText != "" {
+		log.Printf("🤖 Extraindo insights de negócio via LLM para: %s", companyName)
+		insights, err := ExtractBusinessInsights(result.WebsiteData.RawText)
+		if err != nil {
+			log.Printf("⚠️  Erro ao extrair insights: %v", err)
+		} else if insights != nil {
+			deepData.Insights = insights
+			log.Printf("✨ Insights de negócio extraídos com sucesso!")
+		}
+	}
+
+	if deepData.Instagram != nil || deepData.Facebook != nil || deepData.Google != nil || deepData.Insights != nil {
 		deepDataJSON, err := json.Marshal(deepData)
 		if err != nil {
 			log.Printf("⚠️  Erro ao serializar DeepData: %v", err)
@@ -501,29 +529,116 @@ func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
 		}
 	}
 
-	// G. Marcar como ENRIQUECIDO
-	lead.Status = domain.StatusEnriquecido
+	lead.Score = ScoreLead(*lead)
+	log.Printf("🎯 Lead Score calculado para %s: %d/100", companyName, lead.Score)
 
-	// H. Salvar no banco de dados
-	if err := database.DB.Save(&lead).Error; err != nil {
+	lead.Status = domain.StatusEnriquecido
+	if err := database.DB.Save(lead).Error; err != nil {
 		log.Printf("⚠️  Erro ao salvar dados enriquecidos: %v", err)
 		return err
 	}
 
-	log.Printf("✨ Enriquecimento concluído para: %s (Pixel: %v, GTM: %v, Google Reviews: %v)",
-		payload.CompanyName, lead.TemPixel, lead.TemGTM, deepData.Google != nil)
+	log.Printf("✨ Enriquecimento concluído para: %s (Pixel: %v, GTM: %v, Google: %v, Score: %d)",
+		companyName, lead.TemPixel, lead.TemGTM, deepData.Google != nil, lead.Score)
 
 	return nil
 }
 
+func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
+	var payload EnrichLeadPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	log.Printf("🔄 Processing task LEAD_ENRICH:%s (%s)", payload.LeadID, payload.CompanyName)
+
+	var lead domain.Lead
+	if err := database.DB.First(&lead, "id = ?", payload.LeadID).Error; err != nil {
+		log.Printf("⚠️  Erro ao buscar lead %s: %v", payload.LeadID, err)
+		return fmt.Errorf("lead not found: %w", asynq.SkipRetry)
+	}
+
+	lead.Status = domain.StatusEnriquecendo
+	if err := database.DB.Save(&lead).Error; err != nil {
+		log.Printf("⚠️  Erro ao atualizar status para ENRIQUECENDO: %v", err)
+		return err
+	}
+
+	log.Printf("📊 Lead '%s' agora está em status ENRIQUECENDO", payload.CompanyName)
+
+	if err := performLeadEnrichment(ctx, &lead); err != nil {
+		return err
+	}
+
+	// Enfileirar CNPJ assíncrono se necessário (depende do payload, feito aqui e não em performLeadEnrichment)
+	if lead.CNPJ == "" {
+		if cnpjTask, err := NewEnrichCNPJTask(payload.LeadID, payload.CompanyName); err == nil {
+			client := GetAsynqClient()
+			if _, err := client.Enqueue(cnpjTask); err != nil {
+				log.Printf("⚠️ [Worker] Falha ao enfileirar enrich:cnpj para %s: %v", payload.CompanyName, err)
+			} else {
+				log.Printf("📬 [Worker] enrich:cnpj enfileirado para: %s", payload.CompanyName)
+			}
+			client.Close()
+		}
+	}
+
+	return nil
+}
+
+// HandleEnrichCNPJTask executes CNPJ scraping independently, updating only CNPJ-related fields.
+// Idempotent: skips if lead already has a CNPJ. Does not affect lead status.
+func HandleEnrichCNPJTask(ctx context.Context, t *asynq.Task) error {
+	var payload EnrichCNPJPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	var lead domain.Lead
+	if err := database.DB.First(&lead, "id = ?", payload.LeadID).Error; err != nil {
+		return fmt.Errorf("lead not found: %w", asynq.SkipRetry)
+	}
+	if lead.CNPJ != "" {
+		log.Printf("⏭️ [EnrichCNPJ] Lead %s já possui CNPJ. Pulando.", payload.LeadID)
+		return nil
+	}
+
+	log.Printf("🔍 [EnrichCNPJ] Buscando CNPJ para: %s", payload.CompanyName)
+
+	resp, err := searchCasaDosDadosWorker(payload.CompanyName)
+	if err != nil {
+		log.Printf("⚠️ [EnrichCNPJ] Erro ao buscar CNPJ: %v", err)
+		return err // retryable
+	}
+	if resp == nil || resp.Dados.CNPJ == "" {
+		log.Printf("⚠️ [EnrichCNPJ] CNPJ não encontrado para: %s", payload.CompanyName)
+		return nil
+	}
+
+	updates := map[string]interface{}{"cnpj": resp.Dados.CNPJ}
+	if resp.Dados.Email != "" {
+		updates["email"] = resp.Dados.Email
+	}
+	if resp.Dados.Telefone != "" {
+		updates["telefone"] = resp.Dados.Telefone
+	}
+
+	// WHERE cnpj = '' garante idempotência a nível de banco
+	if err := database.DB.Model(&domain.Lead{}).Where("id = ? AND cnpj = ''", payload.LeadID).Updates(updates).Error; err != nil {
+		log.Printf("⚠️ [EnrichCNPJ] Erro ao salvar CNPJ: %v", err)
+		return err
+	}
+
+	log.Printf("✅ [EnrichCNPJ] CNPJ salvo para %s: %s", payload.CompanyName, resp.Dados.CNPJ)
+	return nil
+}
+
 // FetchAndParseWebsite fetches the website HTML and extracts social media and tracking data.
-// Exported so that dossier_service.go (pacote queue) can call it directly.
-func FetchAndParseWebsite(websiteURL, companyName string) (*EnrichmentData, error) {
-	// Create HTTP client with timeout
+// Now evolves into a smart depth-1 crawler.
+func FetchAndParseWebsite(websiteURL, companyName string) (*WebsiteData, error) {
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 5 * time.Second, // User requested 5s timeout for internal pages, let's use it for all
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// Allow up to 5 redirects
 			if len(via) >= 5 {
 				return fmt.Errorf("too many redirects")
 			}
@@ -531,31 +646,84 @@ func FetchAndParseWebsite(websiteURL, companyName string) (*EnrichmentData, erro
 		},
 	}
 
-	// Make GET request
+	// 1. GET Homepage
 	resp, err := client.Get(websiteURL)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP GET failed: %w", err)
+		return nil, fmt.Errorf("HTTP GET homepage failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		return nil, fmt.Errorf("homepage HTTP status %d", resp.StatusCode)
 	}
 
-	// Read response body (limit to 1MB to avoid memory issues)
-	limitedReader := io.LimitReader(resp.Body, 1024*1024) // 1MB limit
-	bodyBytes, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	htmlHome := string(bodyBytes)
+
+	// Extract data from homepage
+	finalData := ExtractWebsiteData(htmlHome)
+	finalData.PagesVisited = append(finalData.PagesVisited, websiteURL)
+
+	// 2. Extract and prioritize internal links
+	allLinks := ExtractInternalLinks(htmlHome, websiteURL)
+	priorityLinks := PrioritizeLinks(allLinks)
+
+	// 3. Crawl internal pages (max 3)
+	for _, link := range priorityLinks {
+		// Avoid loop (already visited)
+		alreadyVisited := false
+		for _, v := range finalData.PagesVisited {
+			if v == link {
+				alreadyVisited = true
+				break
+			}
+		}
+		if alreadyVisited {
+			continue
+		}
+
+		// Controlled crawl
+		innerResp, err := client.Get(link)
+		if err != nil {
+			log.Printf("⚠️  Falha ao carregar página interna %s: %v", link, err)
+			continue
+		}
+		
+		bodyBytes, _ := io.ReadAll(io.LimitReader(innerResp.Body, 1024*1024))
+		innerResp.Body.Close()
+		
+		if innerResp.StatusCode == http.StatusOK {
+			innerData := ExtractWebsiteData(string(bodyBytes))
+			
+			// Consolidate Data
+			finalData.Emails = uniqueStrings(append(finalData.Emails, innerData.Emails...))
+			finalData.Phones = uniqueStrings(append(finalData.Phones, innerData.Phones...))
+			finalData.RawText += " " + innerData.RawText
+			finalData.PagesVisited = append(finalData.PagesVisited, link)
+
+			// Update social if missing
+			if finalData.Instagram == "" && innerData.Instagram != "" {
+				finalData.Instagram = innerData.Instagram
+				finalData.SocialLinks["instagram"] = innerData.Instagram
+			}
+			if finalData.Facebook == "" && innerData.Facebook != "" {
+				finalData.Facebook = innerData.Facebook
+				finalData.SocialLinks["facebook"] = innerData.Facebook
+			}
+			for k, v := range innerData.SocialLinks {
+				if _, ok := finalData.SocialLinks[k]; !ok {
+					finalData.SocialLinks[k] = v
+				}
+			}
+		}
 	}
 
-	htmlBody := string(bodyBytes)
+	// Final cleanup
+	if len(finalData.RawText) > 10000 {
+		finalData.RawText = finalData.RawText[:10000] // Safety limit
+	}
 
-	// Extract data using helper functions
-	enrichmentData := ExtractSocialAndTracking(htmlBody)
-
-	return enrichmentData, nil
+	return finalData, nil
 }
 
 // searchCasaDosDadosWorker consome a Bridge API (Python) rodando no container 'sherlock'
@@ -589,4 +757,180 @@ func searchCasaDosDadosWorker(empresa string) (*SherlockCNPJResponse, error) {
 	}
 
 	return &result, nil
+}
+
+// ExtractBusinessInsights transforms raw website text into structured data using LLM.
+func ExtractBusinessInsights(rawText string) (*BusinessInsights, error) {
+	if rawText == "" {
+		return nil, nil
+	}
+
+	// Limitar input (primeiros 3000 caracteres) para evitar estouro de contexto e custo
+	textToAnalyze := rawText
+	if len(textToAnalyze) > 3000 {
+		textToAnalyze = textToAnalyze[:3000]
+	}
+
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
+	}
+
+	prompt := fmt.Sprintf(`Analise o seguinte texto de um site empresarial e extraia as informações solicitadas.
+Responda APENAS em JSON válido com a estrutura abaixo, sem explicações ou markdown.
+
+Estrutura esperada:
+{
+    "business_type": "tipo de negócio (ex: Restaurante, Advocacia, E-commerce)",
+    "services": ["lista de serviços principais"],
+    "target_audience": "público-alvo provável",
+    "tone": "tom de comunicação (formal, moderno, agressivo, acolhedor, etc)",
+    "marketing_level": "baixo, médio ou alto",
+    "has_whatsapp": true/false (baseado em links ou menções)
+}
+
+Texto do site:
+---
+%s
+---`, textToAnalyze)
+
+	// Chamada ao LLM com parsing seguro
+	resp, err := callGeminiGeneric(prompt, apiKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// Limpar possíveis blocos de código markdown do LLM
+	resp = strings.TrimPrefix(resp, "```json")
+	resp = strings.TrimPrefix(resp, "```")
+	resp = strings.TrimSuffix(resp, "```")
+	resp = strings.TrimSpace(resp)
+
+	var insights BusinessInsights
+	if err := json.Unmarshal([]byte(resp), &insights); err != nil {
+		log.Printf("⚠️  Falha no parsing do JSON do LLM: %v | Resposta bruta: %s", err, resp)
+		return nil, nil // Retorna nil em caso de erro de parsing para não quebrar o pipeline
+	}
+
+	// Aplicar camada de validação e sanitização
+	insights.Validate()
+
+	return &insights, nil
+}
+
+// callGeminiGeneric is a helper for general purpose LLM calls.
+func callGeminiGeneric(prompt, apiKey string) (string, error) {
+	apiURL := fmt.Sprintf(
+		"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s",
+		apiKey,
+	)
+
+	reqBody := map[string]interface{}{
+		"contents": []map[string]interface{}{
+			{
+				"parts": []map[string]interface{}{
+					{"text": prompt},
+				},
+			},
+		},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Post(apiURL, "application/json", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("gemini error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var gemResp struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&gemResp); err != nil {
+		return "", err
+	}
+
+	if len(gemResp.Candidates) == 0 || len(gemResp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("empty response from gemini")
+	}
+
+	return gemResp.Candidates[0].Content.Parts[0].Text, nil
+}
+
+// ScoreLead calculates a 0-100 score representing the commercial opportunity.
+func ScoreLead(lead domain.Lead) int {
+	score := 0
+
+	// 1. Presença Digital (Site e Instagram)
+	if lead.Site != "" {
+		score += 10
+	} else {
+		// Sem site é uma oportunidade maior de venda
+		score += 25
+	}
+
+	if lead.Instagram != "" {
+		score += 10
+	} else {
+		score += 20
+	}
+
+	// 2. MarketingLevel (extraído dos BusinessInsights no DeepData)
+	if len(lead.DeepData) > 0 {
+		var deepData DeepDataStructure
+		if err := json.Unmarshal(lead.DeepData, &deepData); err == nil && deepData.Insights != nil {
+			switch strings.ToLower(deepData.Insights.MarketingLevel) {
+			case "baixo":
+				score += 30
+			case "medio", "médio":
+				score += 15
+			case "alto":
+				score += 5
+			}
+		}
+	}
+
+	// 3. Dados Disponíveis (Facilidade de contato)
+	if lead.Telefone != "" {
+		score += 10
+	}
+	if lead.Email != "" {
+		score += 10
+	}
+
+	// 4. Qualidade do site / Tracking
+	if lead.Site != "" {
+		// Se já investe (Pixel/GTM), a oportunidade de venda de infra básica é menor
+		if lead.TemPixel || lead.TemGTM {
+			score -= 10
+		} else {
+			score += 10
+		}
+	}
+
+	// 5. Normalização (0-100)
+	if score < 0 {
+		score = 0
+	}
+	if score > 100 {
+		score = 100
+	}
+
+	return score
 }

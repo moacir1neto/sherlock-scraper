@@ -27,6 +27,12 @@ services:
       - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
@@ -52,7 +58,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/workspace
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   frontend:
     build:
@@ -90,8 +97,10 @@ services:
     volumes:
       - whatsmiau_data:/app/data
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     restart: unless-stopped
 
   whatsmiau-ui:

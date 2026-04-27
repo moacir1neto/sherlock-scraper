@@ -33,9 +33,10 @@ const (
 type EnrichmentStatus string
 
 const (
-	StatusCapturado    EnrichmentStatus = "CAPTURADO"
-	StatusEnriquecendo EnrichmentStatus = "ENRIQUECENDO"
-	StatusEnriquecido  EnrichmentStatus = "ENRIQUECIDO"
+	StatusCapturado       EnrichmentStatus = "CAPTURADO"
+	StatusEnriquecendo    EnrichmentStatus = "ENRIQUECENDO"
+	StatusEnriquecido     EnrichmentStatus = "ENRIQUECIDO"
+	StatusEnrichmentFailed EnrichmentStatus = "ENRICHMENT_FAILED"
 )
 
 type ScrapingJob struct {
@@ -82,8 +83,18 @@ type Lead struct {
 	LinkedLeadID     *uuid.UUID       `json:"linked_lead_id" gorm:"type:uuid"`
 	DossierData      datatypes.JSON   `json:"dossier_data" gorm:"type:jsonb"`
 	DossierAnalysis  string           `json:"dossier_analysis" gorm:"type:text"`
+	Score            int              `json:"score" gorm:"default:0"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+// LeadDossier armazena o resultado gerado pelo pipeline dossier:analyze.
+// Tabela separada para não poluir Lead e permitir cache imutável.
+type LeadDossier struct {
+	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	LeadID    uuid.UUID `gorm:"type:uuid;not null;index"`
+	Content   string    `gorm:"type:text;not null"`
+	CreatedAt time.Time
 }
 
 func (l *Lead) BeforeCreate(tx *gorm.DB) (err error) {
