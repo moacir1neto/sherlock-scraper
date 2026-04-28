@@ -272,6 +272,17 @@ func logDossierDiagnostic(leadID string, lead *domain.Lead, agg *dossierAggregat
 	log.Printf("[Dossier Diagnóstico] ════════════════════════════════════════════════════════")
 }
 
+// normalizeDeepDataJSON converte chaves PascalCase para snake_case antes do unmarshal,
+// evitando campos ignorados silenciosamente quando o produtor usa convenções diferentes.
+func normalizeDeepDataJSON(raw []byte) []byte {
+	s := string(raw)
+	s = strings.ReplaceAll(s, "NotaGeral", "nota_geral")
+	s = strings.ReplaceAll(s, "notaGeral", "nota_geral")
+	s = strings.ReplaceAll(s, "TotalAvaliacoes", "total_avaliacoes")
+	s = strings.ReplaceAll(s, "totalAvaliacoes", "total_avaliacoes")
+	return []byte(s)
+}
+
 // loadPreEnrichedData extrai BusinessInsights e RawText do DeepData já persistido
 // pelo pipeline de enriquecimento (HandleEnrichLeadTask). Elimina a desconexão
 // entre enriquecimento e dossiê, evitando reprocessar dados já disponíveis.
@@ -282,7 +293,8 @@ func (s *DossierService) loadPreEnrichedData(lead *domain.Lead, agg *dossierAggr
 	}
 
 	var deepData DeepDataStructure
-	if err := json.Unmarshal(lead.DeepData, &deepData); err != nil {
+	normalized := normalizeDeepDataJSON(lead.DeepData)
+	if err := json.Unmarshal(normalized, &deepData); err != nil {
 		log.Printf("[DossierService] ⚠️ falha ao deserializar DeepData (lead=%s): %v", lead.ID, err)
 		return
 	}
@@ -476,6 +488,18 @@ func (s *DossierService) generateAnalysis(ctx context.Context, leadID string, le
 		return fmt.Errorf("GEMINI_API_KEY não configurada")
 	}
 
+	// INSTRUMENTATION LOGS REQUESTED BY USER
+	log.Println("=== DEBUG DATA FLOW BEFORE PROMPT ===")
+	if agg.Google != nil {
+		log.Printf("agg.Google.NotaGeral = %q\n", agg.Google.NotaGeral)
+		log.Printf("agg.Google.TotalAvaliacoes = %q\n", agg.Google.TotalAvaliacoes)
+	} else {
+		log.Printf("agg.Google is NIL\n")
+	}
+	log.Printf("lead.Rating = %q\n", lead.Rating)
+	log.Printf("lead.QtdAvaliacoes = %q\n", lead.QtdAvaliacoes)
+	log.Println("=====================================")
+
 	prompt := buildDossierPrompt(lead, agg)
 
 	log.Printf("[DossierService] gerando dossiê via LLM para lead=%s", leadID)
@@ -568,6 +592,12 @@ func buildDossierPrompt(lead *domain.Lead, agg *dossierAggregated) string {
 	}
 	notaValida := nota != "" && nota != "-" && nota != "0.0" && nota != "0"
 	avaliacoesValidas := avaliacoes != "" && avaliacoes != "0"
+
+	// INSTRUMENTATION LOGS FOR VALIDATION
+	log.Printf("=== INSIDE buildDossierPrompt ===")
+	log.Printf("notaValida = %v", notaValida)
+	log.Printf("avaliacoesValidas = %v", avaliacoesValidas)
+
 	if notaValida || avaliacoesValidas {
 		if notaValida {
 			fmt.Fprintf(&sb, "✅ Nota Google Maps: %s (%s avaliações)\n", nota, avaliacoes)
@@ -581,8 +611,11 @@ func buildDossierPrompt(lead *domain.Lead, agg *dossierAggregated) string {
 			}
 		}
 	} else {
-		sb.WriteString("⚠️ Google Maps: sem avaliações ou não encontrado\n")
+		sb.WriteString("⚠️ Google Maps: dados indisponíveis (não assumir 0 avaliações)\n")
 	}
+
+	log.Printf("FINAL STRING ADDED: %q", sb.String())
+	log.Println("=================================")
 
 	if agg.Website != nil {
 		pixelStatus := "NÃO"

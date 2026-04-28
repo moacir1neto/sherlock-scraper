@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
 	"github.com/gofiber/fiber/v2"
 	"github.com/redis/go-redis/v9"
@@ -33,6 +35,10 @@ func (h *DossierHandler) Enqueue(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "lead id é obrigatório",
 		})
+	}
+
+	if err := database.DB.Where("lead_id = ?", leadID).Delete(&domain.LeadDossier{}).Error; err != nil {
+		log.Printf("[DossierHandler] ⚠️ falha ao limpar cache de dossiê (lead=%s): %v", leadID, err)
 	}
 
 	task, err := queue.NewDossierAnalyzeTask(leadID)

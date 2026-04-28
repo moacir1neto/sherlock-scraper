@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -449,6 +450,7 @@ func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
 				lead.DeepData = nil
 			}
 		}
+		syncGoogleToLead(lead, result.GoogleData)
 		lead.Status = domain.StatusEnriquecido
 		if err := database.DB.Save(lead).Error; err != nil {
 			log.Printf("⚠️  Erro ao marcar lead como ENRIQUECIDO: %v", err)
@@ -572,6 +574,7 @@ func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
 		log.Printf("⚠️  deep_data vazio, nenhum dado coletado lead_id=%d company=%q", lead.ID, companyName)
 	}
 
+	syncGoogleToLead(lead, result.GoogleData)
 	lead.Score = ScoreLead(*lead)
 	log.Printf("🎯 Lead Score calculado para %s: %d/100", companyName, lead.Score)
 
@@ -1059,6 +1062,23 @@ func callGeminiGeneric(prompt, apiKey string) (string, error) {
 }
 
 // ScoreLead calculates a 0-100 score representing the commercial opportunity.
+func syncGoogleToLead(lead *domain.Lead, g *GoogleData) {
+	if g == nil {
+		return
+	}
+	if g.NotaGeral != "" {
+		normalized := strings.ReplaceAll(g.NotaGeral, ",", ".")
+		if v, err := strconv.ParseFloat(normalized, 64); err == nil {
+			lead.Rating = fmt.Sprintf("%.2f", v)
+		}
+	}
+	if g.TotalAvaliacoes != "" {
+		if v, err := strconv.Atoi(g.TotalAvaliacoes); err == nil {
+			lead.QtdAvaliacoes = strconv.Itoa(v)
+		}
+	}
+}
+
 func ScoreLead(lead domain.Lead) int {
 	score := 0
 
