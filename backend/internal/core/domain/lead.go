@@ -26,6 +26,7 @@ type ScrapingStatus string
 
 const (
 	ScrapeRunning   ScrapingStatus = "running"
+	ScrapeEnriching ScrapingStatus = "enriching"
 	ScrapeCompleted ScrapingStatus = "completed"
 	ScrapeError     ScrapingStatus = "error"
 )
@@ -55,8 +56,8 @@ type Lead struct {
 	ScrapingJobID *uuid.UUID   `gorm:"type:uuid;index"`
 	Empresa       string       `gorm:"type:varchar(255);not null"`
 	Nicho         string       `gorm:"type:varchar(255)"`
-	Rating        string       `gorm:"type:varchar(50)"`
-	QtdAvaliacoes string       `gorm:"type:varchar(50)"`
+	Rating        string       `json:"rating" gorm:"type:varchar(50)"`
+	QtdAvaliacoes string       `json:"reviews" gorm:"type:varchar(50)"`
 	ResumoNegocio string       `gorm:"type:text"`
 	Endereco      string       `gorm:"type:varchar(500)"`
 	Telefone      string       `gorm:"type:varchar(50)"`
@@ -72,7 +73,7 @@ type Lead struct {
 	CNPJ             string           `gorm:"type:varchar(20)"`
 	TemPixel         bool             `gorm:"default:false"`
 	TemGTM           bool             `gorm:"default:false"`
-	DeepData         datatypes.JSON   `gorm:"type:jsonb"`
+	DeepData         datatypes.JSON   `json:"deep_data" gorm:"type:jsonb"`
 	AIAnalysis       datatypes.JSON   `json:"ai_analysis" gorm:"type:jsonb"`
 	Status           EnrichmentStatus `gorm:"type:varchar(50);default:'CAPTURADO'"`
 	KanbanStatus     KanbanStatus     `gorm:"type:varchar(50);default:'prospeccao'"`

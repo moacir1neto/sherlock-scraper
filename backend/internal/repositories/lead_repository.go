@@ -185,6 +185,15 @@ func (r *leadRepository) UpdateStatusIdempotent(
 	return updated, err
 }
 
+func (r *leadRepository) CountPendingEnrichment(ctx context.Context, jobID string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&domain.Lead{}).
+		Where("scraping_job_id = ? AND status NOT IN ?", jobID,
+			[]string{string(domain.StatusEnriquecido), string(domain.StatusEnrichmentFailed)}).
+		Count(&count).Error
+	return count, err
+}
+
 func (r *leadRepository) DeleteScrapeJob(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Delete leads first

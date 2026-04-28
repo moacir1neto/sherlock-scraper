@@ -155,12 +155,19 @@ func (s *DossierService) RunPipeline(ctx context.Context, leadID string) error {
 		}
 	}
 
-	// Etapa 1 — Google Maps / Reviews
-	publishDossierEvent(leadID, domain.DossierStageMaps, domain.DossierStatusRunning, "Coletando dados externos...")
-	agg.Google = s.investigateMaps(ctx, leadID, lead.Empresa)
+	// Etapa 1 — Google Maps / Reviews (só re-scrapa se não veio do DeepData)
+	if agg.Google == nil {
+		publishDossierEvent(leadID, domain.DossierStageMaps, domain.DossierStatusRunning, "Coletando dados externos...")
+		agg.Google = s.investigateMaps(ctx, leadID, lead.Empresa)
+	} else {
+		publishDossierEvent(leadID, domain.DossierStageMaps, domain.DossierStatusDone,
+			fmt.Sprintf("Google Maps: nota %s (%s avaliações) — dados do enriquecimento", agg.Google.NotaGeral, agg.Google.TotalAvaliacoes))
+	}
 
-	// Etapa 2 — Website
-	agg.Website = s.investigateWebsite(ctx, leadID, lead.Site, lead.Empresa)
+	// Etapa 2 — Website (só re-scrapa se não veio do DeepData)
+	if agg.Website == nil {
+		agg.Website = s.investigateWebsite(ctx, leadID, lead.Site, lead.Empresa)
+	}
 
 	if agg.Website != nil && agg.Website.RawText != "" && agg.RawText == "" {
 		if len(agg.Website.RawText) > 800 {
@@ -179,11 +186,11 @@ func (s *DossierService) RunPipeline(ctx context.Context, leadID string) error {
 
 	logDossierDiagnostic(leadID, lead, agg)
 
-	if agg.Insights == nil && agg.RawText == "" {
-		log.Printf("[DossierService] ⚠️ lead=%s sem Insights nem RawText — abortando LLM", leadID)
+	if agg.Insights == nil {
+		log.Printf("[DossierService] 🚨 lead=%s sem Insights — enrichment não executado ou falhou. Abortando dossiê.", leadID)
 		publishDossierEvent(leadID, domain.DossierStageLLM, domain.DossierStatusError,
-			"Dados insuficientes para gerar dossiê: rode o enriquecimento antes de solicitar o dossiê.")
-		return nil
+			"Lead sem insights — enrichment não executado ou falhou. Execute o enriquecimento antes de gerar o dossiê.")
+		return fmt.Errorf("lead sem insights — enrichment não executado ou falhou (lead=%s)", leadID)
 	}
 
 	// Etapa 4 — Análise LLM
@@ -291,6 +298,17 @@ func (s *DossierService) loadPreEnrichedData(lead *domain.Lead, agg *dossierAggr
 	} else {
 		log.Printf("[DossierService] ⚠️ DeepData presente mas Insights é nil — site pode não ter sido crawleado")
 	}
+
+	if deepData.Google != nil {
+		agg.Google = deepData.Google
+		log.Printf("[DossierService] ✅ GoogleData carregado do DeepData (nota=%q, avaliações=%q)",
+			deepData.Google.NotaGeral,
+			deepData.Google.TotalAvaliacoes,
+		)
+	}
+
+	log.Println("Loaded Insights:", agg.Insights)
+	log.Println("Loaded GoogleData:", agg.Google)
 
 	// Construir RawText contextual a partir de posts das redes sociais já capturados
 	if deepData.Instagram != nil && len(deepData.Instagram.Posts) > 0 {
@@ -540,12 +558,22 @@ func buildDossierPrompt(lead *domain.Lead, agg *dossierAggregated) string {
 
 	nota := lead.Rating
 	avaliacoes := lead.QtdAvaliacoes
-	if agg.Google != nil && agg.Google.NotaGeral != "" && agg.Google.NotaGeral != "0.0" {
-		nota = agg.Google.NotaGeral
-		avaliacoes = agg.Google.TotalAvaliacoes
+	if agg.Google != nil {
+		if agg.Google.NotaGeral != "" && agg.Google.NotaGeral != "0.0" {
+			nota = agg.Google.NotaGeral
+		}
+		if agg.Google.TotalAvaliacoes != "" && agg.Google.TotalAvaliacoes != "0" {
+			avaliacoes = agg.Google.TotalAvaliacoes
+		}
 	}
-	if nota != "" && nota != "-" && nota != "0.0" {
-		fmt.Fprintf(&sb, "✅ Nota Google Maps: %s (%s avaliações)\n", nota, avaliacoes)
+	notaValida := nota != "" && nota != "-" && nota != "0.0" && nota != "0"
+	avaliacoesValidas := avaliacoes != "" && avaliacoes != "0"
+	if notaValida || avaliacoesValidas {
+		if notaValida {
+			fmt.Fprintf(&sb, "✅ Nota Google Maps: %s (%s avaliações)\n", nota, avaliacoes)
+		} else {
+			fmt.Fprintf(&sb, "✅ Google Maps: %s avaliações (sem nota registrada)\n", avaliacoes)
+		}
 		if agg.Google != nil && len(agg.Google.ComentariosRecentes) > 0 {
 			sb.WriteString("Comentários recentes:\n")
 			for _, c := range agg.Google.ComentariosRecentes {

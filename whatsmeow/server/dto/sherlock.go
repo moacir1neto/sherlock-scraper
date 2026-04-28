@@ -1,5 +1,7 @@
 package dto
 
+import "encoding/json"
+
 type ExtractLeadsRequest struct {
 	CompanyID string `json:"company_id"` // Usado apenas por super_admin para especificar a empresa
 	Keyword   string `json:"keyword" validate:"required,min=2"`
@@ -8,12 +10,13 @@ type ExtractLeadsRequest struct {
 }
 
 type SherlockLead struct {
-	Name    string `json:"name"`
-	Phone   string `json:"phone"`
-	Address string `json:"address,omitempty"`
-	Website string `json:"website,omitempty"`
-	Rating  string `json:"rating,omitempty"`
-	Reviews string `json:"reviews,omitempty"`
+	Name     string          `json:"name"`
+	Phone    string          `json:"phone"`
+	Address  string          `json:"address,omitempty"`
+	Website  string          `json:"website,omitempty"`
+	Rating   string          `json:"rating,omitempty"`
+	Reviews  string          `json:"reviews,omitempty"`
+	DeepData json.RawMessage `json:"deep_data,omitempty"`
 }
 
 type ExtractLeadsResponse struct {

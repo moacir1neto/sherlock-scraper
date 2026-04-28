@@ -427,6 +427,28 @@ func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
 
 	if !hasWebsite && lead.Instagram == "" && lead.Facebook == "" {
 		log.Printf("⏭️  Lead '%s' sem website válido. Pulando Deep Enrichment.", companyName)
+		if result.GoogleData != nil {
+			fallbackDeepData := &DeepDataStructure{Google: result.GoogleData}
+
+			// Gerar Insights via LLM mesmo sem website, usando dados do Google
+			insights, insErr := ExtractBusinessInsightsFallback(companyName, lead.Nicho, result.GoogleData)
+			if insErr != nil {
+				log.Printf("⚠️  Fallback Insights falhou (short-circuit) lead_id=%d: %v", lead.ID, insErr)
+			} else if insights != nil {
+				fallbackDeepData.Insights = insights
+				log.Printf("✨ Insights (fallback short-circuit) extraídos: tipo=%q marketing=%q serviços=%d lead_id=%d",
+					insights.BusinessType, insights.MarketingLevel, len(insights.Services), lead.ID)
+			}
+
+			deepDataJSON, err := json.Marshal(fallbackDeepData)
+			if err == nil && len(deepDataJSON) > 0 && json.Valid(deepDataJSON) {
+				lead.DeepData = deepDataJSON
+				log.Printf("💾 deep_data validado e salvo (fallback Google) lead_id=%d", lead.ID)
+			} else {
+				log.Printf("⚠️  deep_data inválido descartado (fallback Google) lead_id=%d err=%v", lead.ID, err)
+				lead.DeepData = nil
+			}
+		}
 		lead.Status = domain.StatusEnriquecido
 		if err := database.DB.Save(lead).Error; err != nil {
 			log.Printf("⚠️  Erro ao marcar lead como ENRIQUECIDO: %v", err)
@@ -512,21 +534,42 @@ func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
 		log.Printf("🤖 Extraindo insights de negócio via LLM para: %s", companyName)
 		insights, err := ExtractBusinessInsights(result.WebsiteData.RawText)
 		if err != nil {
-			log.Printf("⚠️  Erro ao extrair insights: %v", err)
+			log.Printf("⚠️  Erro ao extrair insights via LLM: %v", err)
 		} else if insights != nil {
 			deepData.Insights = insights
-			log.Printf("✨ Insights de negócio extraídos com sucesso!")
+			log.Printf("✨ Insights extraídos: tipo=%q marketing=%q serviços=%d",
+				insights.BusinessType, insights.MarketingLevel, len(insights.Services))
+		} else {
+			log.Printf("⚠️  LLM retornou insights nil para '%s' (RawText=%d chars)", companyName, len(result.WebsiteData.RawText))
+		}
+	} else {
+		log.Printf("🔄 Generating insights via fallback (no website) para: %s", companyName)
+		insights, err := ExtractBusinessInsightsFallback(companyName, lead.Nicho, result.GoogleData)
+		if err != nil {
+			log.Printf("⚠️  Erro ao extrair insights via fallback: %v", err)
+		} else if insights != nil {
+			deepData.Insights = insights
+			log.Printf("✨ Insights (fallback) extraídos: tipo=%q marketing=%q serviços=%d",
+				insights.BusinessType, insights.MarketingLevel, len(insights.Services))
+		} else {
+			log.Printf("⚠️  Fallback LLM retornou insights nil para '%s'", companyName)
 		}
 	}
 
 	if deepData.Instagram != nil || deepData.Facebook != nil || deepData.Google != nil || deepData.Insights != nil {
 		deepDataJSON, err := json.Marshal(deepData)
-		if err != nil {
-			log.Printf("⚠️  Erro ao serializar DeepData: %v", err)
-		} else {
+		if err == nil && len(deepDataJSON) > 0 && json.Valid(deepDataJSON) {
 			lead.DeepData = deepDataJSON
-			log.Printf("💾 DeepData salvo em JSONB")
+			log.Printf("💾 deep_data validado e salvo lead_id=%d instagram=%v facebook=%v google=%v insights=%v",
+				lead.ID,
+				deepData.Instagram != nil, deepData.Facebook != nil,
+				deepData.Google != nil, deepData.Insights != nil)
+		} else {
+			log.Printf("⚠️  deep_data inválido descartado lead_id=%d err=%v", lead.ID, err)
+			lead.DeepData = nil
 		}
+	} else {
+		log.Printf("⚠️  deep_data vazio, nenhum dado coletado lead_id=%d company=%q", lead.ID, companyName)
 	}
 
 	lead.Score = ScoreLead(*lead)
@@ -538,10 +581,68 @@ func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
 		return err
 	}
 
+	// Validar persistência: confirmar que deep_data foi salvo no banco
+	var savedLead domain.Lead
+	if err := database.DB.Select("id, deep_data").First(&savedLead, "id = ?", lead.ID).Error; err != nil {
+		log.Printf("⚠️  [Validate] Falha ao confirmar persistência de DeepData para '%s': %v", companyName, err)
+	} else if len(savedLead.DeepData) == 0 {
+		log.Printf("🚨 [Validate] FALHA: deep_data está VAZIO no banco após Save para '%s'", companyName)
+	} else {
+		var check DeepDataStructure
+		if err := json.Unmarshal(savedLead.DeepData, &check); err != nil {
+			log.Printf("🚨 [Validate] deep_data salvo mas inválido para '%s': %v", companyName, err)
+		} else {
+			log.Printf("✅ [Validate] deep_data confirmado no banco para '%s': insights=%v google=%v instagram=%v facebook=%v",
+				companyName, check.Insights != nil, check.Google != nil, check.Instagram != nil, check.Facebook != nil)
+			if check.Insights == nil {
+				log.Printf("⚠️  [Validate] Insights AUSENTES no deep_data persistido para '%s' — dossiê usará dados genéricos", companyName)
+			}
+		}
+	}
+
+	// Invalidar cache de dossiê para forçar regeneração com dados atualizados
+	if deepData.Insights != nil {
+		if err := database.DB.Where("lead_id = ?", lead.ID).Delete(&domain.LeadDossier{}).Error; err != nil {
+			log.Printf("⚠️  Falha ao invalidar cache de dossiê lead_id=%s: %v", lead.ID, err)
+		} else {
+			log.Printf("🗑️  Cache de dossiê invalidado lead_id=%s (novo enrichment com Insights)", lead.ID)
+		}
+	}
+
 	log.Printf("✨ Enriquecimento concluído para: %s (Pixel: %v, GTM: %v, Google: %v, Score: %d)",
 		companyName, lead.TemPixel, lead.TemGTM, deepData.Google != nil, lead.Score)
 
 	return nil
+}
+
+// checkJobCompletion is called after each lead enrichment finishes.
+// It counts leads still pending enrichment for the job; when the count
+// reaches zero the job is atomically flipped to ScrapeCompleted.
+func checkJobCompletion(ctx context.Context, jobID string) {
+	var pending int64
+	err := database.DB.WithContext(ctx).Model(&domain.Lead{}).
+		Where("scraping_job_id = ? AND status NOT IN ?", jobID,
+			[]string{string(domain.StatusEnriquecido), string(domain.StatusEnrichmentFailed)}).
+		Count(&pending).Error
+	if err != nil {
+		log.Printf("⚠️  [JobCompletion] Erro ao contar leads pendentes para job %s: %v", jobID, err)
+		return
+	}
+
+	log.Printf("📊 [JobCompletion] Job %s — leads ainda pendentes: %d", jobID, pending)
+
+	if pending == 0 {
+		res := database.DB.WithContext(ctx).Model(&domain.ScrapingJob{}).
+			Where("id = ? AND status = ?", jobID, domain.ScrapeEnriching).
+			Update("status", domain.ScrapeCompleted)
+		if res.Error != nil {
+			log.Printf("⚠️  [JobCompletion] Erro ao marcar job %s como COMPLETED: %v", jobID, res.Error)
+			return
+		}
+		if res.RowsAffected > 0 {
+			log.Printf("✅ [JobCompletion] Job %s → COMPLETED (todos os leads enriquecidos)", jobID)
+		}
+	}
 }
 
 func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
@@ -566,12 +667,21 @@ func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
 
 	log.Printf("📊 Lead '%s' agora está em status ENRIQUECENDO", payload.CompanyName)
 
-	if err := performLeadEnrichment(ctx, &lead); err != nil {
-		return err
+	enrichErr := performLeadEnrichment(ctx, &lead)
+	if enrichErr != nil {
+		// Mark lead as failed so it counts as "done" for job completion purposes.
+		database.DB.Model(&domain.Lead{}).Where("id = ?", payload.LeadID).
+			Update("status", domain.StatusEnrichmentFailed)
+		log.Printf("🚨 [EnrichLead] Lead %s marcado como ENRICHMENT_FAILED: %v", payload.LeadID, enrichErr)
+	}
+
+	// Always check if the job is fully done after every lead finishes (success or failure).
+	if lead.ScrapingJobID != nil {
+		checkJobCompletion(ctx, lead.ScrapingJobID.String())
 	}
 
 	// Enfileirar CNPJ assíncrono se necessário (depende do payload, feito aqui e não em performLeadEnrichment)
-	if lead.CNPJ == "" {
+	if enrichErr == nil && lead.CNPJ == "" {
 		if cnpjTask, err := NewEnrichCNPJTask(payload.LeadID, payload.CompanyName); err == nil {
 			client := GetAsynqClient()
 			if _, err := client.Enqueue(cnpjTask); err != nil {
@@ -583,6 +693,9 @@ func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
 		}
 	}
 
+	if enrichErr != nil {
+		return enrichErr
+	}
 	return nil
 }
 
@@ -757,6 +870,78 @@ func searchCasaDosDadosWorker(empresa string) (*SherlockCNPJResponse, error) {
 	}
 
 	return &result, nil
+}
+
+// ExtractBusinessInsightsFallback gera insights estruturados via LLM quando não há website disponível.
+// Usa dados do Google Reviews, nome da empresa e nicho como contexto alternativo.
+func ExtractBusinessInsightsFallback(companyName, nicho string, googleData *GoogleData) (*BusinessInsights, error) {
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
+	}
+
+	var contextLines []string
+	contextLines = append(contextLines, fmt.Sprintf("Empresa: %s", companyName))
+	if nicho != "" {
+		contextLines = append(contextLines, fmt.Sprintf("Nicho estimado: %s", nicho))
+	}
+	if googleData != nil {
+		if googleData.NotaGeral != "" {
+			contextLines = append(contextLines, fmt.Sprintf("Nota Google: %s", googleData.NotaGeral))
+		}
+		if googleData.TotalAvaliacoes != "" {
+			contextLines = append(contextLines, fmt.Sprintf("Total de avaliações: %s", googleData.TotalAvaliacoes))
+		}
+		if len(googleData.ComentariosRecentes) > 0 {
+			max := 3
+			if len(googleData.ComentariosRecentes) < max {
+				max = len(googleData.ComentariosRecentes)
+			}
+			contextLines = append(contextLines, "Comentários recentes:")
+			for _, c := range googleData.ComentariosRecentes[:max] {
+				contextLines = append(contextLines, fmt.Sprintf("  - %s", c))
+			}
+		}
+	}
+
+	context := strings.Join(contextLines, "\n")
+
+	prompt := fmt.Sprintf(`Com base nas informações abaixo sobre uma empresa, infira e extraia os dados solicitados.
+Responda APENAS em JSON válido com a estrutura abaixo, sem explicações ou markdown.
+
+Estrutura esperada:
+{
+    "business_type": "tipo de negócio inferido (ex: Restaurante, Salão de Beleza, Advocacia)",
+    "services": ["lista de serviços prováveis baseados no tipo de negócio"],
+    "target_audience": "público-alvo provável",
+    "tone": "tom de comunicação provável (formal, acolhedor, moderno, etc)",
+    "marketing_level": "baixo, médio ou alto (inferido pela presença digital e avaliações)",
+    "has_whatsapp": false
+}
+
+Dados da empresa:
+---
+%s
+---`, context)
+
+	resp, err := callGeminiGeneric(prompt, apiKey)
+	if err != nil {
+		return nil, err
+	}
+
+	resp = strings.TrimPrefix(resp, "```json")
+	resp = strings.TrimPrefix(resp, "```")
+	resp = strings.TrimSuffix(resp, "```")
+	resp = strings.TrimSpace(resp)
+
+	var insights BusinessInsights
+	if err := json.Unmarshal([]byte(resp), &insights); err != nil {
+		log.Printf("⚠️  Fallback: falha no parsing do JSON do LLM: %v | Resposta bruta: %s", err, resp)
+		return nil, nil
+	}
+
+	insights.Validate()
+	return &insights, nil
 }
 
 // ExtractBusinessInsights transforms raw website text into structured data using LLM.

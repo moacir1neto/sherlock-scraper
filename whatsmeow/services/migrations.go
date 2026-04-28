@@ -691,6 +691,7 @@ func RunMigrations() error {
 	addLeadCol("youtube", "VARCHAR(255) DEFAULT ''")
 	addLeadCol("cnpj", "VARCHAR(20) DEFAULT ''")
 	addLeadCol("ai_analysis", "TEXT DEFAULT NULL")
+	addLeadCol("deep_data", "JSONB DEFAULT NULL")
 	// Índice para buscar leads por campanha
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_leads_scrape ON leads(scrape_id)`); err != nil {
 		if !strings.Contains(err.Error(), "already exists") {

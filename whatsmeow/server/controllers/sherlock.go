@@ -3,6 +3,8 @@ package controllers
 import (
 	"context"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -102,7 +104,9 @@ func (s *Sherlock) runExtraction(scrapeID, companyID string, request dto.Extract
 	now := time.Now()
 	batch := make([]*models.Lead, 0, len(result.Leads))
 	for _, l := range result.Leads {
-		batch = append(batch, &models.Lead{
+		rating := parseRating(l.Rating)
+		reviews := parseReviews(l.Reviews)
+		lead := &models.Lead{
 			CompanyID:        companyID,
 			ScrapeID:         scrapeID,
 			SourceID:         "sherlock",
@@ -110,13 +114,18 @@ func (s *Sherlock) runExtraction(scrapeID, companyID string, request dto.Extract
 			Phone:            l.Phone,
 			Address:          l.Address,
 			Website:          l.Website,
-			Rating:           0,
-			Reviews:          0,
+			Rating:           rating,
+			Reviews:          reviews,
 			Nicho:            request.Keyword,
 			KanbanStatus:     "prospeccao",
 			EnrichmentStatus: "CAPTURADO",
+			DeepData:         l.DeepData,
 			CreatedAt:        now,
-		})
+		}
+		if rating == 0 && reviews == 0 && len(l.DeepData) == 0 {
+			zap.L().Warn("lead imported with no enrichment data", zap.String("name", l.Name))
+		}
+		batch = append(batch, lead)
 	}
 
 	if len(batch) > 0 {
@@ -197,4 +206,29 @@ func (s *Sherlock) DeleteScrape(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to delete scraping campaign")
 	}
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// parseRating converte "4,5" ou "4.5" para float64. Retorna 0 se inválido.
+func parseRating(s string) float64 {
+	s = strings.TrimSpace(strings.ReplaceAll(s, ",", "."))
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// parseReviews converte "1.448" ou "1448" para int. Retorna 0 se inválido.
+func parseReviews(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "-" {
+		return 0
+	}
+	s = strings.ReplaceAll(s, ".", "")
+	s = strings.ReplaceAll(s, ",", "")
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return v
 }

@@ -27,7 +27,7 @@ const allCols = `id, company_id, COALESCE(scrape_id,'') as scrape_id, source_id,
 	COALESCE(instagram,'') as instagram, COALESCE(facebook,'') as facebook,
 	COALESCE(linkedin,'') as linkedin, COALESCE(tiktok,'') as tiktok,
 	COALESCE(youtube,'') as youtube, COALESCE(cnpj,'') as cnpj,
-	COALESCE(ai_analysis,'') as ai_analysis,
+	COALESCE(ai_analysis,'') as ai_analysis, deep_data,
 	created_at, updated_at`
 
 func scanLead(s interface {
@@ -41,7 +41,7 @@ func scanLead(s interface {
 		&l.EstimatedValue, &l.Tags,
 		&l.Nicho, &l.Resumo, &l.TipoTelefone, &l.LinkWhatsapp,
 		&l.Instagram, &l.Facebook, &l.LinkedIn, &l.TikTok,
-		&l.YouTube, &l.CNPJ, &l.AIAnalysis,
+		&l.YouTube, &l.CNPJ, &l.AIAnalysis, &l.DeepData,
 		&l.CreatedAt, &l.UpdatedAt,
 	)
 }
@@ -72,15 +72,15 @@ func (r *SQLLead) Create(ctx context.Context, lead *models.Lead) error {
 		(id, company_id, scrape_id, source_id, name, phone, address, website, email, rating, reviews,
 		 kanban_status, enrichment_status, notes, estimated_value, tags,
 		 nicho, resumo, tipo_telefone, link_whatsapp, instagram, facebook, linkedin, tiktok, youtube, cnpj,
-		 created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`
+		 ai_analysis, deep_data, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`
 	_, err := r.db.ExecContext(ctx, query,
 		lead.ID, lead.CompanyID, lead.ScrapeID, lead.SourceID,
 		lead.Name, lead.Phone, lead.Address, lead.Website, lead.Email, lead.Rating, lead.Reviews,
 		lead.KanbanStatus, lead.EnrichmentStatus, lead.Notes, lead.EstimatedValue, lead.Tags,
 		lead.Nicho, lead.Resumo, lead.TipoTelefone, lead.LinkWhatsapp,
 		lead.Instagram, lead.Facebook, lead.LinkedIn, lead.TikTok, lead.YouTube, lead.CNPJ,
-		lead.CreatedAt, lead.UpdatedAt,
+		lead.AIAnalysis, lead.DeepData, lead.CreatedAt, lead.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("create lead: %w", err)
@@ -100,8 +100,8 @@ func (r *SQLLead) BulkCreate(ctx context.Context, leads []*models.Lead) error {
 		(id, company_id, scrape_id, source_id, name, phone, address, website, email, rating, reviews,
 		 kanban_status, enrichment_status, notes, estimated_value, tags,
 		 nicho, resumo, tipo_telefone, link_whatsapp, instagram, facebook, linkedin, tiktok, youtube, cnpj,
-		 created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`
+		 ai_analysis, deep_data, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`
 
 	for _, lead := range leads {
 		if lead.ID == "" {
@@ -116,7 +116,7 @@ func (r *SQLLead) BulkCreate(ctx context.Context, leads []*models.Lead) error {
 			lead.KanbanStatus, lead.EnrichmentStatus, lead.Notes, lead.EstimatedValue, lead.Tags,
 			lead.Nicho, lead.Resumo, lead.TipoTelefone, lead.LinkWhatsapp,
 			lead.Instagram, lead.Facebook, lead.LinkedIn, lead.TikTok, lead.YouTube, lead.CNPJ,
-			lead.CreatedAt, lead.UpdatedAt,
+			lead.AIAnalysis, lead.DeepData, lead.CreatedAt, lead.UpdatedAt,
 		); err != nil {
 			return fmt.Errorf("bulk create lead %q: %w", lead.Name, err)
 		}
@@ -130,12 +130,14 @@ func (r *SQLLead) Update(ctx context.Context, lead *models.Lead) error {
 	query := `UPDATE leads
 		SET name=$1, phone=$2, address=$3, website=$4, email=$5,
 		    kanban_status=$6, enrichment_status=$7, notes=$8,
-		    estimated_value=$9, tags=$10, link_whatsapp=$11, updated_at=$12
-		WHERE id=$13 AND company_id=$14`
+		    estimated_value=$9, tags=$10, link_whatsapp=$11, 
+		    ai_analysis=$12, deep_data=$13, updated_at=$14
+		WHERE id=$15 AND company_id=$16`
 	res, err := r.db.ExecContext(ctx, query,
 		lead.Name, lead.Phone, lead.Address, lead.Website, lead.Email,
 		lead.KanbanStatus, lead.EnrichmentStatus, lead.Notes,
-		lead.EstimatedValue, lead.Tags, lead.LinkWhatsapp, lead.UpdatedAt,
+		lead.EstimatedValue, lead.Tags, lead.LinkWhatsapp, 
+		lead.AIAnalysis, lead.DeepData, lead.UpdatedAt,
 		lead.ID, lead.CompanyID,
 	)
 	if err != nil {

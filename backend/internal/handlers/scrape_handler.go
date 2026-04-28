@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -87,8 +89,6 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 				job.Logs = cmdErr.Error()
 			}
 		} else {
-			job.Status = domain.ScrapeCompleted
-			
 			// 4. Insere automaticamente os leads CSV vinculados ao JobID
 			nichoFmt := strings.ReplaceAll(req.Nicho, " ", "_")
 			cidadeFmt := strings.ReplaceAll(req.Localizacao, " ", "_")
@@ -104,8 +104,12 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 					h.service.ImportCSV(context.Background(), records, req.Nicho, &jobID)
 				}
 			}
+			// Job moves to ENRICHING — completion is triggered by the enrichment
+			// worker once ALL leads reach a terminal enrichment status.
+			job.Status = domain.ScrapeEnriching
+			log.Printf("📋 [Scrape] Job %s → ENRICHING (aguardando enriquecimento dos leads)", jobID)
 		}
-		
+
 		h.service.UpdateJob(context.Background(), job)
 	}()
 
@@ -174,12 +178,13 @@ type ScrapeSyncRequest struct {
 
 // syncLeadDTO maps domain.Lead fields to the naming convention expected by WhatsMiau.
 type syncLeadDTO struct {
-	Name    string `json:"name"`
-	Phone   string `json:"phone"`
-	Address string `json:"address,omitempty"`
-	Website string `json:"website,omitempty"`
-	Rating  string `json:"rating,omitempty"`
-	Reviews string `json:"reviews,omitempty"`
+	Name     string          `json:"name"`
+	Phone    string          `json:"phone"`
+	Address  string          `json:"address,omitempty"`
+	Website  string          `json:"website,omitempty"`
+	Rating   string          `json:"rating,omitempty"`
+	Reviews  string          `json:"reviews,omitempty"`
+	DeepData json.RawMessage `json:"deep_data,omitempty"`
 }
 
 // StartSync runs the scraping pipeline synchronously and returns the parsed leads directly.
@@ -249,12 +254,13 @@ func (h *ScrapeHandler) StartSync(c *fiber.Ctx) error {
 	mapped := make([]syncLeadDTO, len(leads))
 	for i, l := range leads {
 		mapped[i] = syncLeadDTO{
-			Name:    l.Empresa,
-			Phone:   l.Telefone,
-			Address: l.Endereco,
-			Website: l.Site,
-			Rating:  l.Rating,
-			Reviews: l.QtdAvaliacoes,
+			Name:     l.Empresa,
+			Phone:    l.Telefone,
+			Address:  l.Endereco,
+			Website:  l.Site,
+			Rating:   l.Rating,
+			Reviews:  l.QtdAvaliacoes,
+			DeepData: json.RawMessage(l.DeepData),
 		}
 	}
 
@@ -310,7 +316,6 @@ func (h *ScrapeHandler) StartAsync(c *fiber.Ctx) error {
 				job.Logs = cmdErr.Error()
 			}
 		} else {
-			job.Status = domain.ScrapeCompleted
 			nichoFmt := strings.ReplaceAll(req.Keyword, " ", "_")
 			cidadeFmt := strings.ReplaceAll(req.Location, " ", "_")
 			fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
@@ -324,6 +329,8 @@ func (h *ScrapeHandler) StartAsync(c *fiber.Ctx) error {
 					h.service.ImportCSV(context.Background(), records, req.Keyword, &jobID)
 				}
 			}
+			job.Status = domain.ScrapeEnriching
+			log.Printf("📋 [Scrape] Job %s → ENRICHING (aguardando enriquecimento dos leads)", jobID)
 		}
 		h.service.UpdateJob(context.Background(), job)
 	}()
@@ -351,12 +358,13 @@ func (h *ScrapeHandler) StatusWithLeads(c *fiber.Ctx) error {
 		mapped := make([]syncLeadDTO, len(leads))
 		for i, l := range leads {
 			mapped[i] = syncLeadDTO{
-				Name:    l.Empresa,
-				Phone:   l.Telefone,
-				Address: l.Endereco,
-				Website: l.Site,
-				Rating:  l.Rating,
-				Reviews: l.QtdAvaliacoes,
+				Name:     l.Empresa,
+				Phone:    l.Telefone,
+				Address:  l.Endereco,
+				Website:  l.Site,
+				Rating:   l.Rating,
+				Reviews:  l.QtdAvaliacoes,
+				DeepData: json.RawMessage(l.DeepData),
 			}
 		}
 		resp["total"] = len(mapped)
