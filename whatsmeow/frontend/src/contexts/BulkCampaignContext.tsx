@@ -72,7 +72,7 @@ export const BulkCampaignProvider: React.FC<{ children: React.ReactNode }> = ({ 
     });
 
     const token = localStorage.getItem('token');
-    const sherlockUrl = (import.meta.env.VITE_SHERLOCK_API_URL as string) || 'http://localhost:3000/api/v1';
+    const sherlockUrl = (import.meta.env.VITE_SHERLOCK_API_URL as string) || 'http://localhost:3005/api/v1';
     const baseUrl = sherlockUrl.replace(/\/+$/, '');
     const es = new EventSource(`${baseUrl}/campaigns/${campaignId}/stream?token=${token || ''}`);
     eventSourceRef.current = es;

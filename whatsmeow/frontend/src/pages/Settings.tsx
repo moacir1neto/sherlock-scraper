@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, Volume2, Brain, Save, Loader2 } from 'lucide-react';
+import { Bell, Volume2, Brain, Save, Loader2, Bot } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getNotificationSettings, setNotificationSettings, NotificationSettings } from '../utils/notificationSettings';
 import { aiSettingsService } from '../services/ai-settings';
@@ -35,6 +35,8 @@ const DEFAULT_AI: AISettingsConfig = {
   nicho: '',
   oferta: '',
   tom_de_voz: '',
+  agent_enabled: false,
+  agent_system_prompt: '',
 };
 
 // ── Seção: Inteligência Artificial ────────────────────────────────────────────
@@ -176,6 +178,45 @@ function AISettingsSection() {
           ))}
         </select>
       )}
+
+      {/* ── Super Vendedor ─────────────────────────────────────────────────── */}
+      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Bot size={18} className="text-primary-600 dark:text-primary-400" />
+            <span className="font-medium text-gray-900 dark:text-white text-sm">Super Vendedor (IA Autônoma)</span>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.agent_enabled}
+              onChange={(e) => setForm((f) => ({ ...f, agent_enabled: e.target.checked }))}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500 dark:peer-focus:ring-primary-600 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600" />
+          </label>
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Quando ativo, a IA responde automaticamente no WhatsApp. Ao detectar intenção de fechamento, pausa e alerta o operador.
+        </p>
+        {form.agent_enabled && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Prompt do Agente (System Prompt)
+            </label>
+            <textarea
+              rows={6}
+              placeholder={`Ex: Você é um vendedor consultivo da empresa. Seu objetivo é qualificar leads e gerar interesse na nossa solução. Seja direto, empático e foque em entender a dor do cliente antes de apresentar a solução. Nunca prometa preços sem consultar o time.`}
+              value={form.agent_system_prompt}
+              onChange={(e) => setForm((f) => ({ ...f, agent_system_prompt: e.target.value }))}
+              className={`${inputCls} resize-none`}
+            />
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              Define personalidade, regras de negócio e tom do agente. O contexto da empresa acima é incluído automaticamente.
+            </p>
+          </div>
+        )}
+      </div>
 
       <Button type="submit" disabled={saving} className="w-full">
         {saving

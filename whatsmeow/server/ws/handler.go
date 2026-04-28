@@ -44,7 +44,9 @@ func (h *ChatHandler) ServeWS(c echo.Context) error {
 		}
 	}
 
-	conn, err := websocket.Accept(c.Response().Writer, c.Request(), nil)
+	conn, err := websocket.Accept(c.Response().Writer, c.Request(), &websocket.AcceptOptions{
+		OriginPatterns: []string{"localhost:3031"},
+	})
 	if err != nil {
 		zap.L().Error("ws accept failed", zap.Error(err))
 		return err

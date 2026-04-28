@@ -9,7 +9,7 @@ export interface ExtractResponse {
 
 export const sherlockService = {
   // Inicia uma campanha de raspagem — retorna scrape_id imediatamente
-  extract: (data: { keyword: string; location: string; limit?: number }) =>
+  extract: (data: { keyword: string; location: string; limit?: number; company_id?: string }) =>
     api.post<ExtractResponse>('/admin/sherlock/extract', data),
 
   // Lista todas as campanhas da empresa

@@ -11,6 +11,7 @@ type Chat struct {
 	LastMessagePreview string     `json:"last_message_preview,omitempty" db:"last_message_preview"`
 	SectorID           *string    `json:"sector_id,omitempty" db:"sector_id"`
 	Status             string     `json:"status,omitempty" db:"status"`
+	AIPaused           bool       `json:"ai_paused" db:"ai_paused"`
 	CreatedAt          time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at" db:"updated_at"`
 }

@@ -20,6 +20,62 @@ type SocialData struct {
 	ErrorMessage  string
 }
 
+// BusinessInsights holds structured business information extracted by AI
+type BusinessInsights struct {
+	BusinessType   string   `json:"business_type"`
+	Services       []string `json:"services"`
+	TargetAudience string   `json:"target_audience"`
+	Tone           string   `json:"tone"`
+	MarketingLevel string   `json:"marketing_level"`
+	HasWhatsApp    bool     `json:"has_whatsapp"`
+}
+
+// Validate sanitizes and applies business rules to the extracted insights
+func (b *BusinessInsights) Validate() {
+	// 1. Sanitizar e validar BusinessType
+	b.BusinessType = strings.TrimSpace(b.BusinessType)
+	if len(b.BusinessType) > 200 {
+		b.BusinessType = b.BusinessType[:200]
+	}
+	if len(b.BusinessType) < 3 {
+		log.Printf("⚠️  [Validation] BusinessType muito curto ou vazio: '%s'", b.BusinessType)
+	}
+
+	// 2. Validar e filtrar Services
+	var uniqueServices []string
+	seen := make(map[string]bool)
+	for _, s := range b.Services {
+		s = strings.TrimSpace(s)
+		if s != "" && !seen[s] && len(s) <= 200 {
+			seen[s] = true
+			uniqueServices = append(uniqueServices, s)
+		}
+		if len(uniqueServices) >= 5 {
+			break
+		}
+	}
+	b.Services = uniqueServices
+
+	// 3. Validar MarketingLevel
+	b.MarketingLevel = strings.ToLower(strings.TrimSpace(b.MarketingLevel))
+	validLevels := map[string]bool{"baixo": true, "medio": true, "alto": true}
+	if !validLevels[b.MarketingLevel] {
+		log.Printf("⚠️  [Validation] MarketingLevel inválido ('%s'), usando fallback 'medio'", b.MarketingLevel)
+		b.MarketingLevel = "medio"
+	}
+
+	// 4. Sanitizar demais campos
+	b.TargetAudience = strings.TrimSpace(b.TargetAudience)
+	if len(b.TargetAudience) > 200 {
+		b.TargetAudience = b.TargetAudience[:200]
+	}
+
+	b.Tone = strings.TrimSpace(b.Tone)
+	if len(b.Tone) > 200 {
+		b.Tone = b.Tone[:200]
+	}
+}
+
 // DeepDataStructure represents the JSONB structure for lead deep intelligence
 type DeepDataStructure struct {
 	Instagram *SocialPlatformData `json:"instagram,omitempty"`
@@ -27,6 +83,7 @@ type DeepDataStructure struct {
 	YouTube   *SocialPlatformData `json:"youtube,omitempty"`
 	TikTok    *SocialPlatformData `json:"tiktok,omitempty"`
 	Google    *GoogleData         `json:"google,omitempty"`
+	Insights  *BusinessInsights   `json:"insights,omitempty"`
 }
 
 // SocialPlatformData holds data for a specific social platform

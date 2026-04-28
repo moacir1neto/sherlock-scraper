@@ -109,8 +109,7 @@ func (s *AIService) GenerateLeadStrategy(input LeadAnalysisInput, settings domai
 	}
 	defer client.Close()
 
-	// Usa o modelo Gemini 1.5 Flash (rápido e econômico)
-	model := client.GenerativeModel("gemini-3.1-flash-lite-preview")
+	model := client.GenerativeModel("gemini-2.5-flash")
 
 	// Configura o modelo para retornar JSON
 	model.ResponseMIMEType = "application/json"
@@ -500,7 +499,7 @@ func (s *AIService) GeneratePipelineStages(niche string) (*AIPipelineResponse, e
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-3.1-flash-lite-preview")
+	model := client.GenerativeModel("gemini-2.5-flash")
 	model.ResponseMIMEType = "application/json"
 
 	systemPrompt := `Você é um Especialista Sênior em Operações de Vendas e CRM.

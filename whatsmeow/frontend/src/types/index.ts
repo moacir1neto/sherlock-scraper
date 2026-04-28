@@ -236,5 +236,7 @@ export interface AISettingsConfig {
   nicho: string;
   oferta: string;
   tom_de_voz: string;
+  agent_enabled: boolean;
+  agent_system_prompt: string;
   updated_at?: string;
 }

@@ -44,6 +44,7 @@ type ConnectInstanceRequest struct {
 }
 
 type ConnectInstanceResponse struct {
+	Status    string `json:"status"`
 	Message   string `json:"message,omitempty"`
 	Connected bool   `json:"connected,omitempty"`
 	Base64    string `json:"base64,omitempty"`

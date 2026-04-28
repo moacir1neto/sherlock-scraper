@@ -13,6 +13,7 @@ services:
       - REDIS_URL=redis:6379
       - DB_URL=postgres://whatsmiau:123456@db:5432/whatsmiau?sslmode=disable
       - DIALECT_DB=postgres
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     volumes:
       - whatsmeow:/app/data
     depends_on:

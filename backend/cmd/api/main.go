@@ -87,6 +87,14 @@ func main() {
 	api.Get("/campaigns/:id/stream", campaignSSE.Stream)
 	// --------------------------------------------------------------------------
 
+	// --- DOSSIER DEEP RESEARCH ---
+	// POST /api/v1/leads/:id/dossier       — enfileira dossier:analyze
+	// GET  /api/v1/leads/:id/dossier/stream — SSE Redis Pub/Sub dossier:logs:<id>
+	dossierHandler := handlers.NewDossierHandler()
+	api.Post("/leads/:id/dossier", dossierHandler.Enqueue)
+	api.Get("/leads/:id/dossier/stream", dossierHandler.Stream)
+	// -----------------------------
+
 	// 5.2. Protected Routes
 	protected := api.Group("/protected", middlewares.Protected())
 	protected.Get("/me", func(c *fiber.Ctx) error {

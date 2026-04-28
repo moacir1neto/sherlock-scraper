@@ -29,27 +29,8 @@ export function InstanceCard({ instance, onUpdate, onSelect }: InstanceCardProps
   const [savingSettings, setSavingSettings] = useState(false);
   const canManageAccess = user?.role === 'admin' || user?.role === 'super_admin';
 
-  const handleConnect = async () => {
-    try {
-      setLoading('connect');
-      // Primeiro tenta conectar para iniciar o processo
-      try {
-        await instanceService.connect(instance.instanceName);
-      } catch (connectError: any) {
-        // Se der erro 404, a instância pode não existir ainda
-        if (connectError.response?.status === 404) {
-          toast.error('Instância não encontrada. Recarregue a página e tente novamente.');
-          return;
-        }
-        // Outros erros podem ser ignorados, vamos tentar obter o QR code mesmo assim
-      }
-      setShowQR(true);
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Erro ao iniciar conexão';
-      toast.error(errorMessage);
-    } finally {
-      setLoading(null);
-    }
+  const handleConnect = () => {
+    setShowQR(true);
   };
 
   const handleLogout = async () => {

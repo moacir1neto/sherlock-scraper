@@ -26,6 +26,7 @@ type ScrapingStatus string
 
 const (
 	ScrapeRunning   ScrapingStatus = "running"
+	ScrapeEnriching ScrapingStatus = "enriching"
 	ScrapeCompleted ScrapingStatus = "completed"
 	ScrapeError     ScrapingStatus = "error"
 )
@@ -33,9 +34,10 @@ const (
 type EnrichmentStatus string
 
 const (
-	StatusCapturado    EnrichmentStatus = "CAPTURADO"
-	StatusEnriquecendo EnrichmentStatus = "ENRIQUECENDO"
-	StatusEnriquecido  EnrichmentStatus = "ENRIQUECIDO"
+	StatusCapturado       EnrichmentStatus = "CAPTURADO"
+	StatusEnriquecendo    EnrichmentStatus = "ENRIQUECENDO"
+	StatusEnriquecido     EnrichmentStatus = "ENRIQUECIDO"
+	StatusEnrichmentFailed EnrichmentStatus = "ENRICHMENT_FAILED"
 )
 
 type ScrapingJob struct {
@@ -54,8 +56,8 @@ type Lead struct {
 	ScrapingJobID *uuid.UUID   `gorm:"type:uuid;index"`
 	Empresa       string       `gorm:"type:varchar(255);not null"`
 	Nicho         string       `gorm:"type:varchar(255)"`
-	Rating        string       `gorm:"type:varchar(50)"`
-	QtdAvaliacoes string       `gorm:"type:varchar(50)"`
+	Rating        string       `json:"rating" gorm:"type:varchar(50)"`
+	QtdAvaliacoes string       `json:"reviews" gorm:"type:varchar(50)"`
 	ResumoNegocio string       `gorm:"type:text"`
 	Endereco      string       `gorm:"type:varchar(500)"`
 	Telefone      string       `gorm:"type:varchar(50)"`
@@ -71,7 +73,7 @@ type Lead struct {
 	CNPJ             string           `gorm:"type:varchar(20)"`
 	TemPixel         bool             `gorm:"default:false"`
 	TemGTM           bool             `gorm:"default:false"`
-	DeepData         datatypes.JSON   `gorm:"type:jsonb"`
+	DeepData         datatypes.JSON   `json:"deep_data" gorm:"type:jsonb"`
 	AIAnalysis       datatypes.JSON   `json:"ai_analysis" gorm:"type:jsonb"`
 	Status           EnrichmentStatus `gorm:"type:varchar(50);default:'CAPTURADO'"`
 	KanbanStatus     KanbanStatus     `gorm:"type:varchar(50);default:'prospeccao'"`
@@ -80,8 +82,20 @@ type Lead struct {
 	DueDate          *time.Time       `json:"due_date" gorm:"type:date"`
 	Tags             string           `json:"tags" gorm:"type:varchar(500)"`
 	LinkedLeadID     *uuid.UUID       `json:"linked_lead_id" gorm:"type:uuid"`
+	DossierData      datatypes.JSON   `json:"dossier_data" gorm:"type:jsonb"`
+	DossierAnalysis  string           `json:"dossier_analysis" gorm:"type:text"`
+	Score            int              `json:"score" gorm:"default:0"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+// LeadDossier armazena o resultado gerado pelo pipeline dossier:analyze.
+// Tabela separada para não poluir Lead e permitir cache imutável.
+type LeadDossier struct {
+	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	LeadID    uuid.UUID `gorm:"type:uuid;not null;index"`
+	Content   string    `gorm:"type:text;not null"`
+	CreatedAt time.Time
 }
 
 func (l *Lead) BeforeCreate(tx *gorm.DB) (err error) {

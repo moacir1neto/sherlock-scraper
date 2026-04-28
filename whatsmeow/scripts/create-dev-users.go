@@ -69,7 +69,7 @@ func main() {
 			// Criar novo usuário
 			id := uuid.New().String()
 			_, err := db.Exec(
-				"INSERT INTO users (id, nome, email, senha, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())",
+				"INSERT INTO users (id, nome, email, senha, role, company_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, '00000000-0000-0000-0000-000000000001', NOW(), NOW())",
 				id, devUser.nome, devUser.email, hashedPassword, devUser.role,
 			)
 			if err != nil {
@@ -83,7 +83,7 @@ func main() {
 		} else {
 			// Atualizar usuário existente
 			_, err := db.Exec(
-				"UPDATE users SET nome = $1, senha = $2, role = $3, updated_at = NOW() WHERE email = $4",
+				"UPDATE users SET nome = $1, senha = $2, role = $3, company_id = '00000000-0000-0000-0000-000000000001', updated_at = NOW() WHERE email = $4",
 				devUser.nome, hashedPassword, devUser.role, devUser.email,
 			)
 			if err != nil {

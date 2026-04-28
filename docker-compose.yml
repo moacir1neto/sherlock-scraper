@@ -24,9 +24,15 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: crm
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
@@ -35,9 +41,9 @@ services:
     env_file:
       - ./backend/.env
     ports:
-      - "3000:3000"
+      - "3005:3000"
     environment:
-      DATABASE_URL: "host=db user=postgres password=password dbname=crm port=5432 sslmode=disable TimeZone=America/Sao_Paulo"
+      DATABASE_URL: "host=db user=postgres password=password dbname=crm port=5432 sslmode=disable"
       JWT_SECRET: "my_dev_super_secret"
       REDIS_ADDR: "redis:6379"
       GEMINI_API_KEY: "${GEMINI_API_KEY}"
@@ -49,11 +55,11 @@ services:
       WHATSMIau_API_TOKEN: "seu_token_de_api_aqui" # Vamos gerar isso no painel depois
       INTERNAL_API_TOKEN: "9a3c8f650547ee1b91c947c40f7c792bc303d5bb857f3bbb2c0f0af1c8d98e70"
     volumes:
-      - ./backend:/app
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/workspace
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   frontend:
     build:
@@ -62,7 +68,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: "http://localhost:3000/api/v1"
+      VITE_API_URL: "http://localhost:3005/api/v1"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -91,8 +97,10 @@ services:
     volumes:
       - whatsmiau_data:/app/data
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     restart: unless-stopped
 
   whatsmiau-ui:

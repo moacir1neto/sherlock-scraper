@@ -691,6 +691,7 @@ func RunMigrations() error {
 	addLeadCol("youtube", "VARCHAR(255) DEFAULT ''")
 	addLeadCol("cnpj", "VARCHAR(20) DEFAULT ''")
 	addLeadCol("ai_analysis", "TEXT DEFAULT NULL")
+	addLeadCol("deep_data", "JSONB DEFAULT NULL")
 	// Índice para buscar leads por campanha
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_leads_scrape ON leads(scrape_id)`); err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
@@ -744,6 +745,39 @@ func RunMigrations() error {
 	if _, err := db.Exec(`UPDATE users SET company_id = '00000000-0000-0000-0000-000000000001' WHERE role = 'super_admin' AND (company_id IS NULL OR company_id = '')`); err != nil {
 		zap.L().Warn("migrations: could not assign default company to super_admin", zap.Error(err))
 	}
+
+	// Super Vendedor: novos campos em company_ai_settings
+	addAICol := func(col, def string) {
+		var q string
+		if env.Env.DBDialect == "postgres" {
+			q = fmt.Sprintf("ALTER TABLE company_ai_settings ADD COLUMN IF NOT EXISTS %s %s", col, def)
+		} else {
+			q = fmt.Sprintf("ALTER TABLE company_ai_settings ADD COLUMN %s %s", col, def)
+		}
+		if _, err := db.Exec(q); err != nil {
+			if !strings.Contains(err.Error(), "already exists") && !strings.Contains(err.Error(), "duplicate column") {
+				zap.L().Warn("ai_settings migration: add column", zap.String("col", col), zap.Error(err))
+			}
+		}
+	}
+	addAICol("agent_enabled", "BOOLEAN NOT NULL DEFAULT FALSE")
+	addAICol("agent_system_prompt", "TEXT NOT NULL DEFAULT ''")
+
+	// Pausa da IA por conversa (chats)
+	addChatsAIPaused := func() {
+		var q string
+		if env.Env.DBDialect == "postgres" {
+			q = "ALTER TABLE chats ADD COLUMN IF NOT EXISTS ai_paused BOOLEAN NOT NULL DEFAULT FALSE"
+		} else {
+			q = "ALTER TABLE chats ADD COLUMN ai_paused BOOLEAN NOT NULL DEFAULT FALSE"
+		}
+		if _, err := db.Exec(q); err != nil {
+			if !strings.Contains(err.Error(), "already exists") && !strings.Contains(err.Error(), "duplicate column") {
+				zap.L().Warn("chats migration: add ai_paused", zap.Error(err))
+			}
+		}
+	}
+	addChatsAIPaused()
 
 	zap.L().Info("Migrations completed successfully")
 	return nil

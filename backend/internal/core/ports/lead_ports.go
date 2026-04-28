@@ -34,6 +34,10 @@ type LeadRepository interface {
 	GetScrapeJob(ctx context.Context, id string) (*domain.ScrapingJob, error)
 	ListScrapeJobs(ctx context.Context) ([]*domain.ScrapingJob, error)
 	DeleteScrapeJob(ctx context.Context, id string) error
+
+	// CountPendingEnrichment returns how many leads for a job are still being
+	// enriched (i.e. NOT in ENRIQUECIDO or ENRICHMENT_FAILED).
+	CountPendingEnrichment(ctx context.Context, jobID string) (int64, error)
 }
 
 type BulkSendLead struct {

@@ -3,6 +3,8 @@ package controllers
 import (
 	"context"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -36,15 +38,21 @@ func NewSherlock(service *services.SherlockService, scrapeRepo interfaces.Scrape
 func (s *Sherlock) Extract(ctx echo.Context) error {
 	companyID, _ := ctx.Get("company_id").(string)
 	userID, _ := ctx.Get("user_id").(string)
-
-	if companyID == "" {
-		return utils.HTTPFail(ctx, http.StatusForbidden, nil, "company_id required")
-	}
+	userRole, _ := ctx.Get("user_role").(string)
 
 	var request dto.ExtractLeadsRequest
 	if err := ctx.Bind(&request); err != nil {
 		zap.L().Warn("failed to bind request body", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "failed to bind request body")
+	}
+
+	// Se for super_admin, permite passar company_id no body
+	if companyID == "" && userRole == "super_admin" {
+		companyID = request.CompanyID
+	}
+
+	if companyID == "" {
+		return utils.HTTPFail(ctx, http.StatusForbidden, nil, "company_id required")
 	}
 	if err := validator.New().Struct(&request); err != nil {
 		zap.L().Warn("invalid request body", zap.Error(err))
@@ -96,7 +104,9 @@ func (s *Sherlock) runExtraction(scrapeID, companyID string, request dto.Extract
 	now := time.Now()
 	batch := make([]*models.Lead, 0, len(result.Leads))
 	for _, l := range result.Leads {
-		batch = append(batch, &models.Lead{
+		rating := parseRating(l.Rating)
+		reviews := parseReviews(l.Reviews)
+		lead := &models.Lead{
 			CompanyID:        companyID,
 			ScrapeID:         scrapeID,
 			SourceID:         "sherlock",
@@ -104,13 +114,18 @@ func (s *Sherlock) runExtraction(scrapeID, companyID string, request dto.Extract
 			Phone:            l.Phone,
 			Address:          l.Address,
 			Website:          l.Website,
-			Rating:           0,
-			Reviews:          0,
+			Rating:           rating,
+			Reviews:          reviews,
 			Nicho:            request.Keyword,
 			KanbanStatus:     "prospeccao",
 			EnrichmentStatus: "CAPTURADO",
+			DeepData:         l.DeepData,
 			CreatedAt:        now,
-		})
+		}
+		if rating == 0 && reviews == 0 && len(l.DeepData) == 0 {
+			zap.L().Warn("lead imported with no enrichment data", zap.String("name", l.Name))
+		}
+		batch = append(batch, lead)
 	}
 
 	if len(batch) > 0 {
@@ -151,6 +166,14 @@ func (s *Sherlock) GetScrape(ctx echo.Context) error {
 	companyID, _ := ctx.Get("company_id").(string)
 	id := ctx.Param("id")
 
+	if companyID == "" {
+		if q := ctx.QueryParam("company_id"); q != "" {
+			if role, _ := ctx.Get("user_role").(string); role == "super_admin" {
+				companyID = q
+			}
+		}
+	}
+
 	scrape, err := s.scrapeRepo.GetByID(ctx.Request().Context(), id, companyID)
 	if err != nil {
 		if err == scrapeRepo.ErrNotFound {
@@ -167,6 +190,14 @@ func (s *Sherlock) DeleteScrape(ctx echo.Context) error {
 	companyID, _ := ctx.Get("company_id").(string)
 	id := ctx.Param("id")
 
+	if companyID == "" {
+		if q := ctx.QueryParam("company_id"); q != "" {
+			if role, _ := ctx.Get("user_role").(string); role == "super_admin" {
+				companyID = q
+			}
+		}
+	}
+
 	if err := s.scrapeRepo.Delete(ctx.Request().Context(), id, companyID); err != nil {
 		if err == scrapeRepo.ErrNotFound {
 			return utils.HTTPFail(ctx, http.StatusNotFound, nil, "scrape not found")
@@ -175,4 +206,29 @@ func (s *Sherlock) DeleteScrape(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to delete scraping campaign")
 	}
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// parseRating converte "4,5" ou "4.5" para float64. Retorna 0 se inválido.
+func parseRating(s string) float64 {
+	s = strings.TrimSpace(strings.ReplaceAll(s, ",", "."))
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// parseReviews converte "1.448" ou "1448" para int. Retorna 0 se inválido.
+func parseReviews(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "-" {
+		return 0
+	}
+	s = strings.ReplaceAll(s, ".", "")
+	s = strings.ReplaceAll(s, ",", "")
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return v
 }

@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Lead struct {
 	ID               string    `json:"id" db:"id"`
@@ -30,7 +33,8 @@ type Lead struct {
 	TikTok       string `json:"tiktok" db:"tiktok"`
 	YouTube      string `json:"youtube" db:"youtube"`
 	CNPJ         string `json:"cnpj" db:"cnpj"`
-	AIAnalysis   string `json:"ai_analysis" db:"ai_analysis"` // JSON string do dossiê IA
-	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	AIAnalysis   string          `json:"ai_analysis" db:"ai_analysis"` // JSON string do dossiê IA
+	DeepData     json.RawMessage `json:"deep_data" db:"deep_data"`
+	CreatedAt    time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }

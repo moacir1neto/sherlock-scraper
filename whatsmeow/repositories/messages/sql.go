@@ -39,11 +39,16 @@ func (r *SQLMessage) Create(ctx context.Context, msg *models.Message) error {
 		msg.CreatedAt = time.Now()
 	}
 	query := `INSERT INTO messages (id, chat_id, wa_message_id, from_me, message_type, content, media_url, status, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
-	_, err := r.db.ExecContext(ctx, query,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (chat_id, wa_message_id) DO NOTHING`
+	result, err := r.db.ExecContext(ctx, query,
 		msg.ID, msg.ChatID, msg.WAMessageID, msg.FromMe, msg.MessageType, msg.Content, msg.MediaURL, msg.Status, msg.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create message: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return interfaces.ErrMessageDuplicate
 	}
 	return nil
 }

@@ -4,6 +4,7 @@
 .env
 .env.*
 !.env.example
+.env.example
 *.pem
 *.key
 
@@ -62,3 +63,32 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+
+
+## ias
+
+graphify-out
+
+docs
+.claude
+.agents
+.cursor
+
+am-project.config.md
+
+
+
+
+whatsmeow/.env.example
+
+.env    
+
+
+whatsmeow/.env.example
+
+
+whatsmeow/.env.example
+
+
+
+/home/moadev/projetos/sherlock-scraper/.env.example

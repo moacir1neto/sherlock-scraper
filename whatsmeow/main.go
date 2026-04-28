@@ -17,6 +17,7 @@ import (
 	"github.com/verbeux-ai/whatsmiau/server/routes"
 	"github.com/verbeux-ai/whatsmiau/services"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 )
@@ -53,7 +54,18 @@ func main() {
 		AllowCredentials: false,
 	}))
 
-	hub := routes.Load(app)
+	// Super Vendedor: HandoffHub para alertas SSE em tempo real
+	handoffHub := services.NewHandoffHub()
+
+	// System Logs: hub SSE para painel de logs em tempo real (super_admin)
+	systemLogHub := services.NewSystemLogHub()
+	// Injeta o HubZapCore no logger global para capturar Info/Warn/Error automaticamente
+	zapCore := services.NewHubZapCore(systemLogHub, zapcore.InfoLevel)
+	zap.ReplaceGlobals(zap.L().WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return zapcore.NewTee(core, zapCore)
+	})))
+
+	hub := routes.Load(app, handoffHub, systemLogHub)
 
 	// Start chat persistence workers (enqueue from event handler, persist in background, broadcast via WS)
 	// O KanbanAutomation move o lead automaticamente no CRM quando recebe ou envia mensagens.
@@ -61,12 +73,30 @@ func main() {
 		if messageRepo, err := messages.NewSQL(); err == nil {
 			ch := services.NewChatJobChan()
 			whatsmiau.Get().SetChatJobChan(ch)
-			
+
 			leadRepo, _ := leads.NewSQL()
 			instancesRepo := instances.NewRedis(services.Redis())
 			kanbanSvc := services.NewKanbanAutomation(leadRepo, instancesRepo, hub)
-			
-			services.RunChatWorkers(ch, chatRepo, messageRepo, hub, kanbanSvc)
+
+			// Super Vendedor: inicializar o agente de vendas autônomo
+			var salesAgent *services.SalesAgentService
+			if db, err := services.DB(); err == nil {
+				salesAgent = services.NewSalesAgentService(db, instancesRepo, whatsmiau.Get(), handoffHub)
+				if env.Env.GeminiAPIKey == "" {
+					zap.L().Warn("Super Vendedor: GEMINI_API_KEY não configurada — agente inicializado mas respostas automáticas estão desativadas")
+				} else {
+					zap.L().Info("Super Vendedor inicializado")
+				}
+			} else {
+				zap.L().Warn("Super Vendedor desativado: falha ao abrir DB", zap.Error(err))
+			}
+
+			// LeadEventPublisher: publica mensagens recebidas no Redis Pub/Sub
+			// para o Sherlock CRM consumir via canal "whatsapp:messages:received".
+			publisher := services.NewRedisLeadEventPublisher(services.Redis())
+			zap.L().Info("LeadEventPublisher (Redis) inicializado")
+
+			services.RunChatWorkers(ch, chatRepo, messageRepo, hub, kanbanSvc, salesAgent, publisher, systemLogHub)
 		}
 	}
 

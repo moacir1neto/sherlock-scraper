@@ -43,21 +43,25 @@ func (c *AISettingsController) Save(ctx echo.Context) error {
 	}
 
 	var body struct {
-		CompanyName string `json:"company_name"`
-		Nicho       string `json:"nicho"`
-		Oferta      string `json:"oferta"`
-		TomDeVoz    string `json:"tom_de_voz"`
+		CompanyName       string `json:"company_name"`
+		Nicho             string `json:"nicho"`
+		Oferta            string `json:"oferta"`
+		TomDeVoz          string `json:"tom_de_voz"`
+		AgentEnabled      bool   `json:"agent_enabled"`
+		AgentSystemPrompt string `json:"agent_system_prompt"`
 	}
 	if err := ctx.Bind(&body); err != nil {
 		return utils.HTTPFail(ctx, http.StatusUnprocessableEntity, err, "invalid body")
 	}
 
 	settings := &models.AISettings{
-		CompanyID:   companyID,
-		CompanyName: body.CompanyName,
-		Nicho:       body.Nicho,
-		Oferta:      body.Oferta,
-		TomDeVoz:    body.TomDeVoz,
+		CompanyID:         companyID,
+		CompanyName:       body.CompanyName,
+		Nicho:             body.Nicho,
+		Oferta:            body.Oferta,
+		TomDeVoz:          body.TomDeVoz,
+		AgentEnabled:      body.AgentEnabled,
+		AgentSystemPrompt: body.AgentSystemPrompt,
 	}
 
 	if err := c.repo.Upsert(ctx.Request().Context(), settings); err != nil {

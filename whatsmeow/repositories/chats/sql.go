@@ -77,13 +77,13 @@ func truncatePreview(s string) string {
 }
 
 func (r *SQLChat) GetByInstanceAndRemoteJID(ctx context.Context, instanceID, remoteJID string) (*models.Chat, error) {
-	query := `SELECT id, instance_id, remote_jid, name, last_message_at, last_message_preview, sector_id, status, created_at, updated_at FROM chats WHERE instance_id = $1 AND remote_jid = $2`
+	query := `SELECT id, instance_id, remote_jid, name, last_message_at, last_message_preview, sector_id, status, COALESCE(ai_paused, false), created_at, updated_at FROM chats WHERE instance_id = $1 AND remote_jid = $2`
 	var c models.Chat
 	var lastAt sql.NullTime
 	var sectorID sql.NullString
 	var status sql.NullString
 	err := r.db.QueryRowContext(ctx, query, instanceID, remoteJID).Scan(
-		&c.ID, &c.InstanceID, &c.RemoteJID, &c.Name, &lastAt, &c.LastMessagePreview, &sectorID, &status, &c.CreatedAt, &c.UpdatedAt)
+		&c.ID, &c.InstanceID, &c.RemoteJID, &c.Name, &lastAt, &c.LastMessagePreview, &sectorID, &status, &c.AIPaused, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
@@ -110,7 +110,7 @@ func (r *SQLChat) ListByInstanceID(ctx context.Context, instanceID string, limit
 	if limit <= 0 || limit > 100 {
 		limit = 100
 	}
-	query := `SELECT id, instance_id, remote_jid, name, last_message_at, last_message_preview, sector_id, status, created_at, updated_at
+	query := `SELECT id, instance_id, remote_jid, name, last_message_at, last_message_preview, sector_id, status, COALESCE(ai_paused, false), created_at, updated_at
 		FROM chats WHERE instance_id = $1`
 	args := []interface{}{instanceID}
 	if len(allowedSectorIDs) > 0 {
@@ -137,7 +137,7 @@ func (r *SQLChat) ListByInstanceID(ctx context.Context, instanceID string, limit
 		var lastAt sql.NullTime
 		var sectorID sql.NullString
 		var status sql.NullString
-		if err := rows.Scan(&c.ID, &c.InstanceID, &c.RemoteJID, &c.Name, &lastAt, &c.LastMessagePreview, &sectorID, &status, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.InstanceID, &c.RemoteJID, &c.Name, &lastAt, &c.LastMessagePreview, &sectorID, &status, &c.AIPaused, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if lastAt.Valid {
@@ -159,13 +159,13 @@ func (r *SQLChat) ListByInstanceID(ctx context.Context, instanceID string, limit
 }
 
 func (r *SQLChat) GetByID(ctx context.Context, id string) (*models.Chat, error) {
-	query := `SELECT id, instance_id, remote_jid, name, last_message_at, last_message_preview, sector_id, status, created_at, updated_at FROM chats WHERE id = $1`
+	query := `SELECT id, instance_id, remote_jid, name, last_message_at, last_message_preview, sector_id, status, COALESCE(ai_paused, false), created_at, updated_at FROM chats WHERE id = $1`
 	var c models.Chat
 	var lastAt sql.NullTime
 	var sectorID sql.NullString
 	var status sql.NullString
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&c.ID, &c.InstanceID, &c.RemoteJID, &c.Name, &lastAt, &c.LastMessagePreview, &sectorID, &status, &c.CreatedAt, &c.UpdatedAt)
+		&c.ID, &c.InstanceID, &c.RemoteJID, &c.Name, &lastAt, &c.LastMessagePreview, &sectorID, &status, &c.AIPaused, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
@@ -192,6 +192,15 @@ func (r *SQLChat) GetByID(ctx context.Context, id string) (*models.Chat, error) 
 func (r *SQLChat) UpdateStatusAndSector(ctx context.Context, id string, status string, sectorID *string) error {
 	query := `UPDATE chats SET status = $1, sector_id = $2, updated_at = $3 WHERE id = $4`
 	_, err := r.db.ExecContext(ctx, query, status, sectorID, time.Now(), id)
+	return err
+}
+
+// ResumeAgent zera ai_paused=false para o chat, permitindo que o Super Vendedor volte a responder.
+func (r *SQLChat) ResumeAgent(ctx context.Context, chatID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE chats SET ai_paused = false, updated_at = $1 WHERE id = $2`,
+		time.Now(), chatID,
+	)
 	return err
 }
 

@@ -151,7 +151,7 @@ func (s *Whatsmiau) Connect(ctx context.Context, id string) (string, error) {
 	}
 	if client == nil {
 		zap.L().Info("[connect] already connected", zap.String("instance", id))
-		return "", nil
+		return "ALREADY_CONNECTED", nil
 	}
 
 	if qr, ok := s.qrCache.Load(id); ok {
@@ -159,15 +159,27 @@ func (s *Whatsmiau) Connect(ctx context.Context, id string) (string, error) {
 		return qr, nil
 	}
 
-	zap.L().Info("[connect] waiting for QR code generation", zap.String("instance", id))
-	qrCode, err := s.observeAndQrCode(ctx, id, client)
-	if err != nil {
-		zap.L().Error("[connect] observeAndQrCode failed", zap.String("instance", id), zap.Error(err))
-		return "", err
+	// Start observer in background (non-blocking)
+	if _, alreadyRunning := s.observerRunning.Load(id); !alreadyRunning {
+		zap.L().Info("[connect] launching observer goroutine", zap.String("instance", id))
+		s.observerRunning.Store(id, true)
+		go s.observeConnection(client, id)
 	}
 
-	zap.L().Info("[connect] QR code generated successfully", zap.String("instance", id))
-	return qrCode, nil
+	// Short optimistic wait — return QR if it arrives quickly
+	return s.waitForQRCode(id, 3*time.Second)
+}
+
+// GetCachedQR returns the cached QR code string for a given instance, if available.
+// Designed for lightweight polling from HTTP handlers.
+func (s *Whatsmiau) GetCachedQR(id string) (string, bool) {
+	return s.qrCache.Load(id)
+}
+
+// IsObserverRunning reports whether a QR observer goroutine is active for the instance.
+func (s *Whatsmiau) IsObserverRunning(id string) bool {
+	_, running := s.observerRunning.Load(id)
+	return running
 }
 
 func (s *Whatsmiau) generateClient(ctx context.Context, id string) (*whatsmeow.Client, error) {
@@ -241,13 +253,7 @@ func (s *Whatsmiau) hasSomeDevice(client *whatsmeow.Client) bool {
 }
 
 func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
-	if _, ok := s.observerRunning.Load(id); ok {
-		zap.L().Debug("observer connection already running", zap.String("id", id))
-		return
-	}
-
 	zap.L().Debug("starting observer connection", zap.String("id", id))
-	s.observerRunning.Store(id, true)
 	defer func() {
 		zap.L().Debug("stopping observer connection", zap.String("id", id))
 		s.observerRunning.Delete(id)
@@ -332,36 +338,24 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 	}
 }
 
-func (s *Whatsmiau) observeAndQrCode(ctx context.Context, id string, client *whatsmeow.Client) (string, error) {
-	const qrWaitTimeout = 45 * time.Second
-	ctx, cancel := context.WithTimeout(ctx, qrWaitTimeout)
-	defer cancel()
-
-	zap.L().Info("[observeAndQrCode] waiting up to 45s for QR", zap.String("instance", id))
-	go s.observeConnection(client, id)
-
-	ticker := time.NewTicker(200 * time.Millisecond)
+// waitForQRCode polls the QR cache for a short duration and returns the code
+// as soon as it appears. If the timeout expires, it returns an empty string
+// without error — the caller should treat this as "still generating".
+func (s *Whatsmiau) waitForQRCode(id string, timeout time.Duration) (string, error) {
+	ticker := time.NewTicker(150 * time.Millisecond)
 	defer ticker.Stop()
 
-	start := time.Now()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+
 	for {
 		select {
 		case <-ticker.C:
-			qrCode, ok := s.qrCache.Load(id)
-			if ok && len(qrCode) > 0 {
-				zap.L().Info("[observeAndQrCode] QR ready",
-					zap.String("instance", id),
-					zap.Duration("elapsed", time.Since(start)),
-				)
-				return qrCode, nil
+			if qr, ok := s.qrCache.Load(id); ok && len(qr) > 0 {
+				return qr, nil
 			}
-		case <-ctx.Done():
-			zap.L().Error("[observeAndQrCode] timeout reached",
-				zap.String("instance", id),
-				zap.Duration("elapsed", time.Since(start)),
-				zap.Error(ctx.Err()),
-			)
-			return "", ctx.Err()
+		case <-deadline.C:
+			return "", nil
 		}
 	}
 }

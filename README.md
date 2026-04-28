@@ -1,298 +1,104 @@
-# 🔎 Sherlock CRM — B2B Lead Management Platform
+# 🔎 Sherlock Scraper — B2B Lead Management & Campaigns
 
-> **Sistema de CRM B2B Premium** para gerenciamento de leads frios gerados automaticamente pelo robô scraper Sherlock. Stack: Python Scraper + Go API (Fiber + GORM) + React (Vite + TypeScript) + PostgreSQL — completamente containerizado com Docker
+![Go Version](https://img.shields.io/badge/Go-1.21-00ADD8?style=flat&logo=go)
+![React Version](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=flat&logo=postgresql)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
----
+## 📌 Visão Geral
 
-## 🏗️ Visão Geral da Arquitetura
+Sherlock Scraper é um sistema avançado de CRM e prospecção B2B (Business-to-Business) focado na captação automatizada de leads e orquestração de disparos de mensagens via WhatsApp. Combinando raspagem de dados com um motor robusto de campanhas em background, a plataforma garante entregabilidade em alta performance e escalabilidade. O Sherlock orquestra envios em lote integrando-se via REST HTTP com seu provedor de infraestrutura core (WhatsMiau / Evolution API) atuando em contêineres de componentes isolados para prevenir gargalos estruturais e falhas de runtime.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Sherlock Ecosystem                       │
-│                                                             │
-│  ┌──────────────────┐    CSV Files    ┌─────────────────┐   │
-│  │  🤖 Python Robot  │ ─────────────► │  📂 /data/*.csv │   │
-│  │  (Playwright)     │                └────────┬────────┘   │
-│  └──────────────────┘                         │             │
-│                                        Upload via UI        │
-│                                               │             │
-│  ┌────────────────────────────────────────────▼──────────┐  │
-│  │              CRM Web Platform (Docker)                │  │
-│  │                                                       │  │
-│  │   ┌──────────────┐  REST API  ┌────────────────────┐  │  │
-│  │   │  React/Vite  │ ◄────────► │  Go API (Fiber)    │  │  │
-│  │   │  TypeScript  │   :3000    │  Clean Architecture│  │  │
-│  │   │  Tailwind    │            │  JWT Auth (HS256)  │  │  │
-│  │   │  Framer Mot. │            │  GORM + Postgres   │  │  │
-│  │   │  :5173       │            └────────┬───────────┘  │  │
-│  │   └──────────────┘                     │ GORM         │  │
-│  │                                ┌───────▼───────────┐  │  │
-│  │                                │  PostgreSQL 15     │  │  │
-│  │                                │  (Persistent Vol.) │  │  │
-│  │                                └───────────────────┘  │  │
-│  └───────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-```
+## 🏗️ Arquitetura do Sistema
 
-### Componentes
+O fluxo principal de integração de campanhas opera estritamente de maneira assíncrona, assegurando processamento ininterrupto e uma experiência UX altamente fluida (sem telas travadas) no Frontend Web.
 
-| Componente | Tecnologia | Função |
-| :--- | :--- | :--- |
-| **Scraper** | Python + Playwright | Raspa dados do Google Maps e gera CSVs |
-| **API** | Go 1.21 + Fiber v2 | Backend RESTful, Auth JWT, CSV Parser |
-| **ORM** | GORM + Postgres Driver | Modelagem e acesso ao banco de dados |
-| **Frontend** | React 18 + Vite + TypeScript | Interface SaaS, Kanban, CSV Upload |
-| **UI** | Tailwind CSS + shadcn/ui + Framer Motion | Design system dark mode premium |
-| **Banco** | PostgreSQL 15 | Persistência de leads e usuários |
-| **Infra** | Docker + Docker Compose | Orquestração e ambiente reproducível |
+```mermaid
+sequenceDiagram
+    participant F as Frontend (React)
+    participant A as API Go (Fiber)
+    participant R as Redis (Asynq/PubSub)
+    participant W as Worker (Go Asynq)
+    participant WM as WhatsMiau API
+    participant WA as WhatsApp
 
----
+    F->>A: Cria Campanha em Lote
+    A->>R: Enfileira Task (Asynq)
+    A-->>F: Campanha Iniciada (Retorna Task ID)
+    
+    R->>W: Consome Task (Em Background)
+    W->>+WM: Checa Número (POST /v1/chat/whatsappNumbers/:instance)
+    WM-->>-W: Retorna True/False
+    
+    W->>+WM: Envia Mensagem (POST /v1/message/sendText/:instance)
+    WM-->>-W: Confirma Envio
 
-## ✅ Pré-requisitos
-
-- [Docker Engine](https://docs.docker.com/engine/install/) `>= 24.x`
-- [Docker Compose](https://docs.docker.com/compose/) `>= v2.x` (incluso no Docker Desktop)
-- Nenhuma instalação local de Go, Node.js ou Python é necessária.
-
----
-
-## 🚀 Subindo o Ambiente Local
-
-### 1. Clone e configure o projeto
-
-```bash
-git clone <seu-repositorio>
-cd sherlock-scraper
+    WM->>WA: Disparo de Mensagem na Rede Meta
+    
+    W->>R: Publica Evento no Redis Pub/Sub (campaigns:logs:<id>)
+    R->>A: Recebe Eventos (Pub/Sub Subscriber)
+    A->>F: Streaming em Tempo Real (SSE - GET /api/v1/campaigns/:id/stream)
 ```
 
-### 2. Build e Start de todos os serviços
+## 🚀 Features Principais
 
-```bash
-docker compose up -d --build
+* **Motor em Background (Asynq + Redis):** Processamento robusto de filas independente do Core da API principal, mitigando travamento de rotas sistêmicas, com rotinas seguras de repescagem.
+* **Comunicação Desacoplada (WhatsMiau API):** O worker processa os leads e invoca os endpoints do WhatsMiau externamente (`/v1/chat/whatsappNumbers/:instance` e `/v1/message/sendText/:instance`), eliminando sobreposição da engine do WhatsApp no monorepo do backend.
+* **Streaming em Tempo Real (SSE):** Front-end recebe e imprime logs textuais do disparo das mensagens progressivamente em frações de segundo diretamente via Server-Sent Events, alimentado por um barramento Pub/Sub no Redis.
+* **Fail-Fast Validation:** O background checker atua preemptivamente validando o cadastro dos telefones na rede antes de desperdiçar ciclos HTTP no disparo.
+* **Arquitetura Limpa:** O design prioriza SOLID, separação concisa de papéis (Domain, Services, Queue, Controllers) e manutenibilidade contínua.
+
+## 💻 Tech Stack
+
+| Camada | Tecnologia Principal | Descrição Resumida |
+| --- | --- | --- |
+| **API Principal** | Golang (Fiber) | Framework HTTP performático. Tipagem forte, sintaxe expressiva |
+| **Background / Filas**| Asynq | Orquestração de Jobs transacionais nativos em Go |
+| **Mensageria em Memória**| Redis | Backing do Asynq Queue Manager e Barramento do Pub/Sub |
+| **Persistência de Dados** | PostgreSQL 15 (GORM) | Onde Leads, Logs e o histórico do CRM repousam |
+| **UI SaaS Web** | React 18 + Vite | Single Page Application limpa e reativa |
+| **Gateway WhatsApp** | WhatsMiau | Motor mensageiro principal no ecossistema Sherlock |
+
+## ⚙️ Pré-requisitos e Instalação
+
+### Instalação Simplificada
+
+A infraestrutura é auto-contida. Sendo assim, instale em seu ambiente:
+- **Docker Engine** `24.x+` e **Docker Compose** `v2.x+`
+
+### Configuração e Execução
+
+1. Execute o clone do repositório correspondente e encontre-se no root (`sherlock-scraper/`).
+2. Configurar as credenciais é requisito vital. Navegue para `backend/` e estabeleça no `.env` local as rotas de API da mensageria e o DB. Exemplo simplificado:
+    ```env
+    WHATSMIau_API_URL=http://whatsmiau-api:8080
+    WHATSMIau_API_TOKEN=seu_token_aqui_opcional
+    ```
+3. Inicialize a orquestração via Docker-Compose. Todos os serviços subirão orquestrados:
+    ```bash
+    docker compose up -d --build
+    ```
+4. Gere as credenciais admin para acessar o CRM recém inicializado e logar no front (Via terminal local):
+    ```bash
+    docker compose exec api go run cmd/seed/main.go
+    ```
+
+## 📁 Estrutura de Diretórios (Resumo Arquitetural)
+
+```text
+sherlock-scraper/backend/
+├── cmd/
+│   ├── api/                   # Entrypoint Core e injetores (Main HTTP)
+│   └── seed/                  # Operadores de DML base
+├── internal/
+│   ├── core/                  # Entidades agnósticas a Frameworks (Interfaces de Ports)
+│   ├── handlers/              # Endpoint Handlers do Fiber
+│   ├── middlewares/           # Segurança e Lifecycle HTTP (JWTs, Logger)
+│   ├── queue/                 # Definição e Processadores Asynq Trabalhadores
+│   ├── services/              # Aplicação de Casos de Uso Práticos
+│   └── sse/                   # Broadcasters de Server Sent Events 
+└── pkg/
+    ├── csvparser/             # Extração sanitária rápida de Leads
+    └── phoneutil/             # Tratamento Regex inteligente de números Brasileiros
 ```
-
-Aguarde: na primeira execução o Docker vai baixar as imagens base, instalar as dependências Go e npm e iniciar os 4 serviços (`db`, `api`, `frontend`, `sherlock`).
-
-> **Verifique os logs** de inicialização com:
-> ```bash
-> docker compose logs -f api
-> docker compose logs -f frontend
-> ```
-
-### 3. Seed do Usuário Administrador
-
-Na primeira execução, o banco estará vazio. Crie o admin com:
-
-```bash
-docker compose exec api go run cmd/seed/main.go
-```
-
-Isso criará o seguinte acesso padrão:
-
-| Campo | Valor |
-| :--- | :--- |
-| **Email** | `admin@sherlock.com` |
-| **Password** | `premium_saas_2026` |
-
-> **Customizando o Admin:** passe variáveis de ambiente antes do comando acima:
-> ```bash
-> ADMIN_EMAIL=seu@email.com ADMIN_PASSWORD=suaSenha docker compose exec api go run cmd/seed/main.go
-> ```
-
-### 4. Acesse a plataforma
-
-| Serviço | URL |
-| :--- | :--- |
-| **CRM Web** | [http://localhost:5173](http://localhost:5173) |
-| **API Go** | [http://localhost:3000/api/v1](http://localhost:3000/api/v1) |
-| **PostgreSQL** | `localhost:5432` (user: `postgres`, pass: `password`, db: `crm`) |
-
----
-
-## 📖 Como Usar a Plataforma
-
-### 1. Login
-
-Acesse `http://localhost:5173`, você verá a tela de login premium dark mode. Use as credenciais do Admin criadas no Seed.
-
-### 2. Importando Leads via CSV
-
-1. No menu lateral, clique em **"Import Leads"**
-2. Arraste e solte seu arquivo `.csv` gerado pelo robô Sherlock na área destacada (ou clique para abrir o explorador de arquivos)
-3. Aguarde o toast de confirmação **"Leads imported successfully!"**
-4. Os leads são lidos, validados e inseridos em lote no PostgreSQL automaticamente
-
-> **Formato do CSV esperado:**
-> `Empresa, Nota, Qtd Avaliações, Resumo do Negócio, Endereço, Telefone, Tipo Telefone, Link WhatsApp, Site, Email, Instagram, Facebook, LinkedIn, TikTok, YouTube`
-
-### 3. Kanban Board — Pipeline de Leads
-
-1. Clique em **"Kanban Board"** no menu lateral
-2. Os leads são exibidos em 6 colunas espelhando o funil de vendas:
-
-| Coluna | Significado |
-| :--- | :--- |
-| 🔍 **Prospecção** | Lead novo, ainda não contatado |
-| 📞 **Contatado** | Primeiro contato realizado |
-| 📅 **Reunião Agendada** | Reunião marcada com o prospect |
-| 🤝 **Negociação** | Em fase de proposta e negociação |
-| ✅ **Ganho** | Negócio fechado com sucesso |
-| ❌ **Perdido** | Oportunidade encerrada |
-
-3. **Arraste** os cards entre as colunas. A mudança de status é salva no banco de dados em tempo real. Caso o servidor falhe, a interface reverte automaticamente (Optimistic UI).
-
-### 4. Ações Rápidas nos Cards de Lead
-
-Cada `LeadCard` exibe:
-- **Nome da empresa** e **nota/avaliação** (ex: ⭐ 4.5)
-- **Endereço** e **Telefone** com o tipo (celular/fixo)
-- 💬 **Botão WhatsApp** — abre o chat direto em `wa.me` (nova aba)
-- 🌐 **Botão Site** — abre o site do lead (nova aba)
-
----
-
-## 🌐 Guia de Deploy em VPS (Produção)
-
-### Servidor recomendado
-
-- **Provedor:** DigitalOcean, Hetzner Cloud, ou Contabo
-- **Plano mínimo:** 2 vCPUs / 4 GB RAM / 40 GB SSD
-- **OS:** Ubuntu 22.04 LTS
-
-### Passo a Passo
-
-#### 1. Configurar o servidor
-
-```bash
-# Conecte via SSH
-ssh root@SEU_IP_DO_SERVIDOR
-
-# Instale Docker Engine
-curl -fsSL https://get.docker.com | sh
-
-# Adicione seu usuário ao grupo docker (reinicie a sessão depois)
-usermod -aG docker $USER
-```
-
-#### 2. Clonar o projeto no servidor
-
-```bash
-git clone <seu-repositorio>
-cd sherlock-scraper
-```
-
-#### 3. Configurar variáveis de produção
-
-Crie um arquivo `.env` na raiz do projeto (nunca comite esse arquivo):
-
-```bash
-cat > .env << EOF
-POSTGRES_PASSWORD=UmaSenhaForteAqui
-JWT_SECRET=UmSegredoJWTLongoEAleatorioAqui
-ADMIN_EMAIL=admin@suaempresa.com
-ADMIN_PASSWORD=SenhaDoAdminAqui
-EOF
-```
-
-Atualize o `docker-compose.yml` para usar essas variáveis com a sintaxe `${VARIABLE}`.
-
-#### 4. Ajustar o Frontend para apontar para o domínio
-
-No `docker-compose.yml`, mude a variável de ambiente do frontend:
-
-```yaml
-environment:
-  - VITE_API_URL=https://api.seudominio.com/api/v1
-```
-
-#### 5. Build e subir os serviços
-
-```bash
-docker compose up -d --build
-docker compose exec api go run cmd/seed/main.go  # Apenas na primeira vez
-```
-
-#### 6. Configurar Reverse Proxy com Nginx (HTTPS)
-
-Instale o Nginx e o Certbot para TLS gratuito via Let's Encrypt:
-
-```bash
-apt install nginx certbot python3-certbot-nginx -y
-
-# Configure os blocos server para seu domínio
-# Frontend: seudominio.com -> localhost:5173
-# API: api.seudominio.com -> localhost:3000
-
-# Gere e aplique o certificado SSL
-certbot --nginx -d seudominio.com -d api.seudominio.com
-```
-
-**Exemplo de bloco Nginx para o Frontend:**
-```nginx
-server {
-    server_name seudominio.com;
-    location / {
-        proxy_pass http://localhost:5173;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-#### 7. Persistência e Backups
-
-Os dados do PostgreSQL ficam no Docker Volume `pgdata`. Para backups automáticos, configure um cron job:
-
-```bash
-# Backup diário do banco às 03h
-0 3 * * * docker compose exec -T db pg_dump -U postgres crm > /backups/crm_$(date +%F).sql
-```
-
----
-
-## 📁 Estrutura de Repositório
-
-```
-sherlock-scraper/
-├── backend/                    # API Go (Clean Architecture)
-│   ├── cmd/api/main.go         # Entrypoint
-│   ├── cmd/seed/main.go        # Seeder de Admin
-│   ├── internal/
-│   │   ├── core/domain/        # Entidades (User, Lead, Enums)
-│   │   ├── core/ports/         # Interfaces (ports)
-│   │   ├── database/           # Conexão GORM + AutoMigrate
-│   │   ├── handlers/           # Controllers HTTP (Fiber)
-│   │   ├── middlewares/        # JWT Auth Middleware
-│   │   ├── repositories/       # Acesso ao banco (GORM)
-│   │   └── services/           # Lógica de negócio
-│   └── pkg/csvparser/          # Parser de CSV
-├── frontend/                   # SPA React/Vite (TypeScript)
-│   └── src/
-│       ├── components/         # UI e Layout components
-│       ├── contexts/           # AuthContext (JWT state)
-│       ├── pages/              # Login, KanbanBoard, CsvImport
-│       ├── types/              # Interfaces TypeScript
-│       └── lib/                # utils (shadcn/cn)
-├── main.py                     # 🤖 Robô Scraper Python
-├── docker-compose.yml          # Orquestração de todos os serviços
-└── README.md                   # Este documento
-```
-
----
-
-## 🔑 Endpoints da API
-
-Todos as rotas protegidas exigem o header `Authorization: Bearer <token>`.
-
-| Método | Rota | Auth | Descrição |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/auth/register` | ❌ | Registrar novo usuário |
-| `POST` | `/api/v1/auth/login` | ❌ | Login e geração de JWT |
-| `GET` | `/api/v1/protected/me` | ✅ | Info do usuário logado |
-| `GET` | `/api/v1/protected/leads` | ✅ | Listar todos os leads |
-| `POST` | `/api/v1/protected/leads/upload` | ✅ | Importar CSV de leads |
-| `PATCH` | `/api/v1/protected/leads/:id/status` | ✅ | Atualizar status Kanban |
-
----
-
-*Construído com padrão de qualidade Big Tech. Designed to scale.* 🚀
