@@ -86,6 +86,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         path: '/chat',
         roles: ['super_admin'],
       },
+      { label: 'Prospecção', icon: Search, path: '/admin/sherlock', roles: ['super_admin'] },
+      { label: 'Leads', icon: Users, path: '/admin/leads', roles: ['super_admin'] },
       {
         label: 'Monitoramento',
         icon: Activity,
@@ -136,8 +138,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       { label: 'Agendamentos', icon: Calendar, path: '/admin/scheduling', roles: ['super_admin'] },
       { label: 'Kanban', icon: Columns, path: '/admin/kanban', roles: ['super_admin'] },
       { label: 'Fluxos', icon: GitBranch, path: '/admin/flows', roles: ['super_admin'] },
-      { label: 'Prospecção', icon: Search, path: '/admin/sherlock', roles: ['super_admin'] },
-      { label: 'Leads', icon: Users, path: '/admin/leads', roles: ['super_admin'] }
     );
   }
   // Admin: mostra diretamente os itens do menu (sem menu expansível)
@@ -161,6 +161,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         path: '/chat',
         roles: ['admin'],
       },
+      { label: 'Prospecção', icon: Search, path: '/admin/sherlock', roles: ['admin'] },
+      { label: 'Leads', icon: Users, path: '/admin/leads', roles: ['admin'] },
       {
         label: 'Usuários',
         icon: Users,
@@ -213,8 +215,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       { label: 'Agendamentos', icon: Calendar, path: '/admin/scheduling', roles: ['admin'] },
       { label: 'Kanban', icon: Columns, path: '/admin/kanban', roles: ['admin'] },
       { label: 'Fluxos', icon: GitBranch, path: '/admin/flows', roles: ['admin'] },
-      { label: 'Prospecção', icon: Search, path: '/admin/sherlock', roles: ['admin'] },
-      { label: 'Leads', icon: Users, path: '/admin/leads', roles: ['admin'] }
     );
   }
   // User: mostra apenas menu geral
