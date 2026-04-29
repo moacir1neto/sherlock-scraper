@@ -10,7 +10,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Framer Motion](https://img.shields.io/badge/Framer_Motion-10-0055FF?style=for-the-badge&logo=framer&logoColor=white)](https://www.framer.com/motion)
-[![License](https://img.shields.io/badge/License-MIT-00af4b?style=for-the-badge)](./whatsmeow/LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-00af4b?style=for-the-badge)](LICENSE)
 [![Changelog](https://img.shields.io/badge/Changelog-TODO-lightgrey?style=for-the-badge)](.)
 
 **Prospecção automatizada · Disparos em lote · Dossiê IA · Chat multicanal · Dashboard analítico**
@@ -477,12 +477,7 @@ Use o [GitHub Issues](../../issues) para reportar bugs, com:
 
 ## 📄 Licença
 
-Distribuído sob a licença **MIT**. Veja [`LICENSE`](./whatsmeow/LICENSE) para detalhes.
-
-> ⚠️ O arquivo `LICENSE` está em `whatsmeow/LICENSE`. Para melhor visibilidade, copie-o para a raiz:
-> ```bash
-> cp whatsmeow/LICENSE ./LICENSE
-> ```
+Distribuído sob a licença **MIT**. Veja [`LICENSE`](LICENSE) para detalhes.
 
 ---
 
