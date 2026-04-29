@@ -101,26 +101,28 @@ export function UserForm({ user, companies, onSuccess, onCancel, onSubmit, isAdm
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Input
-        label="Nome"
-        value={nome}
-        onChange={(e) => setNome(e.target.value)}
-        required
-        placeholder="Nome completo"
-      />
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Input
+          label="Nome completo"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          required
+          placeholder="Ex: João Silva"
+        />
+
+        <Input
+          label="E-mail de acesso"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          placeholder="usuario@whatsmeow.com"
+        />
+      </div>
 
       <Input
-        label="Email"
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-        placeholder="usuario@email.com"
-      />
-
-      <Input
-        label={user ? 'Nova Senha (deixe em branco para manter)' : 'Senha'}
+        label={user ? 'Nova Senha (deixe em branco para manter)' : 'Senha de acesso'}
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
@@ -128,65 +130,73 @@ export function UserForm({ user, companies, onSuccess, onCancel, onSubmit, isAdm
         placeholder="••••••••"
       />
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Role
-        </label>
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value as 'super_admin' | 'admin' | 'user')}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          required
-        >
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
-          {!isAdmin && <option value="super_admin">Super Admin</option>}
-        </select>
-      </div>
-
-      {!isAdmin && (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Empresa
+          <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">
+            Nível de Acesso
           </label>
           <select
-            value={companyId}
-            onChange={(e) => setCompanyId(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            value={role}
+            onChange={(e) => setRole(e.target.value as 'super_admin' | 'admin' | 'user')}
+            className="w-full px-4 py-2.5 border border-gray-200/60 dark:border-gray-700/60 rounded-xl bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm text-gray-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm cursor-pointer"
+            required
           >
-            <option value="">Nenhuma</option>
-            {companies.map((company) => (
-              <option key={company.id} value={company.id}>
-                {company.nome}
-              </option>
-            ))}
+            <option value="user">Usuário Comum</option>
+            <option value="admin">Administrador da Empresa</option>
+            {!isAdmin && <option value="super_admin">Super Administrador</option>}
           </select>
         </div>
-      )}
-      
-      {isAdmin && defaultCompanyId && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Empresa
-          </label>
-          <input
-            type="text"
-            value={companies.find(c => c.id === defaultCompanyId)?.nome || 'Empresa'}
-            disabled
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Usuários criados serão automaticamente vinculados à sua empresa
-          </p>
-        </div>
-      )}
 
-      <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="ghost" onClick={onCancel}>
+        {!isAdmin && (
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">
+              Vincular Empresa
+            </label>
+            <select
+              value={companyId}
+              onChange={(e) => setCompanyId(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200/60 dark:border-gray-700/60 rounded-xl bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm text-gray-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm cursor-pointer"
+            >
+              <option value="">Nenhuma empresa vinculada</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        
+        {isAdmin && defaultCompanyId && (
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">
+              Empresa Vinculada
+            </label>
+            <div className="w-full px-4 py-2.5 border border-gray-200/60 dark:border-gray-700/60 rounded-xl bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 font-medium cursor-not-allowed italic">
+              {companies.find(c => c.id === defaultCompanyId)?.nome || 'Sua Empresa'}
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1.5 ml-1">
+              * Vinculado automaticamente à sua unidade de negócio.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end gap-3 pt-6 border-t border-gray-100 dark:border-gray-700/50">
+        <Button 
+          type="button" 
+          variant="ghost" 
+          onClick={onCancel}
+          className="rounded-xl px-6"
+        >
           Cancelar
         </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : user ? 'Atualizar' : 'Criar'}
+        <Button 
+          type="submit" 
+          loading={loading}
+          className="rounded-xl px-8 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 border-none shadow-lg shadow-emerald-500/20"
+        >
+          {user ? 'Salvar Alterações' : 'Criar Novo Usuário'}
         </Button>
       </div>
     </form>

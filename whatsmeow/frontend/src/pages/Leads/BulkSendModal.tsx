@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Send, AlertTriangle, CheckCircle, Smartphone, Loader2 } from 'lucide-react';
 import { Lead } from '../../types';
 import { instanceService } from '../../services/api';
