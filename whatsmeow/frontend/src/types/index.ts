@@ -240,3 +240,38 @@ export interface AISettingsConfig {
   agent_system_prompt: string;
   updated_at?: string;
 }
+
+export interface ChatItem {
+  id: string;
+  instance_id: string;
+  remote_jid: string;
+  name: string;
+  last_message_preview?: string;
+  last_message_at?: string;
+  created_at?: string;
+  updated_at?: string;
+  sector_id?: string | null;
+  status?: 'aguardando' | 'atendendo' | 'finalizado' | string;
+  ai_paused?: boolean;
+}
+
+export interface MessageItem {
+  id: string;
+  chat_id: string;
+  wa_message_id: string;
+  from_me: boolean;
+  message_type: string;
+  content: string;
+  media_url?: string;
+  status: string;
+  created_at: string;
+  /** Preview da mensagem citada (resposta); quando presente, o balão é exibido como resposta */
+  quoted_preview?: string;
+  quoted_message_id?: string;
+}
+
+export interface ChatMessagesCacheEntry {
+  messages: MessageItem[];
+  hasMore: boolean;
+  loading: boolean;
+}

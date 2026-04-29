@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { cn } from '../utils/cn';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Input } from '../components/Input';
@@ -137,17 +138,43 @@ export function Sectors() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Setores</h1>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        Organize atendimentos por setores. O setor Geral é criado automaticamente e não pode ser removido.
-      </p>
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 dark:text-white leading-tight">Setores de Atendimento</h1>
+          <p className="text-sm text-gray-500 font-medium mt-1">
+            Organize seus operadores e atendimentos por departamentos especializados.
+          </p>
+        </div>
+        
+        {companyId && (
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" onClick={fetchSectors} disabled={loading} className="rounded-xl h-11 px-5 bg-white dark:bg-gray-800 shadow-sm border-gray-200/60 dark:border-gray-700/60">
+              <RefreshCw size={18} className={cn("mr-2", loading ? 'animate-spin' : '')} />
+              Sincronizar
+            </Button>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setName('');
+                setSlug('');
+                setUserIds([]);
+                setShowForm(true);
+              }}
+              className="rounded-xl h-11 px-6 bg-gradient-to-r from-emerald-500 to-green-600 border-none shadow-lg shadow-emerald-500/20"
+            >
+              <Plus size={18} className="mr-2" />
+              Novo Setor
+            </Button>
+          </div>
+        )}
+      </div>
 
       {isSuperAdmin && (
-        <div className="mb-4">
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Empresa</label>
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 rounded-2xl p-4 flex items-center gap-4">
+          <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-2">Unidade de Negócio:</label>
           <select
-            className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm"
+            className="flex-1 max-w-xs rounded-xl border border-gray-200/60 dark:border-gray-700/60 bg-white dark:bg-gray-900 text-gray-900 dark:text-white px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none cursor-pointer"
             value={selectedCompanyId}
             onChange={(e) => setSelectedCompanyId(e.target.value)}
           >
@@ -161,96 +188,86 @@ export function Sectors() {
         </div>
       )}
 
-      {!companyId && (
-        <p className="text-sm text-gray-500 dark:text-gray-400 py-4">
-          {isSuperAdmin ? 'Selecione uma empresa para ver e gerenciar setores.' : 'Sua conta não está vinculada a uma empresa.'}
-        </p>
-      )}
-
-      {companyId && (
-        <>
-          <div className="flex items-center justify-between mb-4">
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setName('');
-                setSlug('');
-                setUserIds([]);
-                setShowForm(true);
-              }}
-            >
-              <Plus size={18} className="mr-2" />
-              Novo setor
-            </Button>
-            <Button variant="secondary" onClick={fetchSectors} disabled={loading}>
-              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-              Atualizar
-            </Button>
-          </div>
-
-          {loading && sectors.length === 0 ? (
-            <div className="flex justify-center py-12">
-              <RefreshCw className="animate-spin text-primary-600" size={32} />
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <table className="min-w-full">
-                <thead className="bg-gray-50 dark:bg-gray-900">
+      {!companyId ? (
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 rounded-2xl p-12 text-center">
+          <p className="text-gray-400 font-medium italic">
+            {isSuperAdmin ? 'Selecione uma unidade de negócio para gerenciar seus setores.' : 'Aguardando vinculação com uma unidade de negócio...'}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-gray-50/50 dark:bg-gray-900/50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Identificação</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Slug / Rota</th>
+                  <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Prioridade</th>
+                  <th className="px-6 py-4 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Gerenciar</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {sectors.length === 0 && !loading ? (
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nome</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Slug</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Padrão</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ações</th>
+                    <td colSpan={4} className="px-6 py-12 text-center text-gray-400 dark:text-gray-500 italic font-medium">
+                      Nenhum setor configurado para esta unidade.
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {sectors.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                        Nenhum setor cadastrado.
+                ) : loading && sectors.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center">
+                      <RefreshCw className="animate-spin text-emerald-500 mx-auto" size={24} />
+                    </td>
+                  </tr>
+                ) : (
+                  sectors.map((sector) => (
+                    <tr key={sector.id} className="hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                        {sector.name}
                       </td>
-                    </tr>
-                  ) : (
-                    sectors.map((sector) => (
-                      <tr key={sector.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white">
-                          {sector.name}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300">
-                          {sector.slug || '—'}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300">
-                          {sector.is_default ? (
-                            <span className="px-2 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 text-xs font-semibold">
-                              Geral
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(sector)}>
-                            <Edit size={16} />
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-medium italic">
+                        {sector.slug || '—'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {sector.is_default ? (
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800 text-[10px] font-black uppercase tracking-wider">
+                            Padrão
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 dark:text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => openEdit(sector)}
+                            className="rounded-lg hover:bg-white dark:hover:bg-gray-700 shadow-sm hover:shadow"
+                            aria-label="Editar setor"
+                          >
+                            <Edit size={14} className="text-emerald-600 dark:text-emerald-400" />
                           </Button>
                           {!sector.is_default && (
                             <Button
-                              variant="danger"
+                              variant="ghost"
                               size="sm"
-                              className="ml-1"
                               onClick={() => handleDelete(sector)}
+                              className="rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 shadow-sm hover:shadow"
+                              aria-label="Excluir setor"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={14} />
                             </Button>
                           )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       <Modal

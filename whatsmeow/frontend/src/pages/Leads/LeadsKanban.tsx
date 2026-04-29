@@ -70,7 +70,7 @@ interface KanbanCardProps {
   onClick: (lead: Lead) => void;
 }
 
-function KanbanCard({ lead, index, isDragging, onClick }: KanbanCardProps) {
+function KanbanCard({ lead, index, onClick }: KanbanCardProps) {
   const { analyzingIds } = useAIAnalysis();
   const isAnalyzing = analyzingIds.has(lead.id);
 

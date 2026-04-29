@@ -63,12 +63,6 @@ export function InstanceCard({ instance, onUpdate, onSelect }: InstanceCardProps
     }
   };
 
-  const statusColors = {
-    open: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
-    close: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
-    connecting: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
-  };
-
   const statusLabels = {
     open: 'Conectado',
     close: 'Desconectado',
@@ -109,79 +103,92 @@ export function InstanceCard({ instance, onUpdate, onSelect }: InstanceCardProps
   return (
     <>
       <motion.div
-        whileHover={{ y: -2 }}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-all duration-200"
+        whileHover={{ y: -4, shadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+        className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-lg p-6 transition-all duration-300 group"
       >
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                {displayTitle}
-              </h3>
-              {canManageAccess && (
-                <button
-                  type="button"
-                  onClick={() => setShowSettings(true)}
-                  className="p-1.5 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  title="Configurações"
-                >
-                  <Settings size={18} />
-                </button>
-              )}
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 shrink-0 group-hover:scale-110 transition-transform duration-300">
+              <QrCode size={24} />
             </div>
-            <span
-              className={`inline-block px-2 py-1 text-xs font-medium rounded ${
-                statusColors[instance.status || 'close']
-              }`}
-            >
-              {statusLabels[instance.status || 'close']}
-            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black text-gray-900 dark:text-white leading-tight">
+                  {displayTitle}
+                </h3>
+                {canManageAccess && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSettings(true)}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                    title="Configurações da Instância"
+                    aria-label="Configurações da Instância"
+                  >
+                    <Settings size={16} />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className={`w-2 h-2 rounded-full animate-pulse ${
+                  instance.status === 'open' ? 'bg-emerald-500' : instance.status === 'connecting' ? 'bg-amber-500' : 'bg-red-500'
+                }`} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                  {statusLabels[instance.status || 'close']}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 mt-4">
-          {instance.status !== 'open' && (
+        <div className="grid grid-cols-2 gap-3">
+          {instance.status !== 'open' ? (
             <Button
               variant="primary"
               size="sm"
               onClick={handleConnect}
               disabled={loading !== null}
+              className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 border-none shadow-lg shadow-emerald-500/20 h-10 col-span-2"
+              aria-label="Conectar instância via QR Code"
             >
-              <QrCode size={16} className="mr-1" />
-              Conectar
+              <QrCode size={16} className="mr-2" />
+              Conectar Agora
             </Button>
-          )}
-
-          {instance.status === 'open' && (
+          ) : (
             <>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => onSelect?.(instance.instanceName)}
+                className="rounded-xl bg-gray-100 dark:bg-gray-700 h-10 font-bold text-xs uppercase tracking-wider"
+                aria-label="Abrir chat para esta instância"
               >
-                <MessageSquare size={16} className="mr-1" />
-                Mensagens
+                <MessageSquare size={14} className="mr-2" />
+                Abrir Chat
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleLogout}
                 disabled={loading !== null}
+                className="rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 text-red-500 h-10 font-bold text-xs uppercase tracking-wider"
+                aria-label="Desconectar instância"
               >
-                <LogOut size={16} className="mr-1" />
-                Desconectar
+                <LogOut size={14} className="mr-2" />
+                Sair
               </Button>
             </>
           )}
 
           <Button
-            variant="danger"
+            variant="ghost"
             size="sm"
             onClick={handleDelete}
             disabled={loading !== null}
+            className="rounded-xl hover:bg-gray-100 dark:hover:bg-gray-900 h-10 text-gray-400 font-bold text-xs uppercase tracking-wider col-span-2 border border-gray-100 dark:border-gray-800"
+            aria-label="Excluir instância permanentemente"
           >
-            <Trash2 size={16} className="mr-1" />
-            Deletar
+            <Trash2 size={14} className="mr-2" />
+            Deletar Instância
           </Button>
         </div>
       </motion.div>

@@ -42,7 +42,7 @@ export function Input({
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">
           {label}
         </label>
       )}
@@ -50,14 +50,14 @@ export function Input({
         <input
           type={inputType}
           className={cn(
-            'w-full px-4 py-2 border rounded-lg',
-            'bg-white dark:bg-gray-800',
-            'text-gray-900 dark:text-white',
-            'placeholder-gray-400 dark:placeholder-gray-500',
-            'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
-            'disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed',
-            'transition-all duration-200',
-            displayError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600',
+            'w-full px-4 py-2.5 border rounded-xl',
+            'bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm',
+            'text-gray-900 dark:text-white font-medium',
+            'placeholder-gray-300 dark:placeholder-gray-600',
+            'focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500',
+            'disabled:bg-gray-50 dark:disabled:bg-gray-900/50 disabled:text-gray-400 disabled:cursor-not-allowed',
+            'transition-all duration-200 shadow-sm',
+            displayError ? 'border-red-400 dark:border-red-500/50' : 'border-gray-200/60 dark:border-gray-700/60',
             isPassword ? 'pr-10' : '',
             className
           )}

@@ -221,6 +221,7 @@ function LeadsView({ scrape, onBack }: LeadsViewProps) {
   const [analyzingBulk, setAnalyzingBulk] = useState(false);
   const [bulkSendModalOpen, setBulkSendModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { analyzingIds, startBulkAnalysis, subscribe } = useAIAnalysis();
 
@@ -285,8 +286,11 @@ function LeadsView({ scrape, onBack }: LeadsViewProps) {
   });
 
   const PAGE_SIZE = 50;
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const paginated = leads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const visibleLeads = searchQuery.trim()
+    ? leads.filter((l) => l.name?.toLowerCase().includes(searchQuery.toLowerCase()) || l.phone?.includes(searchQuery))
+    : leads;
+  const totalPages = Math.ceil(visibleLeads.length / PAGE_SIZE);
+  const paginated = visibleLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const allPageSelected = paginated.length > 0 && paginated.every((l) => selectedIds.has(l.id));
 
@@ -375,20 +379,35 @@ function LeadsView({ scrape, onBack }: LeadsViewProps) {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Filtro de status — só visível na lista */}
+          {/* Busca rápida + filtro de status — só visível na lista */}
           {viewMode === 'list' && (
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2
-                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                         focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="">Todos os status</option>
-              {(Object.keys(STATUS_CONFIG) as KanbanStatus[]).map((s) => (
-                <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
-              ))}
-            </select>
+            <>
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                  placeholder="Buscar por nome ou telefone..."
+                  aria-label="Buscar leads"
+                  className="pl-8 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg
+                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-56
+                             focus:outline-none focus:ring-2 focus:ring-primary-500 placeholder:text-gray-400"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2
+                           bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                           focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+              >
+                <option value="">Todos os status</option>
+                {(Object.keys(STATUS_CONFIG) as KanbanStatus[]).map((s) => (
+                  <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+                ))}
+              </select>
+            </>
           )}
 
           <Button variant="ghost" size="sm" onClick={fetchLeads} disabled={loading}>
@@ -517,22 +536,45 @@ function LeadsView({ scrape, onBack }: LeadsViewProps) {
                       className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500 cursor-pointer disabled:opacity-40"
                     />
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center flex-wrap gap-x-1">
-                      <p className={`text-sm font-medium text-gray-900 dark:text-white ${isAnalyzing ? 'animate-pulse' : ''}`}>
-                        {lead.name}
-                      </p>
-                      <AIStatusBadge hasAnalysis={!!lead.ai_analysis} isAnalyzing={isAnalyzing} />
+                  {/* Nome com avatar */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        aria-hidden="true"
+                      >
+                        {lead.name?.charAt(0)?.toUpperCase() ?? '?'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <p className={`text-sm font-semibold text-gray-900 dark:text-white truncate ${isAnalyzing ? 'animate-pulse' : ''}`}>
+                            {lead.name}
+                          </p>
+                          <AIStatusBadge hasAnalysis={!!lead.ai_analysis} isAnalyzing={isAnalyzing} />
+                        </div>
+                        {lead.email && <p className="text-xs text-gray-400 truncate">{lead.email}</p>}
+                      </div>
                     </div>
-                    {lead.email && <p className="text-xs text-gray-400 mt-0.5">{lead.email}</p>}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                    {lead.phone || '—'}
+                  {/* Telefone clicável */}
+                  <td className="px-4 py-3">
+                    {lead.phone ? (
+                      <a
+                        href={`tel:${lead.phone.replace(/\D/g, '')}`}
+                        className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Ligar para ${lead.phone}`}
+                      >
+                        {lead.phone}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-gray-400">—</span>
+                    )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3">
                     <LeadStatusBadge status={lead.kanban_status} />
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell max-w-xs truncate">
+                  <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 hidden md:table-cell max-w-[220px] truncate" title={lead.address ?? undefined}>
                     {lead.address || '—'}
                   </td>
                   <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>

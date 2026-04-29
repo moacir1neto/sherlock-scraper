@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, Copy, Send } from 'lucide-react';
+import { cn } from '../utils/cn';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { instanceService } from '../services/api';
@@ -160,125 +161,159 @@ export function WebhookConfig() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-        Configuração de Webhook
-      </h1>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        Configure a URL e os eventos para receber notificações (mensagens, conexão, etc.).
-      </p>
-
-      {isSuperAdmin && (
-        <div className="space-y-4 mb-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Tenant (empresa)
-          </label>
-          <select
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2"
-            value={selectedCompanyId}
-            onChange={(e) => {
-              setSelectedCompanyId(e.target.value);
-              setSelectedInstanceId('');
-            }}
-          >
-            <option value="">Todas</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 dark:text-white leading-tight">Configurações de Webhook</h1>
+          <p className="text-sm text-gray-500 font-medium mt-1">
+            Mantenha seus sistemas integrados em tempo real através de eventos HTTP.
+          </p>
         </div>
-      )}
-
-      <div className="space-y-4 mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Instância
-        </label>
-        <select
-          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2"
-          value={selectedInstanceId}
-          onChange={(e) => setSelectedInstanceId(e.target.value)}
-        >
-          <option value="">Selecione</option>
-          {filteredInstances.map((inst) => (
-            <option key={inst.id ?? inst.instanceName} value={inst.id ?? inst.instanceName}>
-              {inst.instanceName ?? inst.id}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="space-y-4 mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          URL do webhook
-        </label>
-        <Input
-          type="url"
-          placeholder="https://..."
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-      </div>
-
-      <div className="space-y-4 mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Secret (opcional, para assinatura HMAC)
-        </label>
-        <Input
-          type="password"
-          placeholder="Deixe vazio para não alterar"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-        />
-      </div>
-
-      <div className="space-y-2 mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Eventos
-        </label>
-        <div className="flex flex-wrap gap-3">
-          {EVENT_OPTIONS.map((opt) => (
-            <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={events.includes(opt.value)}
-                onChange={() => toggleEvent(opt.value)}
-                className="rounded border-gray-300 dark:border-gray-600"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex gap-3 mb-8">
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? 'Salvando...' : 'Salvar'}
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={handleSendTest}
-          disabled={sendingTest || !url?.trim()}
-        >
-          <Send className="w-4 h-4 mr-1 inline" />
-          {sendingTest ? 'Enviando...' : 'Enviar teste'}
+        <Button variant="secondary" onClick={fetchInstances} disabled={loading} className="rounded-xl h-11 px-5 bg-white dark:bg-gray-800 shadow-sm border-gray-200/60 dark:border-gray-700/60">
+          <RefreshCw size={18} className={cn("mr-2", loading ? 'animate-spin' : '')} />
+          Sincronizar
         </Button>
       </div>
 
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-          URL para teste de recebimento
-        </h3>
-        <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-          Use esta URL no sistema externo para enviar um POST e validar que nosso sistema está
-          recebendo. Os recebimentos aparecem nos Logs com tipo &quot;inbox&quot;.
-        </p>
-        <div className="flex gap-2">
-          <Input readOnly value={inboxUrl} className="font-mono text-sm" />
-          <Button variant="secondary" onClick={copyInboxUrl} disabled={!inboxUrl}>
-            <Copy className="w-4 h-4" />
-          </Button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-lg p-6 space-y-6">
+            {isSuperAdmin && (
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">
+                  Unidade de Negócio
+                </label>
+                <select
+                  className="w-full rounded-xl border border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm text-gray-900 dark:text-white px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 outline-none cursor-pointer shadow-sm transition-all"
+                  value={selectedCompanyId}
+                  onChange={(e) => {
+                    setSelectedCompanyId(e.target.value);
+                    setSelectedInstanceId('');
+                  }}
+                >
+                  <option value="">Todas as empresas</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">
+                Instância de WhatsApp
+              </label>
+              <select
+                className="w-full rounded-xl border border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm text-gray-900 dark:text-white px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 outline-none cursor-pointer shadow-sm transition-all"
+                value={selectedInstanceId}
+                onChange={(e) => setSelectedInstanceId(e.target.value)}
+              >
+                <option value="">Selecione uma instância...</option>
+                {filteredInstances.map((inst) => (
+                  <option key={inst.id ?? inst.instanceName} value={inst.id ?? inst.instanceName}>
+                    {inst.instanceName ?? inst.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <Input
+              label="URL de Destino (Endpoint)"
+              type="url"
+              placeholder="https://suapi.com/webhook"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+
+            <Input
+              label="Chave Secreta ( HMAC Secret )"
+              type="password"
+              placeholder="Deixe vazio para manter a chave atual"
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+            />
+
+            <div className="space-y-3">
+              <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">
+                Eventos para Assinatura
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {EVENT_OPTIONS.map((opt) => (
+                  <label key={opt.value} className="group flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-emerald-200 dark:hover:border-emerald-800 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 cursor-pointer transition-all">
+                    <input
+                      type="checkbox"
+                      checked={events.includes(opt.value)}
+                      onChange={() => toggleEvent(opt.value)}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-emerald-600 focus:ring-emerald-500/20"
+                    />
+                    <span className="text-xs font-bold text-gray-600 dark:text-gray-400 group-hover:text-emerald-700 dark:group-hover:text-emerald-400">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+              <Button 
+                onClick={handleSave} 
+                disabled={saving}
+                className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 border-none shadow-lg shadow-emerald-500/20 h-11"
+              >
+                {saving ? 'Gravando...' : 'Salvar Configurações'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleSendTest}
+                disabled={sendingTest || !url?.trim()}
+                className="rounded-xl h-11 px-6 border-gray-200/60 dark:border-gray-700/60"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                {sendingTest ? 'Enviando...' : 'Teste de Envio'}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl p-6 shadow-sm">
+            <h3 className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest mb-4">
+              Inbox de Validação
+            </h3>
+            <p className="text-xs text-emerald-800/70 dark:text-emerald-400/60 leading-relaxed mb-6">
+              Utilize esta URL exclusiva para simular recebimentos e validar sua integração. Todos os pacotes capturados ficarão registrados nos logs com a tag <span className="font-bold">INBOX</span>.
+            </p>
+            
+            <div className="space-y-3">
+              <label className="block text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest ml-1">
+                URL de Simulação
+              </label>
+              <div className="relative group">
+                <input 
+                  readOnly 
+                  value={inboxUrl || 'Selecione uma instância...'} 
+                  className="w-full bg-white/80 dark:bg-gray-900/80 border border-emerald-200/60 dark:border-emerald-800/60 rounded-xl px-4 py-3 text-xs font-mono text-emerald-600 dark:text-emerald-400 shadow-inner outline-none"
+                />
+                <button
+                  onClick={copyInboxUrl}
+                  disabled={!inboxUrl}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors disabled:opacity-50"
+                  aria-label="Copiar URL de Inbox"
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 rounded-2xl p-6">
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">
+              Dica Técnica
+            </h3>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed italic">
+              Certifique-se de que seu endpoint retorna um status HTTP 200 rapidamente. Retentativas automáticas são aplicadas em caso de erro 5xx.
+            </p>
+          </div>
         </div>
       </div>
     </div>

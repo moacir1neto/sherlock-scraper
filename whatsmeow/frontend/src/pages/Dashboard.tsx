@@ -13,7 +13,6 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { instanceService, dashboardService } from '../services/api';
-import { StatCardSkeleton } from '../components/LoadingSkeleton';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { companyService } from '../services/company';
@@ -206,64 +205,64 @@ export function Dashboard() {
           title: 'Total de Empresas',
           value: stats?.totalCompanies ?? 0,
           icon: Building2,
-          color: 'text-indigo-600 dark:text-indigo-400',
-          bgColor: 'bg-indigo-100 dark:bg-indigo-900/30',
+          gradient: 'from-green-500 to-blue-600',
+          ariaLabel: 'Total de empresas cadastradas no sistema',
         },
         {
           title: 'Total de Usuários',
           value: stats?.totalUsers ?? 0,
           icon: Users,
-          color: 'text-blue-600 dark:text-blue-400',
-          bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+          gradient: 'from-blue-500 to-cyan-600',
+          ariaLabel: 'Total de usuários ativos no sistema',
         },
         {
           title: 'Total de Instâncias',
           value: stats?.totalInstances ?? 0,
           icon: Settings,
-          color: 'text-purple-600 dark:text-purple-400',
-          bgColor: 'bg-purple-100 dark:bg-purple-900/30',
+          gradient: 'from-emerald-500 to-green-600',
+          ariaLabel: 'Número total de instâncias de WhatsApp',
         },
         {
           title: 'Instâncias Conectadas',
           value: stats?.connectedInstances ?? 0,
           icon: CheckCircle2,
-          color: 'text-green-600 dark:text-green-400',
-          bgColor: 'bg-green-100 dark:bg-green-900/30',
+          gradient: 'from-emerald-500 to-teal-600',
+          ariaLabel: 'Instâncias com conexão ativa',
         },
         {
           title: 'Instâncias Desconectadas',
           value: stats?.disconnectedInstances ?? 0,
           icon: XCircle,
-          color: 'text-red-600 dark:text-red-400',
-          bgColor: 'bg-red-100 dark:bg-red-900/30',
+          gradient: 'from-rose-500 to-red-600',
+          ariaLabel: 'Instâncias que precisam de reconexão',
         },
         {
           title: 'Mensagens Hoje',
           value: stats?.messagesToday ?? 0,
           icon: MessageSquare,
-          color: 'text-yellow-600 dark:text-yellow-400',
-          bgColor: 'bg-yellow-100 dark:bg-yellow-900/30',
+          gradient: 'from-amber-500 to-orange-600',
+          ariaLabel: 'Total de mensagens enviadas nas últimas 24 horas',
         },
         {
           title: 'Chats Aguardando',
           value: stats?.chatsAguardando ?? 0,
           icon: Clock,
-          color: 'text-amber-600 dark:text-amber-400',
-          bgColor: 'bg-amber-100 dark:bg-amber-900/30',
+          gradient: 'from-amber-400 to-amber-600',
+          ariaLabel: 'Conversas pendentes de atendimento',
         },
         {
           title: 'Chats Atendendo',
           value: stats?.chatsAtendendo ?? 0,
           icon: Headphones,
-          color: 'text-emerald-600 dark:text-emerald-400',
-          bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
+          gradient: 'from-primary-500 to-primary-700',
+          ariaLabel: 'Conversas em atendimento ativo',
         },
         {
           title: 'Chats Finalizados',
           value: stats?.chatsFinalizado ?? 0,
           icon: CheckCircle,
-          color: 'text-gray-600 dark:text-gray-400',
-          bgColor: 'bg-gray-100 dark:bg-gray-900/30',
+          gradient: 'from-slate-500 to-slate-700',
+          ariaLabel: 'Conversas encerradas hoje',
         },
       ]
     : [
@@ -271,50 +270,50 @@ export function Dashboard() {
           title: 'Total de Instâncias',
           value: stats?.totalInstances ?? 0,
           icon: Users,
-          color: 'text-blue-600 dark:text-blue-400',
-          bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+          gradient: 'from-emerald-500 to-green-600',
+          ariaLabel: 'Número total de instâncias vinculadas',
         },
         {
           title: 'Conectadas',
           value: stats?.connectedInstances ?? 0,
           icon: CheckCircle2,
-          color: 'text-green-600 dark:text-green-400',
-          bgColor: 'bg-green-100 dark:bg-green-900/30',
+          gradient: 'from-emerald-500 to-teal-600',
+          ariaLabel: 'Instâncias conectadas',
         },
         {
           title: 'Desconectadas',
           value: stats?.disconnectedInstances ?? 0,
           icon: XCircle,
-          color: 'text-red-600 dark:text-red-400',
-          bgColor: 'bg-red-100 dark:bg-red-900/30',
+          gradient: 'from-rose-500 to-red-600',
+          ariaLabel: 'Instâncias desconectadas',
         },
         {
           title: 'Mensagens Hoje',
           value: stats?.messagesToday ?? 0,
           icon: MessageSquare,
-          color: 'text-purple-600 dark:text-purple-400',
-          bgColor: 'bg-purple-100 dark:bg-purple-900/30',
+          gradient: 'from-amber-500 to-orange-600',
+          ariaLabel: 'Mensagens enviadas hoje',
         },
         {
           title: 'Chats Aguardando',
           value: stats?.chatsAguardando ?? 0,
           icon: Clock,
-          color: 'text-amber-600 dark:text-amber-400',
-          bgColor: 'bg-amber-100 dark:bg-amber-900/30',
+          gradient: 'from-amber-400 to-amber-600',
+          ariaLabel: 'Atendimentos pendentes',
         },
         {
           title: 'Chats Atendendo',
           value: stats?.chatsAtendendo ?? 0,
           icon: Headphones,
-          color: 'text-emerald-600 dark:text-emerald-400',
-          bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
+          gradient: 'from-primary-500 to-primary-700',
+          ariaLabel: 'Atendimentos em curso',
         },
         {
           title: 'Chats Finalizados',
           value: stats?.chatsFinalizado ?? 0,
           icon: CheckCircle,
-          color: 'text-gray-600 dark:text-gray-400',
-          bgColor: 'bg-gray-100 dark:bg-gray-900/30',
+          gradient: 'from-slate-500 to-slate-700',
+          ariaLabel: 'Atendimentos encerrados',
         },
       ];
 
@@ -336,11 +335,19 @@ export function Dashboard() {
         </p>
       </motion.div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {loading ? (
             Array.from({ length: statCards.length }).map((_, i) => (
-              <StatCardSkeleton key={i} />
+              <div key={i} className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-lg p-5 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2 flex-1">
+                    <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-1/2"></div>
+                    <div className="h-8 bg-gray-100 dark:bg-gray-700 rounded w-1/3"></div>
+                    <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-1/4"></div>
+                  </div>
+                  <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-xl"></div>
+                </div>
+              </div>
             ))
           ) : (
             statCards.map((stat, index) => {
@@ -351,19 +358,24 @@ export function Dashboard() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+                  className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-lg shadow-gray-200/50 dark:shadow-none p-5 hover:shadow-xl hover:border-gray-300/80 transition-all duration-300"
+                  aria-label={stat.ariaLabel}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         {stat.title}
                       </p>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                      <p className="text-3xl font-black text-gray-900 dark:text-white mt-1.5" aria-label={`${stat.value} ${stat.title}`}>
                         {stat.value}
                       </p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1 font-medium">
+                        <TrendingUp size={10} className="text-emerald-500" />
+                        Atualizado agora
+                      </p>
                     </div>
-                    <div className={`${stat.bgColor} ${stat.color} p-3 rounded-lg`}>
-                      <Icon size={24} />
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-lg shadow-gray-200/50 dark:shadow-none shrink-0`}>
+                      <Icon size={22} className="text-white" />
                     </div>
                   </div>
                 </motion.div>
@@ -372,22 +384,26 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
           {chartData && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6"
+              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-lg p-6"
             >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Mensagens Enviadas (Últimos 7 dias)
-                </h2>
-                <TrendingUp className="text-green-600 dark:text-green-400" size={22} />
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                    Desempenho de Mensagens
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Fluxo de disparos nos últimos 7 dias</p>
+                </div>
+                <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
+                  <TrendingUp className="text-emerald-600 dark:text-emerald-400" size={20} />
+                </div>
               </div>
-              <div className="h-64">
+              <div className="h-72" aria-label="Gráfico de linha mostrando o volume de mensagens enviadas nos últimos 7 dias">
                 <Line
                   data={chartData}
                   options={{
@@ -398,20 +414,24 @@ export function Dashboard() {
                       tooltip: {
                         mode: 'index',
                         intersect: false,
-                        backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.8)',
-                        titleColor: '#fff',
-                        bodyColor: '#fff',
+                        backgroundColor: theme === 'dark' ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                        titleColor: theme === 'dark' ? '#fff' : '#111827',
+                        bodyColor: theme === 'dark' ? '#d1d5db' : '#374151',
+                        borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 12,
                       },
                     },
                     scales: {
                       x: {
                         grid: { display: false },
-                        ticks: { color: theme === 'dark' ? '#9ca3af' : '#6b7280', maxRotation: 0 },
+                        ticks: { color: theme === 'dark' ? '#9ca3af' : '#6b7280', font: { size: 11, weight: 500 } },
                       },
                       y: {
                         beginAtZero: true,
-                        grid: { color: theme === 'dark' ? '#374151' : '#e5e7eb' },
-                        ticks: { color: theme === 'dark' ? '#9ca3af' : '#6b7280' },
+                        grid: { color: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+                        ticks: { color: theme === 'dark' ? '#9ca3af' : '#6b7280', font: { size: 11 } },
                       },
                     },
                   }}
@@ -424,15 +444,20 @@ export function Dashboard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6"
+              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-lg p-6"
             >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Chats por Status
-                </h2>
-                <Headphones className="text-emerald-600 dark:text-emerald-400" size={22} />
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                    Distribuição de Atendimentos
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Status atual da fila de chat</p>
+                </div>
+                <div className="p-2.5 bg-primary-100 dark:bg-primary-900/30 rounded-xl">
+                  <Headphones className="text-primary-600 dark:text-primary-400" size={20} />
+                </div>
               </div>
-              <div className="h-64 flex items-center justify-center">
+              <div className="h-72 flex items-center justify-center" aria-label="Gráfico de rosca mostrando a distribuição de chats por status (aguardando, atendendo, finalizado)">
                 <Doughnut
                   data={statusChartData}
                   options={{
@@ -441,14 +466,25 @@ export function Dashboard() {
                     plugins: {
                       legend: {
                         position: 'bottom' as const,
-                        labels: { color: theme === 'dark' ? '#9ca3af' : '#6b7280' },
+                        labels: { 
+                          color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                          padding: 20,
+                          font: { size: 12, weight: 500 },
+                          usePointStyle: true,
+                          pointStyle: 'circle'
+                        },
                       },
                       tooltip: {
-                        backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.8)',
-                        titleColor: '#fff',
-                        bodyColor: '#fff',
+                        backgroundColor: theme === 'dark' ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                        titleColor: theme === 'dark' ? '#fff' : '#111827',
+                        bodyColor: theme === 'dark' ? '#d1d5db' : '#374151',
+                        borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 12,
                       },
                     },
+                    cutout: '70%',
                   }}
                 />
               </div>
