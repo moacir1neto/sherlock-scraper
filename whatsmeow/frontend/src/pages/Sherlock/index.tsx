@@ -8,6 +8,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { sherlockService } from '../../services/sherlock';
 import { toast } from 'react-hot-toast';
+import { ConfirmDialog } from '../../utils/sweetalert';
 import type { Scrape } from '../../types';
 
 function StatusBadge({ status }: { status: Scrape['status'] }) {
@@ -189,7 +190,15 @@ export function Sherlock({ onViewLeads }: SherlockProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Remover esta campanha e todos os seus leads?')) return;
+    const result = await ConfirmDialog.fire({
+      title: 'Remover Campanha?',
+      text: 'Esta ação excluirá permanentemente a campanha e todos os leads vinculados a ela.',
+      icon: 'warning',
+      confirmButtonText: 'Sim, remover tudo',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
     setDeletingId(id);
     try {
       await sherlockService.deleteScrape(id);

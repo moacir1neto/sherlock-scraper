@@ -10,6 +10,7 @@ import { companyService } from '../services/company';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { Tag as TagType, Company } from '../types';
+import { ConfirmDialog } from '../utils/sweetalert';
 
 export function Tags() {
   const { user } = useAuth();
@@ -96,7 +97,19 @@ export function Tags() {
   };
 
   const handleDelete = async (tag: TagType & { usage_count?: number }) => {
-    if (!confirm(`Excluir a tag "${tag.name}"?${(tag.usage_count || 0) > 0 ? ` Ela está em uso em ${tag.usage_count} conversa(s).` : ''}`)) return;
+    const usageWarning = (tag.usage_count || 0) > 0 
+      ? `\nEsta tag está em uso em ${tag.usage_count} conversa(s).` 
+      : '';
+      
+    const result = await ConfirmDialog.fire({
+      title: 'Excluir Tag?',
+      text: `Deseja remover a tag "${tag.name}"?${usageWarning}`,
+      icon: 'warning',
+      confirmButtonText: 'Sim, excluir',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
     try {
       await tagService.delete(tag.id);
       toast.success('Tag excluída');

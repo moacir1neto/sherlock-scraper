@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Trash2, Server } from 'lucide-react';
 import { Button } from '../Button';
 import { superAdminService } from '../../services/superAdmin';
+import { ConfirmDialog } from '../../utils/sweetalert';
 import { SuperAdminInstance } from '../../types';
 import { toast } from 'react-hot-toast';
 
@@ -13,14 +14,22 @@ interface InstanceTableProps {
 export function InstanceTable({ instances, onRefresh }: InstanceTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta instância?')) {
+  const handleDelete = async (instanceName: string) => {
+    const result = await ConfirmDialog.fire({
+      title: 'Excluir Instância?',
+      text: `Deseja remover a instância "${instanceName}"? A conexão com o WhatsApp será encerrada.`,
+      icon: 'warning',
+      confirmButtonText: 'Sim, excluir',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) {
       return;
     }
 
     try {
-      setDeletingId(id);
-      await superAdminService.deleteInstance(id);
+      setDeletingId(instanceName);
+      await superAdminService.deleteInstance(instanceName);
       toast.success('Instância excluída com sucesso!');
       onRefresh();
     } catch (error: any) {

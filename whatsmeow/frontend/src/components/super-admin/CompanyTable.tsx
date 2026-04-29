@@ -4,6 +4,7 @@ import { Button } from '../Button';
 import { Modal } from '../Modal';
 import { CompanyForm } from './CompanyForm';
 import { Company } from '../../types';
+import { ConfirmDialog } from '../../utils/sweetalert';
 import { companyService } from '../../services/company';
 import { toast } from 'react-hot-toast';
 
@@ -23,7 +24,15 @@ export function CompanyTable({ companies, onRefresh }: CompanyTableProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta empresa?')) {
+    const result = await ConfirmDialog.fire({
+      title: 'Excluir Empresa?',
+      text: 'Todos os dados vinculados a esta empresa serão removidos. Esta ação é irreversível.',
+      icon: 'warning',
+      confirmButtonText: 'Sim, excluir',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) {
       return;
     }
 

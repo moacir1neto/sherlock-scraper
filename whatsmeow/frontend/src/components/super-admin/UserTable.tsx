@@ -7,6 +7,7 @@ import { User } from '../../types';
 import { adminService } from '../../services/admin';
 import { superAdminService } from '../../services/superAdmin';
 import { toast } from 'react-hot-toast';
+import { ConfirmDialog } from '../../utils/sweetalert';
 
 interface UserTableProps {
   users: User[];
@@ -45,7 +46,15 @@ export function UserTable({
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este usuário?')) {
+    const result = await ConfirmDialog.fire({
+      title: 'Excluir Usuário?',
+      text: 'Tem certeza que deseja remover este acesso? Esta ação não pode ser desfeita.',
+      icon: 'warning',
+      confirmButtonText: 'Sim, excluir',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) {
       return;
     }
 

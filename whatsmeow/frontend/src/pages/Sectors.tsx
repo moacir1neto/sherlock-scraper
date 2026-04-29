@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Company, User } from '../types';
 import { companyService } from '../services/company';
 import { userService } from '../services/user';
+import { ConfirmDialog } from '../utils/sweetalert';
 import { api } from '../services/api';
 
 interface Sector {
@@ -103,11 +104,15 @@ export function Sectors() {
   };
 
   const handleDelete = async (sector: Sector) => {
-    if (sector.is_default) {
-      toast.error('Não é possível excluir o setor padrão (Geral)');
-      return;
-    }
-    if (!confirm(`Excluir o setor "${sector.name}"?`)) return;
+    const result = await ConfirmDialog.fire({
+      title: 'Excluir Setor?',
+      text: `Deseja realmente remover o setor "${sector.name}"?`,
+      icon: 'warning',
+      confirmButtonText: 'Sim, excluir',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
     try {
       await api.delete(`/admin/sectors/${sector.id}`);
       toast.success('Setor excluído');

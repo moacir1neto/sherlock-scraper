@@ -16,6 +16,7 @@ import { useAIAnalysis } from '../../contexts/AIAnalysisContext';
 import { LeadsKanban } from './LeadsKanban';
 import { useLeadsRealtime } from '../../hooks/useLeadsRealtime';
 import { BulkSendModal } from './BulkSendModal';
+import { ConfirmDialog } from '../../utils/sweetalert';
 
 type ViewMode = 'list' | 'kanban';
 
@@ -320,7 +321,15 @@ function LeadsView({ scrape, onBack }: LeadsViewProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Remover este lead?')) return;
+    const result = await ConfirmDialog.fire({
+      title: 'Remover Lead?',
+      text: 'Esta ação não poderá ser desfeita e os dados do lead serão perdidos.',
+      icon: 'warning',
+      confirmButtonText: 'Sim, excluir',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
     setDeletingId(id);
     try {
       await leadsService.delete(id);

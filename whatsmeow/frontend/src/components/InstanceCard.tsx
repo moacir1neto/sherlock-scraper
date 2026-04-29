@@ -8,6 +8,7 @@ import { instanceService } from '../services/api';
 import { userService } from '../services/user';
 import { QRCodeModal } from './QRCodeModal';
 import { toast } from 'react-hot-toast';
+import { ConfirmDialog } from '../utils/sweetalert';
 import { useAuth } from '../contexts/AuthContext';
 import { Instance } from '../types';
 import { User } from '../types';
@@ -33,8 +34,16 @@ export function InstanceCard({ instance, onUpdate, onSelect }: InstanceCardProps
     setShowQR(true);
   };
 
-  const handleLogout = async () => {
-    if (!confirm('Tem certeza que deseja desconectar esta instância?')) return;
+  const handleDisconnect = async () => {
+    const result = await ConfirmDialog.fire({
+      title: 'Desconectar WhatsApp?',
+      text: 'A instância será desconectada e você não poderá enviar mensagens até reconectar.',
+      icon: 'warning',
+      confirmButtonText: 'Sim, desconectar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
     
     try {
       setLoading('logout');
@@ -49,7 +58,15 @@ export function InstanceCard({ instance, onUpdate, onSelect }: InstanceCardProps
   };
 
   const handleDelete = async () => {
-    if (!confirm('Tem certeza que deseja deletar esta instância? Esta ação não pode ser desfeita.')) return;
+    const result = await ConfirmDialog.fire({
+      title: 'Deletar Instância?',
+      text: 'Esta ação é irreversível e removerá todos os dados desta conexão.',
+      icon: 'warning',
+      confirmButtonText: 'Sim, deletar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
     
     try {
       setLoading('delete');
@@ -168,7 +185,7 @@ export function InstanceCard({ instance, onUpdate, onSelect }: InstanceCardProps
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleLogout}
+                onClick={handleDisconnect}
                 disabled={loading !== null}
                 className="rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 text-red-500 h-10 font-bold text-xs uppercase tracking-wider"
                 aria-label="Desconectar instância"
