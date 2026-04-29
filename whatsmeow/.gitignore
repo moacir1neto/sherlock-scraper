@@ -1,0 +1,10 @@
+.idea
+.env
+*.json
+*.db
+/example-app/sessions
+/example-app/export
+/example-app/upload
+/example-app/media
+
+.env.example

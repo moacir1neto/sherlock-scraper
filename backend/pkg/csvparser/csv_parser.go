@@ -5,6 +5,7 @@ import (
 	"mime/multipart"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
+	"github.com/digitalcombo/sherlock-scraper/backend/pkg/phoneutil"
 )
 
 // ParseFile parses the uploaded CSV file into a 2D string slice
@@ -19,7 +20,7 @@ func ParseFile(file multipart.File) ([][]string, error) {
 }
 
 // MapToLeads converts the CSV rows into a slice of Lead pointers
-func MapToLeads(records [][]string) []*domain.Lead {
+func MapToLeads(records [][]string, nicho string) []*domain.Lead {
 	if len(records) < 2 {
 		return nil
 	}
@@ -38,11 +39,11 @@ func MapToLeads(records [][]string) []*domain.Lead {
 
 		lead := &domain.Lead{
 			Empresa:       row[0],
-			Nota:          row[1],
+			Rating:        row[1],
 			QtdAvaliacoes: row[2],
 			ResumoNegocio: row[3],
 			Endereco:      row[4],
-			Telefone:      row[5],
+			Telefone:      phoneutil.StrictClean(row[5]),
 			TipoTelefone:  row[6],
 			LinkWhatsapp:  row[7],
 			Site:          row[8],
@@ -53,6 +54,7 @@ func MapToLeads(records [][]string) []*domain.Lead {
 			TikTok:        row[13],
 			YouTube:       row[14],
 			KanbanStatus:  domain.StatusProspeccao,
+			Nicho:         nicho,
 		}
 		
 		if lead.Empresa != "" { // Skip empty companies

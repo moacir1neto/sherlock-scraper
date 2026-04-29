@@ -1,31 +1,53 @@
 import React from 'react';
 import { Lead } from '@/types';
-import { Star, MapPin, Phone, ExternalLink, MessageCircle } from 'lucide-react';
+import { Star, MapPin, Phone, ExternalLink, MessageCircle, Flame, Snowflake, Thermometer } from 'lucide-react';
 
 interface LeadCardProps {
   lead: Lead;
   isDragging?: boolean;
+  onLeadClick?: (lead: Lead) => void;
 }
 
-const LeadCard: React.FC<LeadCardProps> = ({ lead, isDragging }) => {
-  const whatsappUrl = lead.LinkWhatsapp || (lead.Telefone ? `https://wa.me/55${lead.Telefone.replace(/\\D/g, '')}` : null);
+const LeadCard: React.FC<LeadCardProps> = ({ lead, isDragging, onLeadClick }) => {
+  const whatsappUrl = lead.LinkWhatsapp || (lead.Telefone ? `https://wa.me/55${lead.Telefone.replace(/\D/g, '')}` : null);
+  const scoreRaw = lead.ai_analysis?.score_maturidade;
+  const score = scoreRaw !== undefined ? scoreRaw * 10 : undefined;
 
   return (
     <div
-      className={`relative p-4 rounded-xl bg-glass border border-glass-border shadow-lg backdrop-blur-md transition-all ${
-        isDragging ? 'shadow-[0_20px_40px_rgba(0,0,0,0.4)] ring-2 ring-blue-500/50 scale-105 z-50' : 'hover:border-white/20 hover:shadow-xl'
+      onClick={() => onLeadClick?.(lead)}
+      className={`relative p-4 rounded-xl bg-glass border border-glass-border shadow-lg backdrop-blur-md transition-all ${onLeadClick ? 'cursor-pointer' : ''} ${
+        isDragging ? 'shadow-[0_20px_40px_rgba(0,0,0,0.4)] ring-2 ring-blue-500/50 scale-105 z-50' : 'hover:border-white/20 hover:shadow-xl hover:bg-white/[0.04]'
       }`}
     >
       <div className="flex items-start justify-between mb-3">
         <h4 className="font-semibold text-white leading-tight break-words pr-2 line-clamp-2">
           {lead.Empresa || 'Unknown Company'}
         </h4>
-        {lead.Nota && (
-          <div className="flex items-center gap-1 text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-md text-xs font-medium shrink-0 shadow-[0_0_10px_rgba(250,204,21,0.1)]">
-            <Star size={12} className="fill-yellow-400" />
-            {lead.Nota.split(' ')[0]} {/* Extract note number if it's mixed with words */}
-          </div>
-        )}
+        
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {lead.Rating && lead.Rating !== '-' && (
+            <div className="flex items-center gap-1 text-yellow-500 bg-yellow-400/5 border border-yellow-400/20 px-2 py-1 rounded-md text-[10px] font-black shadow-sm">
+              <Star size={10} className="fill-yellow-500" />
+              {lead.Rating.includes(' ') ? lead.Rating.split(' ')[0] : lead.Rating}
+            </div>
+          )}
+          {score !== undefined && (
+            <div 
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black shadow-sm border ${
+                score >= 80 
+                  ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20' 
+                  : score >= 50 
+                  ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' 
+                  : 'bg-rose-400/10 text-rose-400 border-rose-400/20'
+              }`}
+              title={score >= 80 ? 'Lead Quente 🔥' : score >= 50 ? 'Lead Morno 😐' : 'Lead Frio 🧊'}
+            >
+              {score >= 80 ? <Flame size={10} /> : score < 50 ? <Snowflake size={10} /> : <Thermometer size={10} />}
+              {score}
+            </div>
+          )}
+        </div>
       </div>
       
       {lead.ResumoNegocio && (
@@ -58,7 +80,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, isDragging }) => {
             rel="noopener noreferrer"
             title="Chat on WhatsApp"
             className="w-8 h-8 rounded-lg bg-[#25D366]/10 text-[#25D366] flex items-center justify-center hover:bg-[#25D366] flex-none hover:text-white transition-colors cursor-pointer"
-            onPointerDown={(e) => e.stopPropagation()} // Prevent drag conflict when clicking link
+            onPointerDown={(e) => e.stopPropagation()} 
           >
             <MessageCircle size={16} />
           </a>

@@ -1,42 +1,65 @@
-version: '3.8'
 
-services:
+
+services:   
   sherlock:
     build: .
+    ports:
+      - "8000:8000"
     volumes:
-      - .:/app
-    # Evita que o Python crie arquivos de cache desnecessários na sua pasta
+      - ${HOST_PROJECT_PATH:-.}:/app
     environment:
-      - PYTHONDONTWRITEBYTECODE=1
-<<<<<<< HEAD
-      - PYTHONUNBUFFERED=1
-=======
-      - PYTHONUNBUFFERED=1
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    restart: always
 
-  db:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  db: 
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: crm
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
     ports:
-      - "3000:3000"
+      - "3005:3000"
     environment:
-      DATABASE_URL: "host=db user=postgres password=password dbname=crm port=5432 sslmode=disable TimeZone=America/Sao_Paulo"
+      DATABASE_URL: "host=db user=postgres password=password dbname=crm port=5432 sslmode=disable"
       JWT_SECRET: "my_dev_super_secret"
+      REDIS_ADDR: "redis:6379"
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
+      GOOGLE_PLACES_API_KEY: "${GOOGLE_PLACES_API_KEY}"
+      COMPOSE_FILE: "/workspace/docker-compose.yml"
+      HOST_PROJECT_PATH: "${PWD:-.}"
+      # --- NOVAS VARIÁVEIS DA INTEGRAÇÃO ---
+      WHATSMIau_API_URL: "http://whatsmiau-api:8080"
+      WHATSMIau_API_TOKEN: "seu_token_de_api_aqui" # Vamos gerar isso no painel depois
+      INTERNAL_API_TOKEN: "9a3c8f650547ee1b91c947c40f7c792bc303d5bb857f3bbb2c0f0af1c8d98e70"
     volumes:
-      - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   frontend:
     build:
@@ -45,14 +68,57 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:3000/api/v1
+      VITE_API_URL: "http://localhost:3005/api/v1"
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "if [ ! -d node_modules ]; then npm install --legacy-peer-deps; fi && npm run dev"
     depends_on:
       - api
 
+  whatsmiau-api:
+    build:
+      context: ./whatsmeow
+      dockerfile: Dockerfile
+    container_name: whatsmiau-api
+    ports:
+      - "8081:8080"
+    environment:
+      PORT: "8080"
+      DEBUG_MODE: "true"
+      DEBUG_WHATSMEOW: "true"
+      DIALECT_DB: "postgres"
+      DB_URL: "postgres://postgres:password@db:5432/whatsmiau?sslmode=disable"
+      REDIS_URL: "redis:6379"
+      SHERLOCK_URL: "http://api:3000"
+      INTERNAL_API_TOKEN: "9a3c8f650547ee1b91c947c40f7c792bc303d5bb857f3bbb2c0f0af1c8d98e70"
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
+      JWT_SECRET: "my_dev_super_secret"
+    volumes:
+      - whatsmiau_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  whatsmiau-ui:
+    build:
+      context: ./whatsmeow/frontend
+      dockerfile: Dockerfile.dev
+    container_name: whatsmiau-ui
+    ports:
+      - "3031:3031"
+    environment:
+      VITE_PROXY_TARGET: "http://whatsmiau-api:8080"
+    volumes:
+      - ./whatsmeow/frontend:/app
+      - /app/node_modules
+    depends_on:
+      - whatsmiau-api
+    restart: unless-stopped
+
 volumes:
   pgdata:
->>>>>>> staging
+  whatsmiau_data:
