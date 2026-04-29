@@ -590,7 +590,9 @@ export function Chat() {
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <ChatList
-          chats={chats.filter((c) => {
+          chats={chats
+          .filter(c => c.remote_jid?.endsWith('@s.whatsapp.net'))
+          .filter((c) => {
             const s = c.status ?? 'aguardando';
             if (activeQueue === 'aguardando') return s === 'aguardando' || s === 'pending' || s === 'open';
             if (activeQueue === 'atendendo') return s === 'atendendo' || s === 'active';
