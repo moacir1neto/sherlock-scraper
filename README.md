@@ -10,11 +10,31 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Framer Motion](https://img.shields.io/badge/Framer_Motion-10-0055FF?style=for-the-badge&logo=framer&logoColor=white)](https://www.framer.com/motion)
-[![License](https://img.shields.io/badge/License-MIT-00af4b?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-00af4b?style=for-the-badge)](./whatsmeow/LICENSE)
+[![Changelog](https://img.shields.io/badge/Changelog-TODO-lightgrey?style=for-the-badge)](.)
 
 **Prospecção automatizada · Disparos em lote · Dossiê IA · Chat multicanal · Dashboard analítico**
 
 </div>
+
+---
+
+## 📑 Índice
+
+- [Visão Geral](#-visão-geral)
+- [Arquitetura do Sistema](#️-arquitetura-do-sistema)
+- [Funcionalidades Principais](#-funcionalidades-principais)
+- [Design System](#-design-system)
+- [Tech Stack](#️-tech-stack)
+- [Pré-requisitos](#️-pré-requisitos)
+- [Instalação e Execução](#-instalação-e-execução)
+- [Estrutura de Diretórios](#-estrutura-de-diretórios)
+- [Fluxo de Uso Básico](#-fluxo-de-uso-básico)
+- [Capturas de Tela](#️-capturas-de-tela)
+- [API](#-api)
+- [Troubleshooting](#-troubleshooting)
+- [Contribuição](#-contribuição)
+- [Licença](#-licença)
 
 ---
 
@@ -162,6 +182,8 @@ animation: {
 - **Dark mode** nativo via classe (`darkMode: 'class'`)
 - **Tipografia:** Inter (sans-serif) em pesos 400–700
 
+> 🤖 **Design assistido por IA:** O design system foi refinado com auxílio do **Claude Code** e a skill **ui-ux-pro-max**, que fornece paletas, tipografias, estilos e padrões de componentes premium para acelerar decisões de UI/UX.
+
 ### Componentes Premium
 | Componente | Descrição |
 |-----------|-----------|
@@ -211,7 +233,7 @@ animation: {
 ### 1. Clone o repositório
 
 ```bash
-git clone https://github.com/seu-usuario/sherlock-scraper.git
+git clone https://github.com/moacir1neto/sherlock-scraper.git
 cd sherlock-scraper
 ```
 
@@ -378,22 +400,18 @@ sherlock-scraper/
 
 ## 🖼️ Capturas de Tela
 
-<!-- Screenshot 1: Lista de Leads com filtros, badges de status e botão de dossiê IA -->
-<!-- ![Lista de Leads](/docs/screenshots/leads-list.png) -->
+Telas pendentes de captura — salve em `docs/screenshots/` e descomente:
 
-<!-- Screenshot 2: LeadDetailsModal expandido com Score de Maturidade Digital, Icebreakers e Pitches -->
-<!-- ![Dossiê IA — Lead Details Modal](/docs/screenshots/lead-dossier.png) -->
-
-<!-- Screenshot 3: Dashboard com cards glassmorphism, gráficos Chart.js e métricas em tempo real -->
-<!-- ![Dashboard Analítico](/docs/screenshots/dashboard.png) -->
-
-<!-- Screenshot 4: Chat multicanal com painel de contato retrátil e agendamento de mensagens -->
-<!-- ![Chat com Painel de Contato](/docs/screenshots/chat-contact-panel.png) -->
-
-<!-- Screenshot 5: Kanban de leads com drag-and-drop entre colunas de funil -->
-<!-- ![Kanban de Leads](/docs/screenshots/leads-kanban.png) -->
-
-> 💡 Para adicionar screenshots, salve as imagens em `/docs/screenshots/` e descomente as linhas acima.
+- [ ] **Lista de Leads** — glassmorphism cards, filtros, badges de status e botão de dossiê IA
+  <!-- ![Lista de Leads](/docs/screenshots/leads-list.png) -->
+- [ ] **Drawer Dossiê IA** — LeadDetailsModal expandido (3 colunas: score maturidade, icebreakers, pitches)
+  <!-- ![Dossiê IA](/docs/screenshots/lead-dossier.png) -->
+- [ ] **Dashboard** — cards glassmorphism, gráficos Chart.js, métricas em tempo real
+  <!-- ![Dashboard](/docs/screenshots/dashboard.png) -->
+- [ ] **Chat** — interface multicanal com painel de contato retrátil
+  <!-- ![Chat](/docs/screenshots/chat-contact-panel.png) -->
+- [ ] **Kanban** — board drag-and-drop com colunas de funil
+  <!-- ![Kanban](/docs/screenshots/leads-kanban.png) -->
 
 ---
 
@@ -414,6 +432,20 @@ Principais grupos de endpoints da Sherlock API:
 | Campanhas | `/api/v1/campaigns` | Criação, streaming SSE |
 | Instâncias | `/api/v1/instances` | Gerenciamento de instâncias WhatsApp |
 | Workers | `/api/v1/queue` | Status de tasks Asynq |
+
+---
+
+## 🔧 Troubleshooting
+
+| Problema | Causa provável | Solução |
+|----------|---------------|---------|
+| Porta `3031` ou `3005` já em uso | Container anterior rodando | `docker compose down && docker compose up -d` |
+| Redis não conecta / timeout | Container Redis parado | `docker compose ps redis` → se parado: `docker compose up -d redis` |
+| Erro `GEMINI_API_KEY not set` | Variável ausente no `.env` | Verificar `GEMINI_API_KEY` no `.env` raiz e em `backend/.env` |
+| Vite HMR não conecta (WebSocket) | Acesso via HTTPS ou IP externo | Acessar via `http://localhost:3031` (sem HTTPS) |
+| Build quebrado após atualização | Cache de layers Docker desatualizado | `docker compose build --no-cache && docker compose up -d` |
+| Migrations não rodam | Banco não está healthy | `docker compose logs db` → aguardar healthcheck passar |
+| Dossiê IA retorna vazio | Chave Gemini inválida ou quota excedida | Validar chave em [Google AI Studio](https://aistudio.google.com) |
 
 ---
 
@@ -446,6 +478,11 @@ Use o [GitHub Issues](../../issues) para reportar bugs, com:
 ## 📄 Licença
 
 Distribuído sob a licença **MIT**. Veja [`LICENSE`](./whatsmeow/LICENSE) para detalhes.
+
+> ⚠️ O arquivo `LICENSE` está em `whatsmeow/LICENSE`. Para melhor visibilidade, copie-o para a raiz:
+> ```bash
+> cp whatsmeow/LICENSE ./LICENSE
+> ```
 
 ---
 
