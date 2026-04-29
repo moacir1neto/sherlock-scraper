@@ -590,7 +590,13 @@ export function Chat() {
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <ChatList
-          chats={chats}
+          chats={chats.filter((c) => {
+            const s = c.status ?? 'aguardando';
+            if (activeQueue === 'aguardando') return s === 'aguardando' || s === 'pending' || s === 'open';
+            if (activeQueue === 'atendendo') return s === 'atendendo' || s === 'active';
+            if (activeQueue === 'finalizado') return s === 'finalizado' || s === 'closed' || s === 'finished' || s === 'close';
+            return true;
+          })}
           activeQueue={activeQueue}
           selectedChat={selectedChat}
           onSelectChat={setSelectedChat}
