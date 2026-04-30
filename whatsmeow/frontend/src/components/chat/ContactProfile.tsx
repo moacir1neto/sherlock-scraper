@@ -1,4 +1,4 @@
-import { Tag as TagIcon, Layout, CheckCircle, Brain, Calendar, X } from 'lucide-react';
+import { Tag as TagIcon, Layout, CheckCircle, Brain, PauseCircle, Calendar, X } from 'lucide-react';
 import { ChatItem } from '../../types';
 import { ChatAvatar } from './ChatAvatar';
 import { getChatDisplayName, getAvatarLetter, parseJidToNumber } from '../../utils/chatUtils';
@@ -15,6 +15,7 @@ interface ContactProfileProps {
   onChangeSector: (sectorId: string | null) => void;
   onFinish: () => void;
   onResumeAgent: () => void;
+  onPauseAgent: () => void;
   onScheduleMessage: () => void;
   changingStatus: boolean;
   changingSector: boolean;
@@ -31,6 +32,7 @@ export function ContactProfile({
   onChangeSector,
   onFinish,
   onResumeAgent,
+  onPauseAgent,
   onScheduleMessage,
   changingStatus,
   changingSector,
@@ -74,20 +76,29 @@ export function ContactProfile({
               <span className="text-[10px] font-black uppercase tracking-widest">Finalizar Chat</span>
             </button>
 
-            <button
-              onClick={onResumeAgent}
-              disabled={!chat.ai_paused}
-              className={`flex items-center gap-3 w-full p-3 rounded-xl border transition-all group disabled:opacity-50 ${
-                chat.ai_paused
-                  ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-700/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100'
-                  : 'bg-gray-50 dark:bg-gray-900/10 border-gray-100 dark:border-gray-700/20 text-gray-400'
-              }`}
-            >
-              <div className={`p-2 rounded-lg shadow-sm group-hover:scale-110 transition-transform ${chat.ai_paused ? 'bg-white dark:bg-gray-800' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                <Brain size={18} className={chat.ai_paused ? 'text-emerald-600' : 'text-gray-400'} />
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-widest">Retomar Agente IA</span>
-            </button>
+            {chat.ai_paused ? (
+              <button
+                onClick={onResumeAgent}
+                aria-label="Retomar agente de IA neste chat"
+                className="flex items-center gap-3 w-full p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-700/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-all group"
+              >
+                <div className="p-2 rounded-lg bg-white dark:bg-gray-800 shadow-sm group-hover:scale-110 transition-transform">
+                  <Brain size={18} className="text-emerald-600" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest">Retomar Agente IA</span>
+              </button>
+            ) : (
+              <button
+                onClick={onPauseAgent}
+                aria-label="Assumir controle do chat e pausar IA"
+                className="flex items-center gap-3 w-full p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/50 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-all group"
+              >
+                <div className="p-2 rounded-lg bg-white dark:bg-gray-800 shadow-sm group-hover:scale-110 transition-transform">
+                  <PauseCircle size={18} className="text-amber-600" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest">Assumir Chat</span>
+              </button>
+            )}
 
             <button
               onClick={onScheduleMessage}

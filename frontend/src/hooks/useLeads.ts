@@ -268,11 +268,17 @@ export function useLeads() {
     }
   }, []);
 
-  const bulkSendLeads = useCallback(async (leadIds: string[], instanceId: string) => {
+  const bulkSendLeads = useCallback(async (selectedLeads: Lead[], instanceId: string) => {
     try {
+      const leads = selectedLeads.map((l) => ({
+        id: l.ID,
+        phone: l.Telefone,
+        company_name: l.CompanyName,
+        ai_analysis: l.ai_analysis ? JSON.stringify(l.ai_analysis) : '',
+      }));
       const res = await axios.post(
-        `${API_URL()}/protected/leads/bulk-send`,
-        { lead_ids: leadIds, instance_id: instanceId },
+        `${API_URL()}/leads/bulk-send`,
+        { leads, instance_id: instanceId },
         { headers: authHeaders() }
       );
       toast.success(res.data.message || 'Campanha enfileirada com sucesso!');

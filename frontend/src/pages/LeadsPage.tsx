@@ -293,7 +293,8 @@ const LeadsPage: React.FC = () => {
         onClose={() => setIsBulkSendModalOpen(false)}
         selectedLeads={leads.filter((l) => selectedIds.includes(l.ID))}
         onStartCampaign={async (instanceId: string) => {
-          return await bulkSendLeads(selectedIds, instanceId);
+          const selectedLeads = leads.filter((l) => selectedIds.includes(l.ID));
+          return await bulkSendLeads(selectedLeads, instanceId);
         }}
       />
     </>

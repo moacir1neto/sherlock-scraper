@@ -32,9 +32,10 @@ func main() {
 	app.Use(logger.New())
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:5173, http://localhost:3031, http://127.0.0.1:3031", // Libera o acesso para o Front-end Sherlock e WhatsMiau
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Internal-Token",
-		AllowMethods: "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
+		AllowOrigins:     "http://localhost:5173, http://localhost:3031, http://127.0.0.1:3031, https://whatsmiau.test",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Internal-Token, X-Requested-With",
+		AllowMethods:     "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
+		AllowCredentials: true,
 	}))
 
 	// 4. Dependency Injection (Injecting repos into services, and services into handlers)

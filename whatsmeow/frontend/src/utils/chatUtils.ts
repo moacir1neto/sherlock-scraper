@@ -6,12 +6,23 @@ export function parseJidToNumber(remoteJid: string): string {
   return parts[0] || remoteJid;
 }
 
+export function formatBrazilianPhone(num: string): string {
+  const digits = num.replace(/\D/g, '');
+  // Remove DDI 55 if present and remaining digits look like a Brazilian number
+  const local = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
+  if (local.length === 11) return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+  if (local.length === 10) return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
+  return num;
+}
+
 export function getChatDisplayName(chat: ChatItem): string {
   const name = typeof chat.name === 'string' ? chat.name.trim() : '';
   if (name) return name;
-  const num = parseJidToNumber(chat.remote_jid || '');
-  if (num) return num;
-  return chat.remote_jid || 'Contato';
+  const jid = chat.remote_jid || '';
+  if (jid.endsWith('@g.us')) return 'Grupo';
+  const num = parseJidToNumber(jid);
+  if (num) return formatBrazilianPhone(num);
+  return 'Contato';
 }
 
 export function getAvatarLetter(chat: ChatItem): string {

@@ -191,6 +191,16 @@ func (s *Whatsmiau) generateClient(ctx context.Context, id string) (*whatsmeow.C
 	lock.Lock()
 	defer lock.Unlock()
 
+	// If the QR observer goroutine is active for this instance, it owns the connection
+	// lifecycle. Interfering here (e.g. deleting the device) races with post-pairing
+	// goroutines (pre-key upload, identity key storage) and causes FK violations.
+	if _, observing := s.observerRunning.Load(id); observing {
+		if client, ok := s.clients.Load(id); ok {
+			return client, nil
+		}
+		return nil, nil
+	}
+
 	client, ok := s.clients.Load(id)
 	if !ok {
 		zap.L().Info("[generateClient] creating new device", zap.String("instance", id))
@@ -215,9 +225,17 @@ func (s *Whatsmiau) generateClient(ctx context.Context, id string) (*whatsmeow.C
 		}
 
 		if err := client.Connect(); err == nil {
-			if client.IsLoggedIn() {
-				return nil, nil
+			// Login is asynchronous: handleConnectSuccess fires after the server sends <success>.
+			// Deleting the device immediately while that goroutine is still running (uploading
+			// pre-keys, storing identity keys) causes FK violations in child tables.
+			// Poll for up to 8 seconds so we catch the logged-in state before deciding to wipe.
+			for i := 0; i < 16; i++ {
+				if client.IsLoggedIn() {
+					return nil, nil
+				}
+				time.Sleep(500 * time.Millisecond)
 			}
+			zap.L().Warn("[generateClient] connect succeeded but login timed out", zap.String("instance", id))
 		} else {
 			zap.L().Warn("[generateClient] recovery connect failed", zap.String("instance", id), zap.Error(err))
 		}
@@ -275,52 +293,87 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 	if instanceFound := s.getInstance(id); instanceFound != nil {
 		configProxy(client, instanceFound.InstanceProxy)
 	}
-	if err := client.Connect(); err != nil {
-		zap.L().Error("failed to connect connected device", zap.Error(err))
-		s.clients.Delete(id)
-		if err := s.deleteDeviceIfExists(context.TODO(), client); err != nil {
-			zap.L().Error("failed to cleanup device after Connect error", zap.String("id", id), zap.Error(err))
+
+	maxAttempts := 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		zap.L().Info("Tentativa de conexão para instância", zap.Int("attempt", attempt), zap.String("id", id))
+		if err := client.Connect(); err == nil {
+			zap.L().Info("Conectado ao WebSocket do WhatsApp", zap.String("id", id))
+			break
+		} else {
+			zap.L().Error("Falha na tentativa de conexão", zap.Error(err), zap.Int("attempt", attempt), zap.String("id", id))
+			if attempt == maxAttempts {
+				zap.L().Error("Todas as tentativas de conexão falharam, removendo dispositivo", zap.String("id", id))
+				s.clients.Delete(id)
+				if err := s.deleteDeviceIfExists(context.TODO(), client); err != nil {
+					zap.L().Error("failed to cleanup device after Connect error", zap.String("id", id), zap.Error(err))
+				}
+				return
+			}
+			backoff := time.Duration(1<<(attempt-1)) * time.Second
+			zap.L().Info("Aguardando para nova tentativa", zap.Duration("backoff", backoff), zap.String("id", id))
+			time.Sleep(backoff)
 		}
-		return
 	}
 
 	zap.L().Debug("waiting for QR channel event", zap.String("id", id))
 	for {
 		select {
-		case <-ctx.Done(): // QR code expiration
-			zap.L().Debug("context ", zap.String("id", id), zap.Error(ctx.Err()))
+		case <-ctx.Done(): // QR code expiration or timeout
+			zap.L().Warn("QR observation timed out or context cancelled", zap.String("id", id), zap.Error(ctx.Err()))
 			if err := s.deleteDeviceIfExists(context.TODO(), client); err != nil {
-				zap.L().Error("failed to hard logout", zap.String("id", id), zap.Error(err))
+				zap.L().Error("failed to hard logout on timeout", zap.String("id", id), zap.Error(err))
 			}
 			s.clients.Delete(id)
 			return
 		case evt, ok := <-qrChan:
-			if !ok || evt.Event == "error" || evt.Event == "timeout" { // closed qr chan
-				zap.L().Debug("QR channel closed", zap.String("id", id), zap.Any("evt", evt))
+			if !ok {
+				zap.L().Warn("QR channel closed unexpectedly", zap.String("id", id))
 				cancel()
 				continue
 			}
-			zap.L().Debug("received QR channel event", zap.String("id", id), zap.Any("evt", evt))
-			if evt.Event == "code" {
-				s.qrCache.Store(id, evt.Code)
-				continue
-			}
 
-			if evt.Event == "success" || evt.Event == "logged_in" {
+			zap.L().Info("received QR channel event", zap.String("id", id), zap.String("event", evt.Event))
+
+			switch evt.Event {
+			case "code":
+				zap.L().Debug("storing new QR code in cache", zap.String("id", id))
+				s.qrCache.Store(id, evt.Code)
+			case "pairing":
+				zap.L().Info("pairing in progress...", zap.String("id", id))
+			case "timeout":
+				zap.L().Warn("QR channel timed out", zap.String("id", id))
+				cancel()
+			case "error":
+				zap.L().Error("QR channel error", zap.String("id", id), zap.Any("evt", evt))
+				cancel()
+			case "success", "logged_in":
 				if client.Store.ID == nil {
 					zap.L().Error("jid is nil after login", zap.String("id", id), zap.Any("evt", evt))
 					cancel()
 					continue
 				}
 
-				zap.L().Info("device connected successfully", zap.String("id", id))
+				zap.L().Info("Handshake concluído, aguardando sincronização inicial...", zap.String("id", id))
+
+				if err := client.Store.Save(context.Background()); err != nil {
+					zap.L().Error("failed to save device store to SQL", zap.String("id", id), zap.Error(err))
+				}
+
+				time.Sleep(2 * time.Second)
+
+				zap.L().Info("device connected successfully", zap.String("id", id), zap.String("jid", client.Store.ID.String()))
+				
+				// Ensure event handlers are set
 				client.RemoveEventHandlers()
 				client.AddEventHandler(s.Handle(id))
+				
 				if _, err := s.repo.Update(context.Background(), id, &models.Instance{
 					RemoteJID: client.Store.ID.String(),
 				}); err != nil {
 					zap.L().Error("failed to update instance after login", zap.Error(err))
 				}
+				
 				// Webhook CONNECTED
 				if inst := s.getInstance(id); inst != nil && inst.Webhook.Url != "" && webhookEventEnabled(inst.Webhook.Events, "CONNECTED") {
 					companyID := ""
@@ -329,11 +382,13 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 					}
 					s.EmitEnvelope(inst.ID, companyID, "connected", inst.Webhook.Url, inst.Webhook.Secret, map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)})
 				}
+				
 				s.qrCache.Delete(id)
+				zap.L().Info("QR observation finished with success", zap.String("id", id))
 				return
+			default:
+				zap.L().Debug("unhandled QR event", zap.String("id", id), zap.String("event", evt.Event), zap.Any("raw", evt))
 			}
-
-			zap.L().Error("unknown event", zap.String("id", id), zap.Any("evt", evt))
 		}
 	}
 }
@@ -384,16 +439,33 @@ func (s *Whatsmiau) Status(id string) (Status, error) {
 		return Closed, nil
 	}
 
-	if client.IsConnected() && client.IsLoggedIn() {
+	connected := client.IsConnected()
+	loggedIn := client.IsLoggedIn()
+
+	if connected && loggedIn {
 		return Connected, nil
 	}
 
 	// If not connected, but we have a QR code, the state is QrCode
-	if _, ok := s.qrCache.Load(id); ok && client.IsConnected() {
-		return QrCode, nil
+	if _, ok := s.qrCache.Load(id); ok {
+		if connected {
+			return QrCode, nil
+		}
+		// If we have QR but not connected, it's still QrCode but might be reconnecting
+		return QrCode, nil 
 	}
 
-	if client.IsLoggedIn() {
+	if loggedIn {
+		// If logged in but not connected, try to connect if it's not a temporary drop
+		if !connected {
+			zap.L().Warn("Instância logada mas desconectada", zap.String("id", id))
+			return Reconnecting, nil
+		}
+		return Connecting, nil
+	}
+
+	// If it's connected but not logged in (and no QR), it's generating/connecting
+	if connected {
 		return Connecting, nil
 	}
 

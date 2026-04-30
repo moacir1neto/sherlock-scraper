@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useState } from 'react';
 
 export interface AppNotification {
   id: string;
-  type: 'new_message' | 'new_chat_aguardando';
+  type: 'new_message' | 'new_chat_aguardando' | 'reuniao_agendada';
   title: string;
   body?: string;
   chatId?: string;
@@ -40,6 +40,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const clearAll = useCallback(() => {
     setNotifications([]);
   }, []);
+
+  React.useEffect(() => {
+    const handleGlobalNotification = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        const payload = customEvent.detail;
+        addNotification({
+          type: payload.type || 'new_message',
+          title: payload.title,
+          body: payload.body || payload.message,
+          chatId: payload.chatId || payload.leadId,
+          chatName: payload.chatName,
+          instanceId: payload.instanceId,
+        });
+      }
+    };
+    window.addEventListener('app_notification', handleGlobalNotification);
+    return () => window.removeEventListener('app_notification', handleGlobalNotification);
+  }, [addNotification]);
 
   const value: NotificationContextValue = {
     notifications,
