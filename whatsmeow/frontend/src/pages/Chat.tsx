@@ -4,6 +4,7 @@ import { MessageCircle } from 'lucide-react';
 import { instanceService, chatService, messageService, tagService, sectorService, quickRepliesService, flowService } from '../services/api';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import { useHandoffSSE } from '../hooks/useHandoffSSE';
 import { useNotifications } from '../contexts/NotificationContext';
 import { getNotificationSettings } from '../utils/notificationSettings';
 import { ChatItem, MessageItem, ChatMessagesCacheEntry } from '../types';
@@ -17,7 +18,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 const MESSAGES_PAGE_SIZE = 30;
 
 export function Chat() {
-  useAuth();
+  const { isAuthenticated } = useAuth();
+  useHandoffSSE(isAuthenticated, (chatId) => {
+    setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, ai_paused: true } : c)));
+    setSelectedChat((prev) => (prev && prev.id === chatId ? { ...prev, ai_paused: true } : prev));
+  });
   const location = useLocation();
   const [instances, setInstances] = useState<{ id: string; instanceName?: string }[]>([]);
   const [instanceId, setInstanceId] = useState<string>('');
@@ -557,6 +562,21 @@ export function Chat() {
     }
   };
 
+  const handlePauseAgent = async (chat: ChatItem) => {
+    if (!instanceId) return;
+    try {
+      await fetch(`/v1/instance/${instanceId}/chats/${chat.id}/pause-agent`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+      });
+      setChats((prev) => prev.map((c) => (c.id === chat.id ? { ...c, ai_paused: true } : c)));
+      setSelectedChat((prev) => (prev && prev.id === chat.id ? { ...prev, ai_paused: true } : prev));
+      toast.success('Você assumiu o chat. IA pausada.');
+    } catch {
+      toast.error('Erro ao pausar agente de IA');
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-gray-50 dark:bg-gray-900">
       {/* Header Orquestrador */}
@@ -668,6 +688,7 @@ export function Chat() {
                     onChangeSector={(sid) => handleChangeSector(selectedChat!, sid)}
                     onFinish={() => setShowFinishModal(true)}
                     onResumeAgent={() => handleResumeAgent(selectedChat!)}
+                    onPauseAgent={() => handlePauseAgent(selectedChat!)}
                     onScheduleMessage={() => setShowScheduleModal(true)}
                     changingStatus={changingStatus}
                     changingSector={changingSector}

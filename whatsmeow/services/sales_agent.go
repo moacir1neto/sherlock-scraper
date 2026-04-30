@@ -21,8 +21,9 @@ import (
 
 // AgentResponse é o structured output esperado do Gemini.
 type AgentResponse struct {
-	Resposta      string `json:"resposta"`
-	AcionarHumano bool   `json:"acionar_humano"`
+	Resposta       string `json:"resposta"`
+	AcionarHumano  bool   `json:"acionar_humano"`
+	AgendouReuniao bool   `json:"agendou_reuniao"`
 }
 
 // SalesAgentService processa mensagens recebidas e decide se responde automaticamente
@@ -33,6 +34,8 @@ type SalesAgentService struct {
 	whatsapp     *whatsmiau.Whatsmiau
 	handoffHub   *HandoffHub
 	httpClient   *http.Client
+	leadRepo     interfaces.LeadRepository
+	broadcaster  ChatBroadcaster
 }
 
 // NewSalesAgentService cria o serviço injetando as dependências necessárias.
@@ -41,6 +44,8 @@ func NewSalesAgentService(
 	instanceRepo interfaces.InstanceRepository,
 	whatsapp *whatsmiau.Whatsmiau,
 	hub *HandoffHub,
+	leadRepo interfaces.LeadRepository,
+	broadcaster ChatBroadcaster,
 ) *SalesAgentService {
 	return &SalesAgentService{
 		db:           db,
@@ -48,6 +53,8 @@ func NewSalesAgentService(
 		whatsapp:     whatsapp,
 		handoffHub:   hub,
 		httpClient:   &http.Client{Timeout: 30 * time.Second},
+		leadRepo:     leadRepo,
+		broadcaster:  broadcaster,
 	}
 }
 
@@ -114,6 +121,8 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 		// Envia resposta automaticamente
 		if err := s.sendReply(ctx, instanceID, remoteJID, agentResp.Resposta); err != nil {
 			zap.L().Warn("[SalesAgent] falha ao enviar resposta", zap.String("chat", chatID), zap.Error(err))
+		} else {
+			s.advanceLeadStatus(ctx, lead, companyID, instanceID, "contatado", "prospeccao")
 		}
 		return nil
 	}
@@ -121,6 +130,11 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 	// Pausa a IA e emite handoff
 	if err := s.pauseChat(ctx, chatID); err != nil {
 		zap.L().Warn("[SalesAgent] falha ao pausar chat", zap.String("chat", chatID), zap.Error(err))
+	}
+
+	// Se o Gemini indicou agendamento de reunião, move o lead para "reuniao_agendada"
+	if agentResp.AgendouReuniao {
+		s.advanceLeadStatus(ctx, lead, companyID, instanceID, "reuniao_agendada", "prospeccao", "contatado")
 	}
 
 	leadName := ""
@@ -232,17 +246,18 @@ func (s *SalesAgentService) findLeadByPhone(ctx context.Context, companyID, phon
 	// Tenta correspondência exata ou sufixo (DDI opcional)
 	var lead models.Lead
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, name, COALESCE(ai_analysis, '') FROM leads
+		`SELECT id, name, COALESCE(ai_analysis, ''), COALESCE(kanban_status, 'prospeccao') FROM leads
 		 WHERE company_id = $1 AND phone LIKE '%' || $2
 		 LIMIT 1`,
 		companyID, phone,
-	).Scan(&lead.ID, &lead.Name, &lead.AIAnalysis)
+	).Scan(&lead.ID, &lead.Name, &lead.AIAnalysis, &lead.KanbanStatus)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	lead.CompanyID = companyID
 	return &lead, nil
 }
 
@@ -294,8 +309,9 @@ func (s *SalesAgentService) buildPrompt(settings *models.AISettings, history []m
 	sb.WriteString("2. Se o lead apresentar uma objeção, use as informações da empresa e do dossiê para contorná-la e mostrar valor.\n")
 	sb.WriteString("3. Mantenha a resposta humana, natural, concisa e alinhada ao tom de voz.\n")
 	sb.WriteString("4. Defina acionar_humano como true APENAS se o lead fizer perguntas muito específicas que saem do contexto, se estiver irritado, ou se exigir expressamente falar com um atendente.\n")
+	sb.WriteString("5. Defina agendou_reuniao como true quando o lead aceitar explicitamente marcar uma reunião, demonstração ou call. Nesse caso, acionar_humano também deve ser true.\n")
 	sb.WriteString("Responda APENAS com JSON válido, sem texto adicional ou formatação markdown (sem ```json):\n")
-	sb.WriteString(`{"resposta": "<sua resposta>", "acionar_humano": <true|false>}`)
+	sb.WriteString(`{"resposta": "<sua resposta>", "acionar_humano": <true|false>, "agendou_reuniao": <true|false>}`)
 
 	return sb.String()
 }
@@ -351,10 +367,11 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 			ResponseSchema: geminiResponseSchema{
 				Type: "OBJECT",
 				Properties: map[string]geminiSchemaProp{
-					"resposta":       {Type: "STRING"},
-					"acionar_humano": {Type: "BOOLEAN"},
+					"resposta":        {Type: "STRING"},
+					"acionar_humano":  {Type: "BOOLEAN"},
+					"agendou_reuniao": {Type: "BOOLEAN"},
 				},
-				Required: []string{"resposta", "acionar_humano"},
+				Required: []string{"resposta", "acionar_humano", "agendou_reuniao"},
 			},
 		},
 	}
@@ -425,6 +442,24 @@ func (s *SalesAgentService) callAI(ctx context.Context, prompt string) (*AgentRe
 
 // ── Envio de mensagem ─────────────────────────────────────────────────────────
 
+// sanitizeAgentReply remove artefatos indesejados que o LLM pode inserir na resposta:
+// exclamações iniciais, blocos de código markdown, aspas externas e espaços extras.
+func sanitizeAgentReply(text string) string {
+	// Remove blocos de código markdown (```...```)
+	text = strings.ReplaceAll(text, "```", "")
+
+	// Remove pipes e aspas que envolvam a resposta inteira
+	text = strings.Trim(text, "|\"'`")
+
+	// Remove '!' e espaços do início (artefato comum de escape de prompt)
+	text = strings.TrimLeft(text, "! ")
+
+	// Normaliza espaços extras nas bordas
+	text = strings.TrimSpace(text)
+
+	return text
+}
+
 func (s *SalesAgentService) sendReply(ctx context.Context, instanceID, remoteJID, text string) error {
 	jid, err := types.ParseJID(remoteJID)
 	if err != nil {
@@ -432,9 +467,45 @@ func (s *SalesAgentService) sendReply(ctx context.Context, instanceID, remoteJID
 	}
 
 	_, err = s.whatsapp.SendText(ctx, &whatsmiau.SendText{
-		Text:       text,
+		Text:       sanitizeAgentReply(text),
 		InstanceID: instanceID,
 		RemoteJID:  &jid,
 	})
 	return err
+}
+
+// advanceLeadStatus atualiza o kanban_status do lead se o status atual estiver
+// na lista de origens permitidas. Emite evento SSE para o frontend.
+func (s *SalesAgentService) advanceLeadStatus(ctx context.Context, lead *models.Lead, companyID, instanceID, targetStatus string, allowedFrom ...string) {
+	if lead == nil || s.leadRepo == nil {
+		return
+	}
+
+	allowed := false
+	for _, from := range allowedFrom {
+		if lead.KanbanStatus == from {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return
+	}
+
+	if err := s.leadRepo.UpdateStatus(ctx, lead.ID, companyID, targetStatus); err != nil {
+		zap.L().Warn("[SalesAgent] falha ao atualizar kanban", zap.String("lead", lead.ID), zap.Error(err))
+		return
+	}
+
+	lead.KanbanStatus = targetStatus
+	zap.L().Info("[SalesAgent] kanban: lead movido", zap.String("lead", lead.Name), zap.String("status", targetStatus))
+
+	if s.broadcaster != nil {
+		s.broadcaster.BroadcastEvent(instanceID, "lead_kanban_updated", map[string]interface{}{
+			"type":       "lead_kanban_updated",
+			"lead_id":    lead.ID,
+			"new_status": targetStatus,
+			"empresa":    lead.Name,
+		})
+	}
 }
