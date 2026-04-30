@@ -81,7 +81,7 @@ func main() {
 			// Super Vendedor: inicializar o agente de vendas autônomo
 			var salesAgent *services.SalesAgentService
 			if db, err := services.DB(); err == nil {
-				salesAgent = services.NewSalesAgentService(db, instancesRepo, whatsmiau.Get(), handoffHub, leadRepo, hub)
+				salesAgent = services.NewSalesAgentService(db, instancesRepo, whatsmiau.Get(), handoffHub, leadRepo, messageRepo, hub)
 				if env.Env.GeminiAPIKey == "" {
 					zap.L().Warn("Super Vendedor: GEMINI_API_KEY não configurada — agente inicializado mas respostas automáticas estão desativadas")
 				} else {

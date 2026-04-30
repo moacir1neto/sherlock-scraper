@@ -35,6 +35,7 @@ type SalesAgentService struct {
 	handoffHub   *HandoffHub
 	httpClient   *http.Client
 	leadRepo     interfaces.LeadRepository
+	messageRepo  interfaces.MessageRepository
 	broadcaster  ChatBroadcaster
 }
 
@@ -45,6 +46,7 @@ func NewSalesAgentService(
 	whatsapp *whatsmiau.Whatsmiau,
 	hub *HandoffHub,
 	leadRepo interfaces.LeadRepository,
+	messageRepo interfaces.MessageRepository,
 	broadcaster ChatBroadcaster,
 ) *SalesAgentService {
 	return &SalesAgentService{
@@ -54,6 +56,7 @@ func NewSalesAgentService(
 		handoffHub:   hub,
 		httpClient:   &http.Client{Timeout: 30 * time.Second},
 		leadRepo:     leadRepo,
+		messageRepo:  messageRepo,
 		broadcaster:  broadcaster,
 	}
 }
@@ -117,24 +120,38 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 	}
 
 	// 6. Executar ação
-	if !agentResp.AcionarHumano {
-		// Envia resposta automaticamente
-		if err := s.sendReply(ctx, instanceID, remoteJID, agentResp.Resposta); err != nil {
+	if agentResp.AgendouReuniao {
+		agentResp.AcionarHumano = true
+		
+		farewell := "Ótimo! Nossa equipe vai entrar em contato em breve para confirmar todos os detalhes da reunião. Foi um prazer falar com você!"
+		waResp, err := s.sendReply(ctx, instanceID, remoteJID, farewell)
+		if err != nil {
+			zap.L().Warn("[SalesAgent] falha ao enviar despedida", zap.String("chat", chatID), zap.Error(err))
+		} else {
+			s.persistAgentMessage(ctx, chatID, instanceID, waResp, farewell)
+		}
+
+		// Garante a chamada do advanceLeadStatus com os status de origem corretos
+		s.advanceLeadStatus(ctx, lead, companyID, instanceID, "reuniao_agendada",
+			"prospeccao", "contatado", "em_conversa", "negociacao")
+			
+	} else if agentResp.Resposta != "" {
+		waResp, err := s.sendReply(ctx, instanceID, remoteJID, agentResp.Resposta)
+		if err != nil {
 			zap.L().Warn("[SalesAgent] falha ao enviar resposta", zap.String("chat", chatID), zap.Error(err))
 		} else {
-			s.advanceLeadStatus(ctx, lead, companyID, instanceID, "contatado", "prospeccao")
+			s.persistAgentMessage(ctx, chatID, instanceID, waResp, agentResp.Resposta)
 		}
+	}
+
+	if !agentResp.AcionarHumano {
+		s.advanceLeadStatus(ctx, lead, companyID, instanceID, "contatado", "prospeccao")
 		return nil
 	}
 
 	// Pausa a IA e emite handoff
 	if err := s.pauseChat(ctx, chatID); err != nil {
 		zap.L().Warn("[SalesAgent] falha ao pausar chat", zap.String("chat", chatID), zap.Error(err))
-	}
-
-	// Se o Gemini indicou agendamento de reunião, move o lead para "reuniao_agendada"
-	if agentResp.AgendouReuniao {
-		s.advanceLeadStatus(ctx, lead, companyID, instanceID, "reuniao_agendada", "prospeccao", "contatado")
 	}
 
 	leadName := ""
@@ -264,9 +281,15 @@ func (s *SalesAgentService) findLeadByPhone(ctx context.Context, companyID, phon
 func (s *SalesAgentService) buildPrompt(settings *models.AISettings, history []models.Message, lead *models.Lead) string {
 	var sb strings.Builder
 
-	sb.WriteString("=== SYSTEM PROMPT DO AGENTE ===\n")
-	sb.WriteString(settings.AgentSystemPrompt)
-	sb.WriteString("\n\n")
+	sb.WriteString("Você é Zé, vendedor da Whastmiau. Regras absolutas:\n")
+	sb.WriteString("Máximo 7 palavras por mensagem.\n")
+	sb.WriteString("Nunca diga \"oi\", \"tudo bem\" ou \"sou assistente virtual\".\n")
+	sb.WriteString("Vá direto ao ponto — faça uma pergunta curta.\n")
+	sb.WriteString("Se o lead demonstrar interesse: \"Agendamos uma reunião rápida amanhã?\"\n")
+	sb.WriteString("Se o lead responder \"sim\", \"quero\", \"vamos\" ou perguntar \"que horas?\"/\"quando?\": SUGIRA um horário específico. Ex: \"Amanhã às 10h ou 15h. Qual prefere?\"\n")
+	sb.WriteString("Se o lead aceitar um horário específico (ex: \"10h\", \"pode ser 15h\"): CONFIRME a reunião e retorne SOMENTE o JSON com agendou_reuniao:true e acionar_humano:true. NÃO envie mensagem de texto.\n")
+	sb.WriteString("Se perguntar preço: \"Na reunião explico tudo. Amanhã às 10h?\"\n")
+	sb.WriteString("Se disser \"não\" ou \"depois\": \"Sem problema. Deixo meu contato?\"\n\n")
 
 	sb.WriteString("=== CONTEXTO DA EMPRESA (VENDEDOR) ===\n")
 	sb.WriteString(fmt.Sprintf("Empresa: %s\n", settings.CompanyName))
@@ -301,15 +324,8 @@ func (s *SalesAgentService) buildPrompt(settings *models.AISettings, history []m
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString("=== INSTRUÇÃO ===\n")
-	sb.WriteString("Com base no histórico acima e no dossiê do lead, gere a próxima resposta do agente.\n")
-	sb.WriteString("Seu objetivo principal é avançar o lead para a conversão e fechamento da venda de forma consultiva e persuasiva.\n")
-	sb.WriteString("Regras de atuação:\n")
-	sb.WriteString("1. Responda de forma clara e sempre termine com uma pergunta de fechamento ou de avanço na negociação.\n")
-	sb.WriteString("2. Se o lead apresentar uma objeção, use as informações da empresa e do dossiê para contorná-la e mostrar valor.\n")
-	sb.WriteString("3. Mantenha a resposta humana, natural, concisa e alinhada ao tom de voz.\n")
-	sb.WriteString("4. Defina acionar_humano como true APENAS se o lead fizer perguntas muito específicas que saem do contexto, se estiver irritado, ou se exigir expressamente falar com um atendente.\n")
-	sb.WriteString("5. Defina agendou_reuniao como true quando o lead aceitar explicitamente marcar uma reunião, demonstração ou call. Nesse caso, acionar_humano também deve ser true.\n")
+	sb.WriteString("=== INSTRUÇÃO FINAL ===\n")
+	sb.WriteString("Gere o JSON da sua resposta seguindo ESTRITAMENTE as regras acima.\n")
 	sb.WriteString("Responda APENAS com JSON válido, sem texto adicional ou formatação markdown (sem ```json):\n")
 	sb.WriteString(`{"resposta": "<sua resposta>", "acionar_humano": <true|false>, "agendou_reuniao": <true|false>}`)
 
@@ -460,18 +476,43 @@ func sanitizeAgentReply(text string) string {
 	return text
 }
 
-func (s *SalesAgentService) sendReply(ctx context.Context, instanceID, remoteJID, text string) error {
+func (s *SalesAgentService) sendReply(ctx context.Context, instanceID, remoteJID, text string) (*whatsmiau.SendTextResponse, error) {
 	jid, err := types.ParseJID(remoteJID)
 	if err != nil {
-		return fmt.Errorf("parse jid %q: %w", remoteJID, err)
+		return nil, fmt.Errorf("parse jid %q: %w", remoteJID, err)
 	}
 
-	_, err = s.whatsapp.SendText(ctx, &whatsmiau.SendText{
+	return s.whatsapp.SendText(ctx, &whatsmiau.SendText{
 		Text:       sanitizeAgentReply(text),
 		InstanceID: instanceID,
 		RemoteJID:  &jid,
 	})
-	return err
+}
+
+// persistAgentMessage salva a mensagem enviada pelo agente no banco e faz broadcast
+// para o frontend exibir em tempo real no chat do WhatsMiau.
+func (s *SalesAgentService) persistAgentMessage(ctx context.Context, chatID, instanceID string, waResp *whatsmiau.SendTextResponse, text string) {
+	if s.messageRepo == nil || waResp == nil {
+		return
+	}
+	msg := &models.Message{
+		ChatID:      chatID,
+		WAMessageID: waResp.ID,
+		FromMe:      true,
+		MessageType: "text",
+		Content:     sanitizeAgentReply(text),
+		Status:      "sent",
+		CreatedAt:   waResp.CreatedAt,
+	}
+	if err := s.messageRepo.Create(ctx, msg); err != nil {
+		zap.L().Warn("[SalesAgent] falha ao persistir mensagem do agente", zap.String("chat", chatID), zap.Error(err))
+		return
+	}
+	if s.broadcaster != nil {
+		s.broadcaster.BroadcastEvent(instanceID, "new_message", map[string]interface{}{
+			"chat_id": chatID, "message": msg, "instance_id": instanceID,
+		})
+	}
 }
 
 // advanceLeadStatus atualiza o kanban_status do lead se o status atual estiver

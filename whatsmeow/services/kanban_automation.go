@@ -90,10 +90,10 @@ func (k *kanbanAutomation) process(ctx context.Context, instanceID, phone, targe
 
 func (k *kanbanAutomation) ProcessIncomingMessage(ctx context.Context, instanceID, phone string) error {
 	// FromMe = false (lead responded us)
-	return k.process(ctx, instanceID, phone, "retornado", []string{"ganho", "perdido"})
+	return k.process(ctx, instanceID, phone, "em_conversa", []string{"reuniao_agendada", "negociacao", "em_conversa", "ganho", "perdido"})
 }
 
 func (k *kanbanAutomation) ProcessOutgoingMessage(ctx context.Context, instanceID, phone string) error {
 	// FromMe = true (we sent a message, e.g. via Bulk Send)
-	return k.process(ctx, instanceID, phone, "contatado", []string{"contatado", "retornado", "ganho", "perdido"})
+	return k.process(ctx, instanceID, phone, "contatado", []string{"contatado", "em_conversa", "reuniao_agendada", "negociacao", "ganho", "perdido"})
 }
