@@ -3,7 +3,8 @@
 ## Milestone: Evolução da Inteligência e Prospecção
 - [x] Mapeamento Profundo do Codebase
 - [x] Inicialização do Ciclo de Evolução (GSD New Project)
-- [ ] Fase 1: Inteligência e Estabilidade Core
+- [x] Fase 1: Contexto e Decisões Capturadas
+- [ ] Fase 1: Implementação
 - [ ] Fase 2: Resiliência do Scraper e Enriquecimento
 - [ ] Fase 3: Dossiês Profundos e Autonomia
 
