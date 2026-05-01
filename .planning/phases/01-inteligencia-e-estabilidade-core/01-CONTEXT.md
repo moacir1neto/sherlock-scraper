@@ -1,52 +1,33 @@
-# Phase Context: 01-Segurança e Validação de Ambiente
+# Phase Context: 01-Segurança e Validação de Ambiente (Produção)
 
 ## Domain
-Saneamento de segurança e formalização de um contrato estrito de configuração de ambiente (Environment Configuration Contract) para garantir estabilidade *production-grade* no startup dos serviços.
+Saneamento de segurança e formalização de um contrato de ambiente *production-grade* com imutabilidade e comportamento determinístico em containers.
 
 ## Decisions
 
-### 1. Contrato de Ambiente Explícito
-As seguintes variáveis de ambiente formam o contrato estrito de configuração.
+### 1. Contrato de Ambiente e Fail-Fast
+- **Obrigatórios**: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `INTERNAL_API_TOKEN`.
+- **Fail-Fast**: Uso estrito de `log.Fatal` com mensagens limpas. Proibido o uso de `panic` para erros de configuração.
+- **Opcionais**: `GEMINI_API_KEY`, `GOOGLE_PLACES_API_KEY`. Se ausentes, as features dependentes são desativadas com um aviso (Warn) no log.
 
-**WHATSMAIU SERVICE (whatsmeow):**
-- `DATABASE_URL` (obrigatório)
-- `REDIS_URL` (obrigatório)
-- `INTERNAL_API_TOKEN` (obrigatório)
-- `JWT_SECRET` (obrigatório)
+### 2. Imutabilidade e Acesso
+- **Configuração Privada**: A struct de configuração não deve ser exportada globalmente como variável mutável.
+- **Acesso**: Implementar um padrão de acesso "read-only" (Getter) ou injeção de instância para evitar condições de corrida (race conditions) ou mutações acidentais.
 
-**SHERLOCK BACKEND:**
-- `DATABASE_URL` (obrigatório)
-- `REDIS_URL` (obrigatório)
-- `JWT_SECRET` (obrigatório)
+### 3. Carregamento de Ambiente (.env)
+- **Estratégia**: `godotenv` deve ser carregado **apenas** se `APP_ENV` não for `production`.
+- **Docker-Ready**: O sistema deve funcionar perfeitamente com variáveis de ambiente puras passadas pelo runtime do container.
 
-**SERVIÇOS EXTERNOS (opcionais no startup):**
-- `GEMINI_API_KEY`
-- `GOOGLE_PLACES_API_KEY`
-
-### 2. Camada Centralizada de Validação
-- **Padronização**: Ambos os serviços (`whatsmeow` e `backend`) devem usar um pacote dedicado (`env` ou `config`).
-- **Struct Loader**: A configuração deve ser carregada em uma `struct` e o acesso às variáveis deve ocorrer *exclusivamente* através dessa struct. Acesso direto via `os.Getenv` espalhado pelo código é proibido.
-- **Validação**: A struct deve possuir um método `Validate()` que retorna erros descritivos caso chaves obrigatórias estejam ausentes.
-
-### 3. Comportamento Fail-Fast e Saneamento
-- **Zero Fallbacks**: Valores default *hardcoded* (como "super_secret_key") devem ser eliminados do código.
-- **Fail-Fast**: Se `Validate()` retornar erro (variável obrigatória ausente), a aplicação deve abortar imediatamente o startup (`log.Fatal` ou `panic`). O sistema não deve tentar rodar em estado de configuração incompleto.
+### 4. Validação Única
+- **Manual**: Validação via método `Validate()` explícito, sem depender de tags `required` da biblioteca de parse, garantindo mensagens de erro totalmente customizadas e controle total sobre o que é crítico.
 
 ## Code Context
-- **CRM Backend**: `backend/cmd/api/main.go`, `backend/internal/middlewares/auth_middleware.go` (a criar `backend/internal/config/env.go`).
-- **WhatsMiau Service**: `whatsmeow/main.go`, `whatsmeow/env/env.go`.
+- **WhatsMiau**: `whatsmeow/env/env.go`, `whatsmeow/main.go`.
+- **Backend**: `backend/internal/config/env.go`, `backend/cmd/api/main.go`.
 
 ## Canonical Refs
-- `backend/cmd/api/main.go`
-- `whatsmeow/main.go`
-- `backend/internal/middlewares/auth_middleware.go`
+- `backend/internal/config/env.go`
 - `whatsmeow/env/env.go`
 
-## Deferred Ideas (Movidos para próximas fases)
-- Migrações versionadas.
-- Resiliência e retries de IA/Filas.
-- Observabilidade e logs JSON.
-- Automação de testes.
-
 ---
-*Last updated: 2026-05-01 after formal environment contract refinement*
+*Last updated: 2026-05-01 - Refinement for production safety*

@@ -1,61 +1,56 @@
-# Plan: Phase 01-Segurança e Validação de Ambiente
+# Plan: Phase 01-Segurança e Validação de Ambiente (Produção)
 
-Este plano formaliza um contrato de ambiente (Environment Contract) *production-grade*, implementando uma camada centralizada de validação estrita com comportamento *fail-fast*.
+Este plano refina a camada de configuração para padrões de produção, garantindo segurança, imutabilidade e fail-fast limpo.
 
 ## Waves
 
-### Wave 1: Centralized Env Validation Layer
-**Task 1: Camada de Configuração em WhatsMiau**
+### Wave 1: Camada de Configuração Imutável e Segura
+**Task 1: Refatorar WhatsMiau (env/env.go)**
 <read_first>
 - `whatsmeow/env/env.go`
-- `whatsmeow/main.go`
 </read_first>
 <action>
-1. Refatorar/criar `whatsmeow/env/env.go` para usar uma `struct Config` explícita que mantenha as variáveis do serviço.
-2. Mapear `DATABASE_URL`, `REDIS_URL`, `INTERNAL_API_TOKEN` e `JWT_SECRET` como campos obrigatórios. `GEMINI_API_KEY` e `GOOGLE_PLACES_API_KEY` são opcionais.
-3. Implementar um método `Validate()` na `struct Config` que retorna um erro descritivo se as variáveis obrigatórias estiverem ausentes.
-4. Implementar a função `Load()` para popular a struct, e logo em seguida chamar `Validate()`.
-5. No `whatsmeow/main.go`, chamar `env.Load()` e abortar a inicialização com `log.Fatal` (ou `panic`) se retornar erro.
+1. Tornar a struct `E` privada (mudar para `config`).
+2. Tornar a variável global `Env` privada (`env`).
+3. Criar uma função `Get()` que retorna a instância de configuração.
+4. Ajustar `Load()`: carregar `.env` apenas se `os.Getenv("APP_ENV") != "production"`.
+5. Refinar `Validate()`: usar `log.Fatal` para campos obrigatórios; `log.Printf` (Aviso) para opcionais.
 </action>
 <acceptance_criteria>
-- Variáveis são acessadas apenas via struct `env.Config`.
-- O serviço aborta no startup com erro claro se qualquer variável obrigatória estiver vazia.
+- Acesso à configuração via `env.Get()`.
+- O sistema não entra em panic se `GEMINI_API_KEY` faltar, apenas avisa.
 </acceptance_criteria>
 
-**Task 2: Camada de Configuração em Sherlock (Backend)**
+**Task 2: Refatorar Backend (internal/config/env.go)**
 <read_first>
-- `backend/cmd/api/main.go`
-- `backend/internal/middlewares/auth_middleware.go`
+- `backend/internal/config/env.go`
 </read_first>
 <action>
-1. Criar o pacote `backend/internal/config` (ex: `env.go`).
-2. Implementar o exato mesmo padrão usado no WhatsMiau: `struct Config`, método `Load()` e método `Validate()`.
-3. Mapear `DATABASE_URL`, `REDIS_URL` e `JWT_SECRET` como campos obrigatórios.
-4. No `backend/cmd/api/main.go`, chamar o carregamento e validação, usando `log.Fatal` em caso de erro.
-5. Em todo o backend (ex: middlewares e conexões de DB/Redis), substituir acessos diretos como `os.Getenv` pelo uso da struct global de configuração.
+1. Aplicar o mesmo padrão de imutabilidade: variável `Env` privada e função `Get()`.
+2. Implementar lógica de carregamento condicional do `godotenv` baseada em `APP_ENV`.
+3. Validar manualmente `DATABASE_URL`, `REDIS_URL` e `JWT_SECRET`.
+4. Substituir todos os `panic` por `log.Fatal` no startup.
 </action>
 <acceptance_criteria>
-- Acesso centralizado via struct `config.Env` (ou similar) padronizado.
-- O serviço aborta no startup se variáveis obrigatórias estiverem vazias.
-- Não há ocorrências de `os.Getenv` espalhadas pela lógica de negócio.
+- Simetria total de padrão entre WhatsMiau e Backend.
+- `APP_ENV=production` ignora o arquivo `.env`.
 </acceptance_criteria>
 
-**Task 3: Saneamento e Remoção de Fallbacks**
+**Task 3: Atualizar Acessos no Código**
 <read_first>
-- `backend/internal/middlewares/auth_middleware.go`
+- Todos os arquivos que usavam `env.Env` ou `config.Env`.
 </read_first>
 <action>
-1. Auditar o código para remover variáveis default *hardcoded* (ex: "super_secret_key_change_in_production").
-2. Remover verificações inline como `if env == "" { useDefault() }` para configurações que agora são estritamente obrigatórias.
+Substituir acessos diretos à variável global por chamadas ao getter `env.Get()` ou `config.Get()`.
 </action>
 <acceptance_criteria>
-- Nenhuma string de fallback insegura existe no repositório.
-- A segurança é garantida pela presença das variáveis no ambiente validado no startup.
+- O código compila sem erros de acesso a campos privados.
 </acceptance_criteria>
 
 ## Verification
-1. Rodar `docker compose up` após limpar o arquivo `.env`. Ambos os serviços devem falhar imediatamente e exibir mensagens de erro da função `Validate()`.
-2. Verificar no código que o padrão `Load() -> Validate()` está implementado em ambos os serviços de forma simétrica.
+1. Testar startup com `APP_ENV=production` e sem `.env`, passando variáveis via shell: deve funcionar.
+2. Testar startup com campo obrigatório faltando: deve encerrar com `log.Fatal` sem stack trace.
+3. Verificar logs de aviso para campos opcionais ausentes.
 
 ---
 **Status:** Ready for Execution
