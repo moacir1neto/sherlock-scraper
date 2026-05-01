@@ -152,7 +152,7 @@ export default function Pipeline() {
 
   // Escuta eventos SSE do Sherlock para mover cards em tempo real quando
   // uma mensagem WhatsApp é recebida pelo lead.
-  useKanbanRealtime(handleLeadMovedByAutomation);
+  useKanbanRealtime(handleLeadMovedByAutomation, true);
 
   const [pipelineState, setPipelineState] = useState<AIPipelineResponse | null>(null);
   const [allPipelines, setAllPipelines] = useState<PipelineSummary[]>([]);

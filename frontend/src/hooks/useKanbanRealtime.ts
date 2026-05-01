@@ -36,7 +36,7 @@ const SSE_MAX_RECONNECT_DELAY_MS = 60_000;
  * @param onLeadMoved - callback chamado quando um lead é movido. Deve ser estável
  *   (usar useCallback no componente pai) para evitar re-subscribes desnecessários.
  */
-export function useKanbanRealtime(onLeadMoved: OnLeadMovedCallback): void {
+export function useKanbanRealtime(onLeadMoved?: OnLeadMovedCallback, silent: boolean = false): void {
   // Ref para a instância EventSource atual — evita re-render ao reconectar
   const esRef = useRef<EventSource | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,39 +74,43 @@ export function useKanbanRealtime(onLeadMoved: OnLeadMovedCallback): void {
       try {
         const event: KanbanUpdatedEvent = JSON.parse(e.data as string);
         if (event.type === 'lead_kanban_updated') {
-          callbackRef.current(event.lead_id, event.new_status);
+          if (callbackRef.current) {
+            callbackRef.current(event.lead_id, event.new_status);
+          }
           
-          // Notificação visual
-          if (event.new_status === 'reuniao_agendada') {
-            toast.success(
-              `🚨 ${event.empresa} agendou uma reunião!`,
-              {
-                id: `kanban-move-${event.lead_id}`, // evita duplicação para o mesmo lead
-                duration: 6000,
-                position: 'bottom-right',
-              }
-            );
-            
-            // Dispatch evento global para que o Topbar pegue (caso o context não esteja na árvore do hook)
-            window.dispatchEvent(new CustomEvent('app_notification', {
-              detail: {
-                type: 'reuniao_agendada',
-                title: '📅 Reunião Agendada',
-                message: `${event.empresa} agendou uma reunião!`,
-                leadId: event.lead_id,
-                chatName: event.empresa,
-              }
-            }));
-            
-          } else {
-            toast.success(
-              `💬 ${event.empresa} entrou em conversa`,
-              {
-                id: `kanban-move-${event.lead_id}`,
-                duration: 4000,
-                position: 'bottom-right',
-              }
-            );
+          if (!silent) {
+            // Notificação visual
+            if (event.new_status === 'reuniao_agendada') {
+              toast.success(
+                `🚨 ${event.empresa} agendou uma reunião!`,
+                {
+                  id: `kanban-move-${event.lead_id}`, // evita duplicação para o mesmo lead
+                  duration: 6000,
+                  position: 'bottom-right',
+                }
+              );
+              
+              // Dispatch evento global para que o Topbar pegue (caso o context não esteja na árvore do hook)
+              window.dispatchEvent(new CustomEvent('app_notification', {
+                detail: {
+                  type: 'reuniao_agendada',
+                  title: '📅 Reunião Agendada',
+                  message: `${event.empresa} agendou uma reunião!`,
+                  leadId: event.lead_id,
+                  chatName: event.empresa,
+                }
+              }));
+              
+            } else {
+              toast.success(
+                `💬 ${event.empresa} entrou em conversa`,
+                {
+                  id: `kanban-move-${event.lead_id}`,
+                  duration: 4000,
+                  position: 'bottom-right',
+                }
+              );
+            }
           }
         }
       } catch {

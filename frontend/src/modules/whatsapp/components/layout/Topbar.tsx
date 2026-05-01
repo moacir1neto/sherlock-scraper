@@ -108,8 +108,8 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium text-gray-900 dark:text-white">{n.title}</p>
-                                {n.body && (
-                                  <p className="text-xs text-gray-600 dark:text-gray-400 truncate mt-0.5">{n.body}</p>
+                                {n.message && (
+                                  <p className="text-xs text-gray-600 dark:text-gray-400 truncate mt-0.5">{n.message}</p>
                                 )}
                                 <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
                                   {formatNotificationTime(n.createdAt)}

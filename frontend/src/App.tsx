@@ -9,6 +9,7 @@ import SettingsPage from '@/pages/SettingsPage';
 import Pipeline from '@/pages/Pipeline';
 import DashboardHome from '@/pages/DashboardHome';
 import { useAuth } from '@/contexts/AuthContext';
+import { NotificationProvider } from '@/modules/whatsapp/contexts/NotificationContext';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -27,7 +28,9 @@ const App = () => {
         path="/dashboard"
         element={
           <ProtectedRoute>
-            <DashboardLayout />
+            <NotificationProvider>
+              <DashboardLayout />
+            </NotificationProvider>
           </ProtectedRoute>
         }
       >

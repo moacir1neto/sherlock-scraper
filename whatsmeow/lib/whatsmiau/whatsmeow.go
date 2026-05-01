@@ -1,6 +1,7 @@
 package whatsmiau
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -583,4 +584,19 @@ func (s *Whatsmiau) extractJidLid(ctx context.Context, id string, jid types.JID)
 	}
 
 	return jid.ToNonAD().String(), ""
+}
+
+func (s *Whatsmiau) SendPresence(ctx context.Context, instanceID string, remoteJid string, presence string) error {
+	client, ok := s.clients.Load(instanceID)
+	if !ok {
+		return fmt.Errorf("instance not found: %s", instanceID)
+	}
+
+	jid, err := types.ParseJID(remoteJid)
+	if err != nil {
+		return fmt.Errorf("invalid jid: %w", err)
+	}
+
+	state := types.ChatPresence(presence)
+	return client.SendChatPresence(ctx, jid, state, types.ChatPresenceMediaText)
 }

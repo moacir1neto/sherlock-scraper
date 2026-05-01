@@ -21,9 +21,11 @@ import (
 
 // AgentResponse é o structured output esperado do Gemini.
 type AgentResponse struct {
-	Resposta       string `json:"resposta"`
-	AcionarHumano  bool   `json:"acionar_humano"`
-	AgendouReuniao bool   `json:"agendou_reuniao"`
+	Resposta          string `json:"resposta"`
+	AcionarHumano     bool   `json:"acionar_humano"`
+	AgendouReuniao    bool   `json:"agendou_reuniao"`
+	IniciarNegociacao bool   `json:"iniciar_negociacao"`
+	FecharNegocio     bool   `json:"fechar_negocio"`
 }
 
 // SalesAgentService processa mensagens recebidas e decide se responde automaticamente
@@ -114,7 +116,17 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 
 	// 5. Montar prompt e chamar IA (Gemini com fallback Groq)
 	prompt := s.buildPrompt(settings, history, lead)
+	
+	if err := s.whatsapp.SendPresence(ctx, instanceID, remoteJID, string(types.ChatPresenceComposing)); err != nil {
+		zap.L().Warn("[SalesAgent] falha ao enviar status composing", zap.String("chat", chatID), zap.Error(err))
+	}
+
 	agentResp, err := s.callAI(ctx, prompt)
+	
+	if errPresence := s.whatsapp.SendPresence(ctx, instanceID, remoteJID, string(types.ChatPresencePaused)); errPresence != nil {
+		zap.L().Warn("[SalesAgent] falha ao remover status composing", zap.String("chat", chatID), zap.Error(errPresence))
+	}
+
 	if err != nil {
 		return fmt.Errorf("ai call: %w", err)
 	}
@@ -135,12 +147,38 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 		s.advanceLeadStatus(ctx, lead, companyID, instanceID, "reuniao_agendada",
 			"prospeccao", "contatado", "em_conversa", "negociacao")
 			
-	} else if agentResp.Resposta != "" {
-		waResp, err := s.sendReply(ctx, instanceID, remoteJID, agentResp.Resposta)
+	} else if agentResp.FecharNegocio {
+		if lead != nil {
+			s.advanceLeadStatus(ctx, lead, companyID, instanceID, "ganho", "negociacao", "prospeccao", "contatado", "em_conversa")
+		}
+		if err := s.pauseChat(ctx, chatID); err != nil {
+			zap.L().Warn("[SalesAgent] falha ao pausar chat pós fechamento", zap.String("chat", chatID), zap.Error(err))
+		}
+		
+		msg := "Ótimo! Negócio fechado. Nossa equipe entrará em contato para os próximos passos."
+		waResp, err := s.sendReply(ctx, instanceID, remoteJID, msg)
 		if err != nil {
-			zap.L().Warn("[SalesAgent] falha ao enviar resposta", zap.String("chat", chatID), zap.Error(err))
+			zap.L().Warn("[SalesAgent] falha ao enviar confirmação de fechamento", zap.String("chat", chatID), zap.Error(err))
 		} else {
-			s.persistAgentMessage(ctx, chatID, instanceID, waResp, agentResp.Resposta)
+			s.persistAgentMessage(ctx, chatID, instanceID, waResp, msg)
+		}
+		// Aciona humano para avisar o fechamento
+		agentResp.AcionarHumano = true
+		
+	} else {
+		// Negociação: lead perguntou preço, mas ainda não fechou
+		if agentResp.IniciarNegociacao && lead != nil {
+			s.advanceLeadStatus(ctx, lead, companyID, instanceID, "negociacao", "prospeccao", "contatado", "em_conversa")
+			// Não pausa o agente — Zé continua conversando
+		}
+		
+		if agentResp.Resposta != "" {
+			waResp, err := s.sendReply(ctx, instanceID, remoteJID, agentResp.Resposta)
+			if err != nil {
+				zap.L().Warn("[SalesAgent] falha ao enviar resposta", zap.String("chat", chatID), zap.Error(err))
+			} else {
+				s.persistAgentMessage(ctx, chatID, instanceID, waResp, agentResp.Resposta)
+			}
 		}
 	}
 
@@ -383,11 +421,13 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 			ResponseSchema: geminiResponseSchema{
 				Type: "OBJECT",
 				Properties: map[string]geminiSchemaProp{
-					"resposta":        {Type: "STRING"},
-					"acionar_humano":  {Type: "BOOLEAN"},
-					"agendou_reuniao": {Type: "BOOLEAN"},
+					"resposta":           {Type: "STRING"},
+					"acionar_humano":     {Type: "BOOLEAN"},
+					"agendou_reuniao":    {Type: "BOOLEAN"},
+					"iniciar_negociacao": {Type: "BOOLEAN"},
+					"fechar_negocio":     {Type: "BOOLEAN"},
 				},
-				Required: []string{"resposta", "acionar_humano", "agendou_reuniao"},
+				Required: []string{"resposta", "acionar_humano", "agendou_reuniao", "iniciar_negociacao", "fechar_negocio"},
 			},
 		},
 	}
