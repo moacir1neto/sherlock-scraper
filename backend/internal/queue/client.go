@@ -2,8 +2,8 @@ package queue
 
 import (
 	"log"
-	"os"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/hibiken/asynq"
 )
 
@@ -11,7 +11,7 @@ var Client *asynq.Client
 
 // InitClient initializes the Asynq client
 func InitClient() {
-	redisAddr := os.Getenv("REDIS_ADDR")
+	redisAddr := config.Env.RedisURL
 	if redisAddr == "" {
 		redisAddr = "localhost:6379" // Default if not provided
 	}

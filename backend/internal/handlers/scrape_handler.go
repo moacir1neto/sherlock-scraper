@@ -74,7 +74,7 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 			"--localizacao", req.Localizacao,
 			"--limit", fmt.Sprintf("%d", req.Limit),
 		)
-		
+
 		// Captura stdout e stderr juntos para logs
 		cmd.Stdout = &combinedBuf
 		cmd.Stderr = &combinedBuf

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
 	"github.com/redis/go-redis/v9"
 )
@@ -48,13 +48,13 @@ type RedisSubscriber struct {
 // REDIS_ADDR já utilizada pelo restante do sistema (queue/client.go).
 // Se a variável não estiver definida, usa "localhost:6379" como fallback.
 func NewRedisSubscriber(service ports.KanbanAutomationService) *RedisSubscriber {
-	addr := os.Getenv("REDIS_ADDR")
+	addr := config.Env.RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}
 
 	client := redis.NewClient(&redis.Options{
-		Addr:         addr,
+		Addr: addr,
 		// DialTimeout e ReadTimeout evitam que o subscriber fique pendurado
 		// em caso de falha de rede sem retornar erro.
 		DialTimeout:  5 * time.Second,
@@ -108,10 +108,11 @@ func (s *RedisSubscriber) Listen(ctx context.Context) {
 // sem conflito com goroutines internas do Channel().
 //
 // Por que não usar pubsub.Channel()?
-//   Channel() inicia uma goroutine interna que concorre com qualquer
-//   Receive() chamado manualmente — a mensagem pode ser consumida pela
-//   goroutine interna sem chegar ao nosso select. ReceiveMessage() elimina
-//   essa ambiguidade ao usar uma única path de leitura bloqueante.
+//
+//	Channel() inicia uma goroutine interna que concorre com qualquer
+//	Receive() chamado manualmente — a mensagem pode ser consumida pela
+//	goroutine interna sem chegar ao nosso select. ReceiveMessage() elimina
+//	essa ambiguidade ao usar uma única path de leitura bloqueante.
 func (s *RedisSubscriber) subscribe(ctx context.Context) error {
 	pubsub := s.client.Subscribe(ctx, WhatsAppMessagesChannel)
 	defer func() {

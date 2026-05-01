@@ -7,15 +7,16 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"time"
+
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 )
 
 // GoogleData representa os dados de avaliação extraídos do Google Places API
 type GoogleData struct {
-	NotaGeral          string   `json:"nota_geral,omitempty"`
-	TotalAvaliacoes    string   `json:"total_avaliacoes,omitempty"`
+	NotaGeral           string   `json:"nota_geral,omitempty"`
+	TotalAvaliacoes     string   `json:"total_avaliacoes,omitempty"`
 	ComentariosRecentes []string `json:"comentarios_recentes,omitempty"`
 }
 
@@ -67,7 +68,7 @@ func ScrapeGoogleReviews(nomeEmpresa string) (*GoogleData, error) {
 	log.Printf("🔍 Iniciando extração de Google Reviews via API para: %s", nomeEmpresa)
 
 	// A. Validar API Key
-	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
+	apiKey := config.Env.GooglePlacesAPIKey
 	if apiKey == "" {
 		log.Printf("❌ Erro: GOOGLE_PLACES_API_KEY não configurada")
 		return nil, fmt.Errorf("GOOGLE_PLACES_API_KEY não configurada")

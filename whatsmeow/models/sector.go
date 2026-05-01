@@ -12,4 +12,3 @@ type Sector struct {
 	IsDefault bool      `json:"is_default" db:"is_default"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
-

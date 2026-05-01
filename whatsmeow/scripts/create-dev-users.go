@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/google/uuid"
 	"github.com/verbeux-ai/whatsmiau/utils"
 )
 
@@ -91,7 +91,7 @@ func main() {
 				continue
 			}
 			fmt.Printf("🔄 Atualizado: %s (%s)\n", devUser.email, devUser.role)
-			
+
 			// Limpar cache do Redis se estiver disponível
 			// Nota: Isso requer conexão com Redis, mas não é crítico se falhar
 			fmt.Printf("💡 Dica: Limpe o cache do Redis se o problema persistir:\n")
@@ -107,4 +107,3 @@ func main() {
 	fmt.Println("   Admin:       admin@admin.com / admin123")
 	fmt.Println("   Usuário:     user@admin.com / admin123")
 }
-

@@ -136,7 +136,7 @@ func (r *SQLLead) Update(ctx context.Context, lead *models.Lead) error {
 	res, err := r.db.ExecContext(ctx, query,
 		lead.Name, lead.Phone, lead.Address, lead.Website, lead.Email,
 		lead.KanbanStatus, lead.EnrichmentStatus, lead.Notes,
-		lead.EstimatedValue, lead.Tags, lead.LinkWhatsapp, 
+		lead.EstimatedValue, lead.Tags, lead.LinkWhatsapp,
 		lead.AIAnalysis, lead.DeepData, lead.UpdatedAt,
 		lead.ID, lead.CompanyID,
 	)

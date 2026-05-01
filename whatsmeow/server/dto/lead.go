@@ -33,10 +33,10 @@ type UpdateLeadStatusRequest struct {
 }
 
 type LeadListResponse struct {
-	Leads  interface{} `json:"leads"`
-	Total  int         `json:"total"`
-	Page   int         `json:"page"`
-	Limit  int         `json:"limit"`
+	Leads interface{} `json:"leads"`
+	Total int         `json:"total"`
+	Page  int         `json:"page"`
+	Limit int         `json:"limit"`
 }
 
 type BulkAnalyzeRequest struct {

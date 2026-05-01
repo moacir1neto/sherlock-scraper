@@ -12,7 +12,7 @@ import (
 
 func Company(group *echo.Group) {
 	sqlCompanyRepo, _ := companies.NewSQL()
-	
+
 	// Em modo desenvolvimento, usar apenas SQL (sem cache)
 	var companyRepo interfaces.CompanyRepository = sqlCompanyRepo
 	if !env.Env.DebugMode {
@@ -30,4 +30,3 @@ func Company(group *echo.Group) {
 	protected.PUT("/:id", companyController.Update)
 	protected.DELETE("/:id", companyController.Delete)
 }
-

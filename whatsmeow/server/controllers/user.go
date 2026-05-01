@@ -453,8 +453,8 @@ func (u *User) UpdateProfile(ctx echo.Context) error {
 	user := &models.User{
 		Nome:      request.Nome,
 		Email:     request.Email,
-		Senha:     existingUser.Senha, // Keep existing password
-		Role:      existingUser.Role,  // Keep existing role
+		Senha:     existingUser.Senha,     // Keep existing password
+		Role:      existingUser.Role,      // Keep existing role
 		CompanyID: existingUser.CompanyID, // Keep existing company_id
 	}
 
@@ -487,4 +487,3 @@ func (u *User) UpdateProfile(ctx echo.Context) error {
 		UpdatedAt: updated.UpdatedAt.Format(time.RFC3339),
 	})
 }
-

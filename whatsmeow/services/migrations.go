@@ -806,4 +806,3 @@ func SeedSuperAdmin() error {
 	zap.L().Info("No super admin found. Please create one using: ./create-super-admin.sh")
 	return nil
 }
-

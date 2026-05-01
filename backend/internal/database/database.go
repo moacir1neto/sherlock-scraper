@@ -2,8 +2,8 @@ package database
 
 import (
 	"log"
-	"os"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
@@ -13,7 +13,7 @@ import (
 var DB *gorm.DB
 
 func Connect() {
-	dsn := os.Getenv("DATABASE_URL")
+	dsn := config.Env.DatabaseURL
 	if dsn == "" {
 		dsn = "host=localhost user=postgres password=postgres dbname=crm port=5432 sslmode=disable TimeZone=America/Sao_Paulo"
 	}

@@ -43,13 +43,13 @@ func (s *Instance) Create(ctx echo.Context) error {
 		zap.String("url", ctx.Request().URL.String()),
 		zap.String("remote_addr", ctx.Request().RemoteAddr),
 	)
-	
+
 	// Log todos os valores do contexto para debug
 	userID, userIDOk := ctx.Get("user_id").(string)
 	userEmail, _ := ctx.Get("user_email").(string)
 	role, roleOk := ctx.Get("user_role").(string)
 	companyID, _ := ctx.Get("company_id").(string)
-	
+
 	zap.L().Info("Create instance endpoint called - context values",
 		zap.String("user_id", userID),
 		zap.Bool("user_id_ok", userIDOk),
@@ -58,7 +58,7 @@ func (s *Instance) Create(ctx echo.Context) error {
 		zap.Bool("role_ok", roleOk),
 		zap.String("company_id", companyID),
 	)
-	
+
 	// Permissão liberada para todos os usuários autenticados
 	zap.L().Info("User authenticated - allowing instance creation",
 		zap.String("user_role", role),
@@ -83,7 +83,7 @@ func (s *Instance) Create(ctx echo.Context) error {
 		request.Instance.ID = request.InstanceName
 	}
 	request.RemoteJID = ""
-	
+
 	// Associar instância ao company_id do usuário
 	if companyID != "" {
 		companyIDPtr := &companyID
@@ -112,7 +112,7 @@ func (s *Instance) Create(ctx echo.Context) error {
 	}
 
 	c := ctx.Request().Context()
-	
+
 	// Log antes de salvar
 	companyIDValue := ""
 	if request.Instance.CompanyID != nil {
@@ -123,7 +123,7 @@ func (s *Instance) Create(ctx echo.Context) error {
 		zap.String("company_id", companyIDValue),
 		zap.String("user_id", userID),
 	)
-	
+
 	if err := s.repo.Create(c, request.Instance); err != nil {
 		zap.L().Error("failed to create instance", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to create instance")
@@ -238,7 +238,7 @@ func (s *Instance) List(ctx echo.Context) error {
 			continue
 		}
 	}
-	
+
 	zap.L().Info("List instances - filtered result",
 		zap.Int("filtered_count", len(filteredResult)),
 	)

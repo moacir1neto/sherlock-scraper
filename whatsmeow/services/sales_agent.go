@@ -116,13 +116,13 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 
 	// 5. Montar prompt e chamar IA (Gemini com fallback Groq)
 	prompt := s.buildPrompt(settings, history, lead)
-	
+
 	if err := s.whatsapp.SendPresence(ctx, instanceID, remoteJID, string(types.ChatPresenceComposing)); err != nil {
 		zap.L().Warn("[SalesAgent] falha ao enviar status composing", zap.String("chat", chatID), zap.Error(err))
 	}
 
 	agentResp, err := s.callAI(ctx, prompt)
-	
+
 	if errPresence := s.whatsapp.SendPresence(ctx, instanceID, remoteJID, string(types.ChatPresencePaused)); errPresence != nil {
 		zap.L().Warn("[SalesAgent] falha ao remover status composing", zap.String("chat", chatID), zap.Error(errPresence))
 	}
@@ -134,7 +134,7 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 	// 6. Executar ação
 	if agentResp.AgendouReuniao {
 		agentResp.AcionarHumano = true
-		
+
 		farewell := "Ótimo! Nossa equipe vai entrar em contato em breve para confirmar todos os detalhes da reunião. Foi um prazer falar com você!"
 		waResp, err := s.sendReply(ctx, instanceID, remoteJID, farewell)
 		if err != nil {
@@ -146,7 +146,7 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 		// Garante a chamada do advanceLeadStatus com os status de origem corretos
 		s.advanceLeadStatus(ctx, lead, companyID, instanceID, "reuniao_agendada",
 			"prospeccao", "contatado", "em_conversa", "negociacao")
-			
+
 	} else if agentResp.FecharNegocio {
 		if lead != nil {
 			s.advanceLeadStatus(ctx, lead, companyID, instanceID, "ganho", "negociacao", "prospeccao", "contatado", "em_conversa")
@@ -154,7 +154,7 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 		if err := s.pauseChat(ctx, chatID); err != nil {
 			zap.L().Warn("[SalesAgent] falha ao pausar chat pós fechamento", zap.String("chat", chatID), zap.Error(err))
 		}
-		
+
 		msg := "Ótimo! Negócio fechado. Nossa equipe entrará em contato para os próximos passos."
 		waResp, err := s.sendReply(ctx, instanceID, remoteJID, msg)
 		if err != nil {
@@ -164,14 +164,14 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 		}
 		// Aciona humano para avisar o fechamento
 		agentResp.AcionarHumano = true
-		
+
 	} else {
 		// Negociação: lead perguntou preço, mas ainda não fechou
 		if agentResp.IniciarNegociacao && lead != nil {
 			s.advanceLeadStatus(ctx, lead, companyID, instanceID, "negociacao", "prospeccao", "contatado", "em_conversa")
 			// Não pausa o agente — Zé continua conversando
 		}
-		
+
 		if agentResp.Resposta != "" {
 			waResp, err := s.sendReply(ctx, instanceID, remoteJID, agentResp.Resposta)
 			if err != nil {
@@ -373,20 +373,20 @@ func (s *SalesAgentService) buildPrompt(settings *models.AISettings, history []m
 // ── Gemini REST API ───────────────────────────────────────────────────────────
 
 type geminiAgentRequest struct {
-	Contents         []geminiContent        `json:"contents"`
-	GenerationConfig geminiAgentGenConfig   `json:"generationConfig"`
+	Contents         []geminiContent      `json:"contents"`
+	GenerationConfig geminiAgentGenConfig `json:"generationConfig"`
 }
 
 type geminiAgentGenConfig struct {
-	ResponseMIMEType string              `json:"responseMimeType"`
+	ResponseMIMEType string               `json:"responseMimeType"`
 	ResponseSchema   geminiResponseSchema `json:"responseSchema"`
-	Temperature      float64             `json:"temperature"`
+	Temperature      float64              `json:"temperature"`
 }
 
 type geminiResponseSchema struct {
-	Type       string                        `json:"type"`
-	Properties map[string]geminiSchemaProp   `json:"properties"`
-	Required   []string                      `json:"required"`
+	Type       string                      `json:"type"`
+	Properties map[string]geminiSchemaProp `json:"properties"`
+	Required   []string                    `json:"required"`
 }
 
 type geminiSchemaProp struct {

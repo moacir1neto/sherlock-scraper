@@ -3,9 +3,9 @@ package sse
 import (
 	"context"
 	"log"
-	"os"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -23,7 +23,7 @@ type RedisBroadcaster struct {
 
 // NewRedisBroadcaster cria o broadcaster reutilizando a variável REDIS_ADDR.
 func NewRedisBroadcaster() *RedisBroadcaster {
-	addr := os.Getenv("REDIS_ADDR")
+	addr := config.Env.RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}

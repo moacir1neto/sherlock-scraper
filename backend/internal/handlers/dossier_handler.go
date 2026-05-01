@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
@@ -156,7 +156,7 @@ func (h *DossierHandler) Stream(c *fiber.Ctx) error {
 
 // newDossierRedisClient cria um client go-redis dedicado para o subscriber SSE do dossier.
 func newDossierRedisClient() *redis.Client {
-	addr := os.Getenv("REDIS_ADDR")
+	addr := config.Env.RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}

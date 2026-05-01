@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/handlers"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/middlewares"
@@ -17,6 +18,11 @@ import (
 )
 
 func main() {
+	// 0. Load and validate environment configuration
+	if err := config.Load(); err != nil {
+		log.Fatalf("Environment configuration error: %v", err)
+	}
+
 	// 1. Initialize Database connection & Auto-migrations
 	database.Connect()
 
@@ -81,7 +87,7 @@ func main() {
 	// A rota valida o JWT internamente via query param ?token=... porque o
 	// EventSource da Web API não suporta headers customizados.
 	api.Get("/events/kanban", sseHandler.Stream)
-	
+
 	// --- DISPARO EM MASSA (ROTAS PÚBLICAS PARA BYPASS DE CONTAINERS LOCAIS) ---
 	campaignSSE := handlers.NewCampaignSSEHandler()
 	api.Post("/leads/bulk-send", leadHandler.BulkSend)
@@ -104,7 +110,7 @@ func main() {
 			"user_id": c.Locals("user"), // jwtware injects user info into locals if needed
 		})
 	})
-	
+
 	// Lead Routes
 	leads := protected.Group("/leads")
 	leads.Get("/", leadHandler.GetLeads)
@@ -117,12 +123,12 @@ func main() {
 
 	// AI Analysis Routes
 	leads.Post("/analyze/bulk", aiHandler.AnalyzeLeadsBulk) // Análise em massa
-	leads.Post("/:id/analyze", aiHandler.AnalyzeLead)      // Gera análise de IA
-	leads.Get("/:id/analysis", aiHandler.GetAnalysis)      // Retorna análise salva
+	leads.Post("/:id/analyze", aiHandler.AnalyzeLead)       // Gera análise de IA
+	leads.Get("/:id/analysis", aiHandler.GetAnalysis)       // Retorna análise salva
 
 	// CNPJ Enrichment Routes
-	leads.Post("/:id/enrich-cnpj", cnpjHandler.EnrichCNPJ)       // Busca CNPJ por nome
-	leads.Post("/:id/validate-cnpj", cnpjHandler.ValidateCNPJ)   // Valida CNPJ existente
+	leads.Post("/:id/enrich-cnpj", cnpjHandler.EnrichCNPJ)     // Busca CNPJ por nome
+	leads.Post("/:id/validate-cnpj", cnpjHandler.ValidateCNPJ) // Valida CNPJ existente
 
 	// Pipeline routes
 	protected.Get("/pipeline", pipelineHandler.GetPipeline)
@@ -168,6 +174,7 @@ func main() {
 	log.Println("📡 Kanban Automation subscriber iniciado (canal: whatsapp:messages:received)")
 
 	// 7. Start HTTP Server
-	log.Println("🌐 Server is running on port 3000...")
-	log.Fatal(app.Listen(":3000"))
+	port := config.Env.Port
+	log.Printf("🌐 Server is running on port %s...", port)
+	log.Fatal(app.Listen(":" + port))
 }

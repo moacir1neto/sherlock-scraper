@@ -13,7 +13,7 @@ import (
 // ChatStatus controla mudança de setor e status (attend/finish) de um chat.
 type ChatStatus struct {
 	instanceRepo interfaces.InstanceRepository
-	instanceUser  interfaces.InstanceUserRepository
+	instanceUser interfaces.InstanceUserRepository
 	chatRepo     interfaces.ChatRepository
 	auditRepo    interfaces.AuditLogRepository
 }
@@ -253,4 +253,3 @@ func (s *ChatStatus) Finish(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, map[string]string{"status": "finalizado"})
 }
-

@@ -12,4 +12,3 @@ type CompanyRepository interface {
 	Update(ctx context.Context, id string, company *models.Company) (*models.Company, error)
 	Delete(ctx context.Context, id string) error
 }
-

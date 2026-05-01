@@ -3,12 +3,12 @@ package handlers
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/sse"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/valyala/fasthttp"
 )
 
@@ -51,7 +51,7 @@ func (h *SSEHandler) Stream(c *fiber.Ctx) error {
 		})
 	}
 
-	jwtSecret := os.Getenv("JWT_SECRET")
+	jwtSecret := config.Env.JWTSecret
 	if jwtSecret == "" {
 		jwtSecret = "super_secret_key_change_in_production"
 	}

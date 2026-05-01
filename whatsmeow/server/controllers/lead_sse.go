@@ -25,17 +25,17 @@ const KanbanMovedChannel = "sherlock:leads:kanban_moved"
 // Deve ser compatível com o kanbanUpdatedEvent do Sherlock.
 type sherlockKanbanEvent struct {
 	Type      string `json:"type"`
-	LeadID    string `json:"lead_id"`    // UUID do banco Sherlock — NÃO usar para match local
+	LeadID    string `json:"lead_id"` // UUID do banco Sherlock — NÃO usar para match local
 	NewStatus string `json:"new_status"`
 	Empresa   string `json:"empresa"`
-	Phone     string `json:"phone"`      // telefone normalizado (apenas dígitos) para cross-match
+	Phone     string `json:"phone"` // telefone normalizado (apenas dígitos) para cross-match
 }
 
 // localKanbanEvent é o payload enviado ao frontend WhatsMeow via SSE.
 // Usa o UUID do banco local (whatsmiau) para que o frontend faça o match correto.
 type localKanbanEvent struct {
 	Type      string `json:"type"`
-	LeadID    string `json:"lead_id"`    // UUID do banco WhatsMeow (local)
+	LeadID    string `json:"lead_id"` // UUID do banco WhatsMeow (local)
 	NewStatus string `json:"new_status"`
 	Empresa   string `json:"empresa"`
 }

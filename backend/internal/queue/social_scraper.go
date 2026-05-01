@@ -13,11 +13,11 @@ import (
 
 // SocialData holds the deep intelligence extracted from social media
 type SocialData struct {
-	Bio           string
-	LastPostDate  string
-	RecentPosts   []string
-	Success       bool
-	ErrorMessage  string
+	Bio          string
+	LastPostDate string
+	RecentPosts  []string
+	Success      bool
+	ErrorMessage string
 }
 
 // BusinessInsights holds structured business information extracted by AI

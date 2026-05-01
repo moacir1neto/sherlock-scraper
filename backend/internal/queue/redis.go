@@ -8,9 +8,9 @@ package queue
 import (
 	"context"
 	"log"
-	"os"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -47,7 +47,7 @@ func PublishDossierEvent(leadID, payload string) {
 // InitRedisPublisher cria o client go-redis reutilizando REDIS_ADDR.
 // Deve ser chamado em main.go logo após InitClient().
 func InitRedisPublisher() {
-	addr := os.Getenv("REDIS_ADDR")
+	addr := config.Env.RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}

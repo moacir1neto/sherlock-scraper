@@ -408,7 +408,7 @@ func (s *Message) EditMessage(ctx echo.Context) error {
 	}
 	return ctx.JSON(http.StatusOK, map[string]any{
 		"key":         dto.MessageResponseKey{RemoteJid: request.Key.RemoteJid, FromMe: true, Id: res.ID},
-		"status":     "sent",
+		"status":      "sent",
 		"messageType": "conversation",
 		"instanceId":  request.InstanceID,
 	})
@@ -416,12 +416,12 @@ func (s *Message) EditMessage(ctx echo.Context) error {
 
 func incidentOpts(ctx echo.Context, instanceID, contextType string, payload interface{}, err error) *services.RecordIncidentOpts {
 	opts := &services.RecordIncidentOpts{
-		InstanceID:     instanceID,
-		ContextType:    contextType,
-		RequestPath:    ctx.Request().URL.Path,
-		RequestMethod:  ctx.Request().Method,
-		Payload:        payload,
-		ErrorDetail:    "",
+		InstanceID:    instanceID,
+		ContextType:   contextType,
+		RequestPath:   ctx.Request().URL.Path,
+		RequestMethod: ctx.Request().Method,
+		Payload:       payload,
+		ErrorDetail:   "",
 	}
 	if err != nil {
 		opts.ErrorDetail = err.Error()

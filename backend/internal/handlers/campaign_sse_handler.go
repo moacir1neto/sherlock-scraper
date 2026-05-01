@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
 	"github.com/gofiber/fiber/v2"
 	"github.com/redis/go-redis/v9"
@@ -34,29 +34,29 @@ func NewCampaignSSEHandler() *CampaignSSEHandler {
 func (h *CampaignSSEHandler) Stream(c *fiber.Ctx) error {
 	// 1. Autenticação via query param (Desabilitada para bypass de containers locais)
 	/*
-	tokenStr := c.Query("token")
-	if tokenStr == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "token query parameter is required",
-		})
-	}
-
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		jwtSecret = "super_secret_key_change_in_production"
-	}
-
-	_, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		tokenStr := c.Query("token")
+		if tokenStr == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "token query parameter is required",
+			})
 		}
-		return []byte(jwtSecret), nil
-	})
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "invalid or expired token",
+
+		jwtSecret := config.Env.JWTSecret
+		if jwtSecret == "" {
+			jwtSecret = "super_secret_key_change_in_production"
+		}
+
+		_, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			}
+			return []byte(jwtSecret), nil
 		})
-	}
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "invalid or expired token",
+			})
+		}
 	*/
 
 	// 2. Extrair campaign_id da URL
@@ -162,7 +162,7 @@ func (h *CampaignSSEHandler) Stream(c *fiber.Ctx) error {
 // Cada conexão SSE precisa de uma conexão Redis separada porque o go-redis
 // entra em modo Pub/Sub exclusivo, impedindo outros comandos na mesma conexão.
 func newCampaignRedisClient() *redis.Client {
-	addr := os.Getenv("REDIS_ADDR")
+	addr := config.Env.RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}

@@ -8,12 +8,12 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/pkg/phoneutil"
@@ -34,9 +34,9 @@ type SherlockCNPJResponse struct {
 }
 
 const (
-	TaskTypeEnrichLead    = "enrich:lead"
-	TaskTypeBulkMessage   = "lead:bulk-message"
-	TaskTypeEnrichCNPJ    = "enrich:cnpj"
+	TaskTypeEnrichLead  = "enrich:lead"
+	TaskTypeBulkMessage = "lead:bulk-message"
+	TaskTypeEnrichCNPJ  = "enrich:cnpj"
 )
 
 type EnrichLeadPayload struct {
@@ -45,7 +45,7 @@ type EnrichLeadPayload struct {
 }
 
 func GetAsynqClient() *asynq.Client {
-	redisAddr := os.Getenv("REDIS_ADDR")
+	redisAddr := config.Env.RedisURL
 	if redisAddr == "" {
 		redisAddr = "localhost:6379"
 	}
@@ -56,12 +56,12 @@ type EnrichCNPJPayload struct {
 	LeadID      string `json:"lead_id"`
 	CompanyName string `json:"company_name"`
 }
+
 func NewEnrichCNPJTask(leadID, companyName string) (*asynq.Task, error) {
 	payload, err := json.Marshal(EnrichCNPJPayload{LeadID: leadID, CompanyName: companyName})
 	if err != nil {
 		return nil, err
 	}
-
 
 	delay := time.Duration(1+(time.Now().UnixNano()%5)) * time.Second
 
@@ -101,7 +101,7 @@ type BulkMessagePayload struct {
 // CampaignEvent é o payload JSON publicado no canal Redis campaigns:logs:<id>.
 // O front-end consome via SSE para exibir progresso em tempo real.
 type CampaignEvent struct {
-	Type    string `json:"type"`    // "start", "success", "error", "skip"
+	Type    string `json:"type"` // "start", "success", "error", "skip"
 	LeadID  string `json:"lead_id"`
 	Empresa string `json:"empresa"`
 	Message string `json:"message"`
@@ -201,8 +201,8 @@ func HandleBulkMessageTask(ctx context.Context, t *asynq.Task) error {
 	log.Printf("🎯 [BulkMessage] Número validado na Meta para '%s': %s", empresa, phone)
 
 	// 4. Converter payload string back temporariamente para domain.Lead para reaproveitar construção de mensagem
-	leadMock := domain.Lead{ Empresa: empresa, AIAnalysis: []byte(payload.AIAnalysis) }
-	
+	leadMock := domain.Lead{Empresa: empresa, AIAnalysis: []byte(payload.AIAnalysis)}
+
 	// 5. Extract icebreaker from AI analysis (if available)
 	messageText := buildProspectionMessage(leadMock)
 	log.Printf("💬 [BulkMessage] Mensagem para '%s': %.80s...", empresa, messageText)
@@ -215,7 +215,7 @@ func HandleBulkMessageTask(ctx context.Context, t *asynq.Task) error {
 		return err // retryable — Asynq will retry
 	}
 
-	// NOTA ARQUITETURAL: Não atualizamos o Kanban aqui (database.DB.Model). 
+	// NOTA ARQUITETURAL: Não atualizamos o Kanban aqui (database.DB.Model).
 	// O WhatsMiau é dono do CRM e atualizará quando o Webhook/Disparo confirmar o envio.
 
 	// 8. Evento SUCCESS — notifica front-end que o envio foi concluído
@@ -247,7 +247,7 @@ func buildProspectionMessage(lead domain.Lead) string {
 
 // sendViaWhatsMiau performs an HTTP POST to the WhatsMiau /v1/message/sendText/:instance endpoint.
 func sendViaWhatsMiau(instanceID, phone, text string) error {
-	apiURL := os.Getenv("WHATSMIau_API_URL")
+	apiURL := config.Env.WhatsmeowURL
 	if apiURL == "" {
 		apiURL = "http://whatsmiau-api:8080"
 	}
@@ -256,9 +256,9 @@ func sendViaWhatsMiau(instanceID, phone, text string) error {
 	endpoint := fmt.Sprintf("%s/v1/message/sendText/%s", apiURL, instanceID)
 
 	body := map[string]interface{}{
-		"number":     phone,
-		"text":       text,
-		"delay":      1200, // Simula tempo de digitação
+		"number": phone,
+		"text":   text,
+		"delay":  1200, // Simula tempo de digitação
 	}
 
 	jsonBody, err := json.Marshal(body)
@@ -274,7 +274,7 @@ func sendViaWhatsMiau(instanceID, phone, text string) error {
 	req.Header.Set("Content-Type", "application/json")
 
 	// Adiciona apikey se configurada
-	if apiToken := os.Getenv("WHATSMIau_API_TOKEN"); apiToken != "" {
+	if apiToken := config.Env.WhatsmeowAPIToken; apiToken != "" {
 		req.Header.Set("apikey", apiToken)
 	}
 
@@ -307,7 +307,7 @@ type CheckWhatsAppResponse []WhatsAppExistsItem
 // checkWhatsAppExistence consulta o WhatsMiau para verificar se o número está na rede Meta.
 // Reutiliza o endpoint /v1/chat/whatsappNumbers/:instance (padrão Evolution/WhatsMiau).
 func checkWhatsAppExistence(instanceID, phone string) (bool, string, error) {
-	apiURL := os.Getenv("WHATSMIau_API_URL")
+	apiURL := config.Env.WhatsmeowURL
 	if apiURL == "" {
 		apiURL = "http://whatsmiau-api:8080"
 	}
@@ -329,7 +329,7 @@ func checkWhatsAppExistence(instanceID, phone string) (bool, string, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if apiToken := os.Getenv("WHATSMIau_API_TOKEN"); apiToken != "" {
+	if apiToken := config.Env.WhatsmeowAPIToken; apiToken != "" {
 		req.Header.Set("apikey", apiToken)
 	}
 
@@ -804,13 +804,13 @@ func FetchAndParseWebsite(websiteURL, companyName string) (*WebsiteData, error) 
 			log.Printf("⚠️  Falha ao carregar página interna %s: %v", link, err)
 			continue
 		}
-		
+
 		bodyBytes, _ := io.ReadAll(io.LimitReader(innerResp.Body, 1024*1024))
 		innerResp.Body.Close()
-		
+
 		if innerResp.StatusCode == http.StatusOK {
 			innerData := ExtractWebsiteData(string(bodyBytes))
-			
+
 			// Consolidate Data
 			finalData.Emails = uniqueStrings(append(finalData.Emails, innerData.Emails...))
 			finalData.Phones = uniqueStrings(append(finalData.Phones, innerData.Phones...))
@@ -845,7 +845,7 @@ func FetchAndParseWebsite(websiteURL, companyName string) (*WebsiteData, error) 
 // searchCasaDosDadosWorker consome a Bridge API (Python) rodando no container 'sherlock'
 func searchCasaDosDadosWorker(empresa string) (*SherlockCNPJResponse, error) {
 	apiURL := "http://sherlock:8000/scrape-cnpj"
-	
+
 	payload := map[string]string{"termo": empresa}
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
@@ -878,7 +878,7 @@ func searchCasaDosDadosWorker(empresa string) (*SherlockCNPJResponse, error) {
 // ExtractBusinessInsightsFallback gera insights estruturados via LLM quando não há website disponível.
 // Usa dados do Google Reviews, nome da empresa e nicho como contexto alternativo.
 func ExtractBusinessInsightsFallback(companyName, nicho string, googleData *GoogleData) (*BusinessInsights, error) {
-	apiKey := os.Getenv("GEMINI_API_KEY")
+	apiKey := config.Env.GeminiAPIKey
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
 	}
@@ -959,7 +959,7 @@ func ExtractBusinessInsights(rawText string) (*BusinessInsights, error) {
 		textToAnalyze = textToAnalyze[:3000]
 	}
 
-	apiKey := os.Getenv("GEMINI_API_KEY")
+	apiKey := config.Env.GeminiAPIKey
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
 	}

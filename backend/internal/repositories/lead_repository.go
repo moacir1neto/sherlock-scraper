@@ -85,14 +85,13 @@ func (r *leadRepository) ListScrapeJobs(ctx context.Context) ([]*domain.Scraping
 	return jobs, err
 }
 
-
 func (r *leadRepository) FindByPhone(ctx context.Context, variants []string) (*domain.Lead, error) {
 	if len(variants) == 0 {
 		return nil, errors.New("phoneutil: no variants provided to FindByPhone")
 	}
 
 	var leads []*domain.Lead
-	
+
 	err := r.db.WithContext(ctx).
 		Where("regexp_replace(telefone, '[^0-9]', '', 'g') IN ?", variants).
 		Order("created_at DESC").
@@ -104,12 +103,11 @@ func (r *leadRepository) FindByPhone(ctx context.Context, variants []string) (*d
 	}
 
 	if len(leads) == 0 {
-		return nil, nil 
+		return nil, nil
 	}
 
 	return leads[0], nil
 }
-
 
 func (r *leadRepository) UpdateStatusConditional(
 	ctx context.Context,
@@ -147,7 +145,7 @@ func (r *leadRepository) UpdateStatusIdempotent(
 ) (bool, error) {
 	var updated bool
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		
+
 		res := tx.Clauses(clause.OnConflict{
 			DoNothing: true,
 		}).Create(&domain.ProcessedMessage{
@@ -156,7 +154,6 @@ func (r *leadRepository) UpdateStatusIdempotent(
 			ProcessedAt: time.Now(),
 		})
 
-		
 		if res.RowsAffected == 0 {
 			updated = false
 			return nil

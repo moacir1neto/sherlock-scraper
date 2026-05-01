@@ -17,4 +17,3 @@ func AdminOnly(next echo.HandlerFunc) echo.HandlerFunc {
 		return next(c)
 	}
 }
-

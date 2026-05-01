@@ -13,7 +13,7 @@ import (
 
 // ChatHandler handles WebSocket connections for the chat UI.
 type ChatHandler struct {
-	hub       *Hub
+	hub          *Hub
 	instanceRepo interfaces.InstanceRepository
 }
 

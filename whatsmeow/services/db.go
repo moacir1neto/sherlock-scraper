@@ -32,4 +32,3 @@ func DB() (*sql.DB, error) {
 
 	return dbInstance, nil
 }
-

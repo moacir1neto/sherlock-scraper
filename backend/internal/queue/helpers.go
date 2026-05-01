@@ -69,12 +69,12 @@ func extractPhones(html string) []string {
 	// BR Phone formats: (11) 99999-9999, 11 99999-9999, 11999999999, etc.
 	re := regexp.MustCompile(`(?:\(?\d{2}\)?\s?)?(?:9\s?)?\d{4}[-\s]?\d{4}`)
 	matches := re.FindAllString(html, -1)
-	
+
 	var cleaned []string
 	for _, m := range matches {
 		// Basic cleaning to avoid garbage
 		c := strings.Map(func(r rune) rune {
-			if (r >= '0' && r <= '9') {
+			if r >= '0' && r <= '9' {
 				return r
 			}
 			return -1
@@ -123,7 +123,7 @@ func extractRawText(html string) string {
 			cleaned = append(cleaned, trimmed)
 		}
 	}
-	
+
 	result := strings.Join(cleaned, " ")
 	if len(result) > 5000 {
 		result = result[:5000] // Limit size
@@ -303,7 +303,7 @@ func normalizeURL(link, baseURL string) string {
 		if strings.HasSuffix(base, "/") {
 			base = base[:len(base)-1]
 		}
-		// If base is just https://domain.com (no trailing slash handled above), 
+		// If base is just https://domain.com (no trailing slash handled above),
 		// we need to be careful if baseURL already has a path.
 		// For simplicity, let's just get the origin.
 		if parts := strings.Split(baseURL, "/"); len(parts) >= 3 {
@@ -324,7 +324,7 @@ func normalizeURL(link, baseURL string) string {
 func PrioritizeLinks(links []string) []string {
 	keywords := []string{"contato", "contact", "sobre", "about", "empresa", "servicos", "services"}
 	var prioritized []string
-	
+
 	// First pass: find keyword matches
 	for _, link := range links {
 		linkLower := strings.ToLower(link)

@@ -12,7 +12,7 @@ import (
 
 func Profile(group *echo.Group) {
 	sqlUserRepo, _ := users.NewSQL()
-	
+
 	// Em modo desenvolvimento, usar apenas SQL (sem cache)
 	var userRepo interfaces.UserRepository = sqlUserRepo
 	if !env.Env.DebugMode {
@@ -25,4 +25,3 @@ func Profile(group *echo.Group) {
 	profileGroup := group.Group("", middleware.JWTAuth)
 	profileGroup.PUT("/me", userController.UpdateProfile)
 }
-

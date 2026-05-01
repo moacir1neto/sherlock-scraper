@@ -3,10 +3,10 @@ package users
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/verbeux-ai/whatsmiau/env"
 	"github.com/verbeux-ai/whatsmiau/interfaces"
 	"github.com/verbeux-ai/whatsmiau/models"
 	"golang.org/x/net/context"
@@ -114,7 +114,7 @@ func (r *RedisUser) GetByEmail(ctx context.Context, email string) (*models.User,
 		var user models.User
 		if json.Unmarshal([]byte(cached), &user) == nil {
 			// Log cache hit (apenas em desenvolvimento)
-			if os.Getenv("DEBUG") == "true" {
+			if env.Env.DebugMode {
 				fmt.Printf("[CACHE HIT] User by email: %s (ID: %s)\n", email, user.ID)
 			}
 			return &user, nil
@@ -133,7 +133,7 @@ func (r *RedisUser) GetByEmail(ctx context.Context, email string) (*models.User,
 	r.redis.Set(ctx, r.emailKey(email), data, r.ttl)
 
 	// Log cache miss (apenas em desenvolvimento)
-	if os.Getenv("DEBUG") == "true" {
+	if env.Env.DebugMode {
 		fmt.Printf("[CACHE MISS] User by email: %s (ID: %s) - Cached\n", email, user.ID)
 	}
 
@@ -184,4 +184,3 @@ func (r *RedisUser) Delete(ctx context.Context, id string) error {
 
 	return nil
 }
-

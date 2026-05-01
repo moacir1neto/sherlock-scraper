@@ -336,4 +336,3 @@ func (h *LeadHandler) BulkSend(c *fiber.Ctx) error {
 		"total":       len(req.Leads),
 	})
 }
-

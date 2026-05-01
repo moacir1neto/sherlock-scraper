@@ -12,7 +12,7 @@ import (
 
 func User(group *echo.Group) {
 	sqlUserRepo, _ := users.NewSQL()
-	
+
 	// Em modo desenvolvimento, usar apenas SQL (sem cache)
 	var userRepo interfaces.UserRepository = sqlUserRepo
 	if !env.Env.DebugMode {
@@ -30,4 +30,3 @@ func User(group *echo.Group) {
 	protected.PUT("/:id", userController.Update)
 	protected.DELETE("/:id", userController.Delete)
 }
-

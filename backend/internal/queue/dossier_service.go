@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/google/uuid"
@@ -46,10 +47,10 @@ func NewDossierService() *DossierService {
 
 // dossierAggregated é o estado interno do pipeline após cada etapa.
 type dossierAggregated struct {
-	Google    *GoogleData      `json:"google,omitempty"`
-	Website   *WebsiteData     `json:"website,omitempty"`
-	Instagram *SocialData      `json:"instagram,omitempty"`
-	Facebook  *SocialData      `json:"facebook,omitempty"`
+	Google    *GoogleData  `json:"google,omitempty"`
+	Website   *WebsiteData `json:"website,omitempty"`
+	Instagram *SocialData  `json:"instagram,omitempty"`
+	Facebook  *SocialData  `json:"facebook,omitempty"`
 
 	// Dados pré-enriquecidos: carregados do DeepData do banco antes da análise LLM.
 	Insights *BusinessInsights `json:"insights,omitempty"`
@@ -483,7 +484,7 @@ func (s *DossierService) generateAnalysis(ctx context.Context, leadID string, le
 		return nil
 	}
 
-	apiKey := os.Getenv("GEMINI_API_KEY")
+	apiKey := config.Env.GeminiAPIKey
 	if apiKey == "" {
 		return fmt.Errorf("GEMINI_API_KEY não configurada")
 	}

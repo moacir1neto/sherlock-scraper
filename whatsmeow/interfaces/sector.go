@@ -15,4 +15,3 @@ type SectorRepository interface {
 	ListByCompanyID(ctx context.Context, companyID string) ([]models.Sector, error)
 	GetDefaultByCompanyID(ctx context.Context, companyID string) (*models.Sector, error)
 }
-

@@ -34,9 +34,9 @@ const (
 type EnrichmentStatus string
 
 const (
-	StatusCapturado       EnrichmentStatus = "CAPTURADO"
-	StatusEnriquecendo    EnrichmentStatus = "ENRIQUECENDO"
-	StatusEnriquecido     EnrichmentStatus = "ENRIQUECIDO"
+	StatusCapturado        EnrichmentStatus = "CAPTURADO"
+	StatusEnriquecendo     EnrichmentStatus = "ENRIQUECENDO"
+	StatusEnriquecido      EnrichmentStatus = "ENRIQUECIDO"
 	StatusEnrichmentFailed EnrichmentStatus = "ENRICHMENT_FAILED"
 )
 
@@ -52,41 +52,41 @@ type ScrapingJob struct {
 }
 
 type Lead struct {
-	ID            uuid.UUID    `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	ScrapingJobID *uuid.UUID   `gorm:"type:uuid;index"`
-	Empresa       string       `gorm:"type:varchar(255);not null"`
-	Nicho         string       `gorm:"type:varchar(255)"`
-	Rating        string       `json:"rating" gorm:"type:varchar(50)"`
-	QtdAvaliacoes string       `json:"reviews" gorm:"type:varchar(50)"`
-	ResumoNegocio string       `gorm:"type:text"`
-	Endereco      string       `gorm:"type:varchar(500)"`
-	Telefone      string       `gorm:"type:varchar(50)"`
-	TipoTelefone  string       `gorm:"type:varchar(50)"`
-	LinkWhatsapp  string       `gorm:"type:varchar(255)"`
-	Site          string       `gorm:"type:varchar(255)"`
-	Email         string       `gorm:"type:varchar(255)"`
-	Instagram        string           `gorm:"type:varchar(255)"`
-	Facebook         string           `gorm:"type:varchar(255)"`
-	LinkedIn         string           `gorm:"type:varchar(255)"`
-	TikTok           string           `gorm:"type:varchar(255)"`
-	YouTube          string           `gorm:"type:varchar(255)"`
-	CNPJ             string           `gorm:"type:varchar(20)"`
-	TemPixel         bool             `gorm:"default:false"`
-	TemGTM           bool             `gorm:"default:false"`
-	DeepData         datatypes.JSON   `json:"deep_data" gorm:"type:jsonb"`
-	AIAnalysis       datatypes.JSON   `json:"ai_analysis" gorm:"type:jsonb"`
-	Status           EnrichmentStatus `gorm:"type:varchar(50);default:'CAPTURADO'"`
-	KanbanStatus     KanbanStatus     `gorm:"type:varchar(50);default:'prospeccao'"`
-	NotasProspeccao  string           `gorm:"type:text"`
-	EstimatedValue   float64          `json:"estimated_value" gorm:"type:decimal(12,2);default:0"`
-	DueDate          *time.Time       `json:"due_date" gorm:"type:date"`
-	Tags             string           `json:"tags" gorm:"type:varchar(500)"`
-	LinkedLeadID     *uuid.UUID       `json:"linked_lead_id" gorm:"type:uuid"`
-	DossierData      datatypes.JSON   `json:"dossier_data" gorm:"type:jsonb"`
-	DossierAnalysis  string           `json:"dossier_analysis" gorm:"type:text"`
-	Score            int              `json:"score" gorm:"default:0"`
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID              uuid.UUID        `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	ScrapingJobID   *uuid.UUID       `gorm:"type:uuid;index"`
+	Empresa         string           `gorm:"type:varchar(255);not null"`
+	Nicho           string           `gorm:"type:varchar(255)"`
+	Rating          string           `json:"rating" gorm:"type:varchar(50)"`
+	QtdAvaliacoes   string           `json:"reviews" gorm:"type:varchar(50)"`
+	ResumoNegocio   string           `gorm:"type:text"`
+	Endereco        string           `gorm:"type:varchar(500)"`
+	Telefone        string           `gorm:"type:varchar(50)"`
+	TipoTelefone    string           `gorm:"type:varchar(50)"`
+	LinkWhatsapp    string           `gorm:"type:varchar(255)"`
+	Site            string           `gorm:"type:varchar(255)"`
+	Email           string           `gorm:"type:varchar(255)"`
+	Instagram       string           `gorm:"type:varchar(255)"`
+	Facebook        string           `gorm:"type:varchar(255)"`
+	LinkedIn        string           `gorm:"type:varchar(255)"`
+	TikTok          string           `gorm:"type:varchar(255)"`
+	YouTube         string           `gorm:"type:varchar(255)"`
+	CNPJ            string           `gorm:"type:varchar(20)"`
+	TemPixel        bool             `gorm:"default:false"`
+	TemGTM          bool             `gorm:"default:false"`
+	DeepData        datatypes.JSON   `json:"deep_data" gorm:"type:jsonb"`
+	AIAnalysis      datatypes.JSON   `json:"ai_analysis" gorm:"type:jsonb"`
+	Status          EnrichmentStatus `gorm:"type:varchar(50);default:'CAPTURADO'"`
+	KanbanStatus    KanbanStatus     `gorm:"type:varchar(50);default:'prospeccao'"`
+	NotasProspeccao string           `gorm:"type:text"`
+	EstimatedValue  float64          `json:"estimated_value" gorm:"type:decimal(12,2);default:0"`
+	DueDate         *time.Time       `json:"due_date" gorm:"type:date"`
+	Tags            string           `json:"tags" gorm:"type:varchar(500)"`
+	LinkedLeadID    *uuid.UUID       `json:"linked_lead_id" gorm:"type:uuid"`
+	DossierData     datatypes.JSON   `json:"dossier_data" gorm:"type:jsonb"`
+	DossierAnalysis string           `json:"dossier_analysis" gorm:"type:text"`
+	Score           int              `json:"score" gorm:"default:0"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // LeadDossier armazena o resultado gerado pelo pipeline dossier:analyze.

@@ -179,16 +179,16 @@ func (c *Company) GetByCompanyID(ctx echo.Context) error {
 	userID, _ := ctx.Get("user_id").(string)
 	userRole, _ := ctx.Get("user_role").(string)
 	companyID, ok := ctx.Get("company_id").(string)
-	
+
 	zap.L().Info("GetByCompanyID called",
 		zap.String("user_id", userID),
 		zap.String("user_role", userRole),
 		zap.Bool("company_id_ok", ok),
 		zap.String("company_id", companyID),
 	)
-	
+
 	if !ok || companyID == "" {
-		zap.L().Warn("company_id not found in context", 
+		zap.L().Warn("company_id not found in context",
 			zap.String("user_id", userID),
 			zap.String("user_role", userRole),
 		)
@@ -270,4 +270,3 @@ func (c *Company) UpdateByCompanyID(ctx echo.Context) error {
 		UpdatedAt: updated.UpdatedAt.Format(time.RFC3339),
 	})
 }
-

@@ -138,4 +138,3 @@ func (r *RedisCompany) Delete(ctx context.Context, id string) error {
 
 	return nil
 }
-

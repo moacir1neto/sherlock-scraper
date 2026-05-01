@@ -120,4 +120,3 @@ func (r *SQLSector) GetDefaultByCompanyID(ctx context.Context, companyID string)
 	}
 	return &s, nil
 }
-

@@ -94,16 +94,16 @@ func main() {
 		fmt.Println("❌❌❌ PROBLEMA: Senha não corresponde ao hash! ❌❌❌")
 		fmt.Println("")
 		fmt.Println("💡 SOLUÇÃO: Vamos atualizar o hash no banco...")
-		
+
 		// Atualizar hash
 		_, err = db.Exec("UPDATE users SET senha = $1 WHERE email = $2", newHash, email)
 		if err != nil {
 			fmt.Printf("❌ Erro ao atualizar hash: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		fmt.Println("✅ Hash atualizado no banco!")
-		
+
 		// Verificar novamente
 		match = utils.CheckPasswordHash(password, newHash)
 		if match {
@@ -111,4 +111,3 @@ func main() {
 		}
 	}
 }
-

@@ -194,4 +194,3 @@ func (r *SQLUser) Delete(ctx context.Context, id string) error {
 
 	return nil
 }
-

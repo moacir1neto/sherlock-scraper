@@ -1,7 +1,7 @@
 package middlewares
 
 import (
-	"os"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/fiber/v2"
@@ -9,10 +9,7 @@ import (
 
 // Protected verifies the JWT associated with the request
 func Protected() fiber.Handler {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		secret = "super_secret_key_change_in_production"
-	}
+	secret := config.Env.JWTSecret
 
 	return jwtware.New(jwtware.Config{
 		SigningKey: jwtware.SigningKey{Key: []byte(secret)},

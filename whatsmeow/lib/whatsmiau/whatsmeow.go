@@ -364,17 +364,17 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 				time.Sleep(2 * time.Second)
 
 				zap.L().Info("device connected successfully", zap.String("id", id), zap.String("jid", client.Store.ID.String()))
-				
+
 				// Ensure event handlers are set
 				client.RemoveEventHandlers()
 				client.AddEventHandler(s.Handle(id))
-				
+
 				if _, err := s.repo.Update(context.Background(), id, &models.Instance{
 					RemoteJID: client.Store.ID.String(),
 				}); err != nil {
 					zap.L().Error("failed to update instance after login", zap.Error(err))
 				}
-				
+
 				// Webhook CONNECTED
 				if inst := s.getInstance(id); inst != nil && inst.Webhook.Url != "" && webhookEventEnabled(inst.Webhook.Events, "CONNECTED") {
 					companyID := ""
@@ -383,7 +383,7 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 					}
 					s.EmitEnvelope(inst.ID, companyID, "connected", inst.Webhook.Url, inst.Webhook.Secret, map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)})
 				}
-				
+
 				s.qrCache.Delete(id)
 				zap.L().Info("QR observation finished with success", zap.String("id", id))
 				return
@@ -453,7 +453,7 @@ func (s *Whatsmiau) Status(id string) (Status, error) {
 			return QrCode, nil
 		}
 		// If we have QR but not connected, it's still QrCode but might be reconnecting
-		return QrCode, nil 
+		return QrCode, nil
 	}
 
 	if loggedIn {

@@ -15,8 +15,8 @@ import (
 )
 
 type Auth struct {
-	userRepo   interfaces.UserRepository
-	auditRepo  interfaces.AuditLogRepository
+	userRepo  interfaces.UserRepository
+	auditRepo interfaces.AuditLogRepository
 }
 
 func NewAuth(userRepo interfaces.UserRepository, auditRepo interfaces.AuditLogRepository) *Auth {
@@ -91,14 +91,14 @@ func (a *Auth) Login(ctx echo.Context) error {
 
 	// Log company_id before generating token
 	if user.CompanyID != nil {
-		zap.L().Info("Generating token with company_id", 
+		zap.L().Info("Generating token with company_id",
 			zap.String("user_id", user.ID),
 			zap.String("email", user.Email),
 			zap.String("role", user.Role),
 			zap.String("company_id", *user.CompanyID),
 		)
 	} else {
-		zap.L().Warn("User has no company_id", 
+		zap.L().Warn("User has no company_id",
 			zap.String("user_id", user.ID),
 			zap.String("email", user.Email),
 			zap.String("role", user.Role),
@@ -134,4 +134,3 @@ func (a *Auth) Login(ctx echo.Context) error {
 		},
 	})
 }
-

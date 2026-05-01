@@ -200,4 +200,3 @@ func Admin(group *echo.Group) {
 	// Leads de prospecção (sherlock)
 	Leads(group)
 }
-

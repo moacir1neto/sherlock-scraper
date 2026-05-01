@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 	"errors"
-	"os"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
 	"github.com/golang-jwt/jwt/v5"
@@ -59,7 +59,7 @@ func (s *authService) Login(ctx context.Context, email, password string) (string
 	}
 
 	// Generate JWT
-	secret := os.Getenv("JWT_SECRET")
+	secret := config.Env.JWTSecret
 	if secret == "" {
 		secret = "super_secret_key_change_in_production"
 	}

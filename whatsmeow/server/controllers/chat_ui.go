@@ -19,12 +19,12 @@ import (
 
 // ChatUI serves the chat list and messages API for the WhatsApp Web-style UI.
 type ChatUI struct {
-	instanceRepo   interfaces.InstanceRepository
-	instanceUser   interfaces.InstanceUserRepository
-	sectorUser     interfaces.SectorUserRepository
-	chatRepo       interfaces.ChatRepository
-	messageRepo    interfaces.MessageRepository
-	whatsmiau      *whatsmiau.Whatsmiau
+	instanceRepo interfaces.InstanceRepository
+	instanceUser interfaces.InstanceUserRepository
+	sectorUser   interfaces.SectorUserRepository
+	chatRepo     interfaces.ChatRepository
+	messageRepo  interfaces.MessageRepository
+	whatsmiau    *whatsmiau.Whatsmiau
 }
 
 // NewChatUI creates a ChatUI controller.

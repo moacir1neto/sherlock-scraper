@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/hibiken/asynq"
 )
 
 // StartServer starts the Asynq server and registers handlers
 func StartServer() {
-	redisAddr := os.Getenv("REDIS_ADDR")
+	redisAddr := config.Env.RedisURL
 	if redisAddr == "" {
 		redisAddr = "localhost:6379" // Default if not provided
 	}
@@ -43,7 +43,7 @@ func StartServer() {
 	)
 
 	mux := asynq.NewServeMux()
-	
+
 	// 3. Adicionar rate limiting: Máximo de X execuções por minuto
 	mux.Use(rateLimitMiddleware)
 
@@ -78,7 +78,7 @@ func rateLimitMiddleware(next asynq.Handler) asynq.Handler {
 		if RedisPublisher != nil {
 			key := "ratelimit:enrich:cnpj"
 			limit := 5 // Configurável conforme necessidade
-			
+
 			val, err := RedisPublisher.Incr(ctx, key).Result()
 			if err == nil {
 				if val == 1 {

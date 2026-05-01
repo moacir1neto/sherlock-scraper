@@ -1,8 +1,7 @@
 package middlewares
 
 import (
-	"os"
-
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -10,7 +9,7 @@ import (
 // Reads the expected token from the INTERNAL_API_TOKEN environment variable.
 func InternalAuth() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		expected := os.Getenv("INTERNAL_API_TOKEN")
+		expected := config.Env.WhatsmeowAPIToken
 		if expected == "" {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "internal auth not configured",

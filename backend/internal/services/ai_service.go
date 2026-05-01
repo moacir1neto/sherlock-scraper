@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -31,18 +31,18 @@ type LeadAnalysisInput struct {
 	Site                string   `json:"site"`
 	Nicho               string   `json:"nicho"`
 	// Novos campos para enriquecer a análise
-	Endereco            string   `json:"endereco"`
-	Telefone            string   `json:"telefone"`
-	TipoTelefone        string   `json:"tipo_telefone"`
-	LinkWhatsapp        string   `json:"link_whatsapp"`
-	Email               string   `json:"email"`
-	ResumoNegocio       string   `json:"resumo_negocio"`
+	Endereco      string `json:"endereco"`
+	Telefone      string `json:"telefone"`
+	TipoTelefone  string `json:"tipo_telefone"`
+	LinkWhatsapp  string `json:"link_whatsapp"`
+	Email         string `json:"email"`
+	ResumoNegocio string `json:"resumo_negocio"`
 	// Redes sociais (URLs)
-	InstagramURL        string   `json:"instagram_url"`
-	FacebookURL         string   `json:"facebook_url"`
-	LinkedInURL         string   `json:"linkedin_url"`
-	TikTokURL           string   `json:"tiktok_url"`
-	YouTubeURL          string   `json:"youtube_url"`
+	InstagramURL string `json:"instagram_url"`
+	FacebookURL  string `json:"facebook_url"`
+	LinkedInURL  string `json:"linkedin_url"`
+	TikTokURL    string `json:"tiktok_url"`
+	YouTubeURL   string `json:"youtube_url"`
 	// Dados enriquecidos do Instagram
 	SeguidoresInstagram string   `json:"seguidores_instagram"`
 	SeguindoInstagram   string   `json:"seguindo_instagram"`
@@ -74,7 +74,7 @@ type LeadAnalysisOutput struct {
 // NewAIService cria uma nova instância do serviço de IA
 func NewAIService() *AIService {
 	return &AIService{
-		apiKey: os.Getenv("GEMINI_API_KEY"),
+		apiKey: config.Env.GeminiAPIKey,
 	}
 }
 
@@ -224,7 +224,7 @@ IMPORTANTE: Forneça também um "gatekeeper bypass" criativo e respeitoso para p
 - Se há comentários reais de clientes (✅), USE-os como gancho na conversa.
 
 Siga as mesmas métricas de Score de Maturidade (0-10) e Classificação (Iniciante a Expert) e preencha os campos CallScript e GatekeeperBypass.`, settings.MainOffer, settings.ToneOfVoice)
-		
+
 		outputFormat = fmt.Sprintf(`{
   "score_maturidade": number (0-10),
   "classificacao": "string (Iniciante|Intermediário|Avançado|Expert)",
@@ -284,7 +284,7 @@ Estime a perda financeira mensal do lead considerando o nicho dele e como a falt
 
 **Baixa (10-40%%)**:
 - Score 0-3 + Pouca presença digital + Reviews <50`, settings.MainOffer, settings.ToneOfVoice, settings.MainOffer, settings.MainOffer, settings.CompanyName)
-		
+
 		outputFormat = fmt.Sprintf(`{
   "score_maturidade": number (0-10),
   "classificacao": "string (Iniciante|Intermediário|Avançado|Expert)",

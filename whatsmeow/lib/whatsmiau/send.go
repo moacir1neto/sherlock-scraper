@@ -265,11 +265,11 @@ func (s *Whatsmiau) SendImage(ctx context.Context, data *SendImageRequest) (*Sen
 }
 
 type SendReactionRequest struct {
-	InstanceID string     `json:"instance_id"`
-	Reaction   string     `json:"reaction"`
-	RemoteJID  *types.JID `json:"remote_jid"`
-	MessageID  string     `json:"message_id"`
-	FromMe     bool       `json:"from_me"`
+	InstanceID  string     `json:"instance_id"`
+	Reaction    string     `json:"reaction"`
+	RemoteJID   *types.JID `json:"remote_jid"`
+	MessageID   string     `json:"message_id"`
+	FromMe      bool       `json:"from_me"`
 	Participant *types.JID `json:"participant"` // autor da mensagem em grupos (opcional)
 }
 
