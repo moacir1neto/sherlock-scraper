@@ -4,7 +4,7 @@
 - [x] Mapeamento Profundo do Codebase
 - [x] Inicialização do Ciclo de Evolução (GSD New Project)
 - [x] Fase 1: Contexto e Decisões Capturadas
-- [ ] Fase 1: Infraestrutura e Estabilidade Core (Pronto para Execução)
+- [ ] Fase 1: Segurança e Validação de Ambiente (Foco Restrito)
 - [ ] Fase 2: Resiliência do Scraper e Enriquecimento
 - [ ] Fase 3: Dossiês Profundos e Autonomia
 

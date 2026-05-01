@@ -1,107 +1,51 @@
-# Plan: Phase 01-Inteligência e Estabilidade Core (Production-Grade)
+# Plan: Phase 01-Segurança e Validação de Ambiente
 
-Este plano estabelece a base de confiabilidade e segurança necessária para a expansão do Sherlock Scraper e WhatsMiau.
+Este plano foca exclusivamente no saneamento de segredos e na validação estrita do ambiente de startup.
 
 ## Waves
 
-### Wave 1: Segurança e Ambiente (Fail-Fast)
-**Task 1: Centralização e Validação de Envs**
+### Wave 1: Validação de Ambiente e Fail-Fast
+**Task 1: Implementar validador centralizado em WhatsMiau**
+<read_first>
+- `whatsmeow/env/env.go`
+- `whatsmeow/main.go`
+</read_first>
+<action>
+1. No arquivo `whatsmeow/env/env.go`, adicionar uma função `Validate()` que verifica se as chaves `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET` e `INTERNAL_API_TOKEN` estão preenchidas na struct `Config`.
+2. No `whatsmeow/main.go`, chamar `env.Validate()` logo após `env.Load()`. Se retornar erro, usar `log.Fatal` para interromper o startup.
+</action>
+<acceptance_criteria>
+- O serviço WhatsMiau não inicia se `INTERNAL_API_TOKEN` estiver vazio no `.env`.
+- Log indica claramente qual variável está faltando.
+</acceptance_criteria>
+
+**Task 2: Implementar validador centralizado em Sherlock (Backend)**
 <read_first>
 - `backend/cmd/api/main.go`
-- `whatsmeow/main.go`
-- `whatsmeow/env/env.go`
 </read_first>
 <action>
-1. Criar um pacote `config` unificado para cada serviço.
-2. Implementar validação estrita: o serviço deve disparar `zap.L().Fatal` se `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET` ou `INTERNAL_API_TOKEN` estiverem ausentes.
-3. Remover todos os fallbacks de strings hardcoded nos middlewares e handlers.
+1. Criar uma lógica de validação de ambiente no início do `main.go` (ou em pacote `internal/config`).
+2. Validar obrigatoriedade de `DATABASE_URL`, `REDIS_URL` e `JWT_SECRET`.
+3. Abortar com `log.Fatal` em caso de ausência.
 </action>
 <acceptance_criteria>
-- Startup falha imediatamente se o arquivo `.env` estiver vazio ou faltar chaves críticas.
-- Logs de erro de startup são claros e indicam o campo faltante.
+- O backend CRM não inicia se `JWT_SECRET` estiver vazio.
 </acceptance_criteria>
 
-### Wave 2: Persistência Versionada (Migrations)
-**Task 2: Integrar golang-migrate**
+**Task 3: Remover fallbacks de segredos**
 <read_first>
-- `whatsmeow/services/migrations.go`
-- `docker-compose.yml`
+- `backend/internal/middlewares/auth_middleware.go`
 </read_first>
 <action>
-1. Instalar `github.com/golang-migrate/migrate/v4`.
-2. Criar diretórios de migração e mover o DDL existente para arquivos `.up.sql`.
-3. Adicionar lógica de execução automática das migrações no `main.go` antes da inicialização dos serviços.
+Remover o bloco que atribui um valor padrão à variável `secret` caso `os.Getenv("JWT_SECRET")` seja vazio. A segurança deve depender estritamente da env.
 </action>
 <acceptance_criteria>
-- O esquema do banco é criado/atualizado via arquivos de migração versionados.
-- Tabela `schema_migrations` existe no banco de dados.
-</acceptance_criteria>
-
-### Wave 3: Confiabilidade de Filas (Asynq)
-**Task 3: Retry e Idempotência no Asynq**
-<read_first>
-- `backend/internal/queue/server.go`
-- `backend/internal/queue/tasks.go`
-</read_first>
-<action>
-1. Configurar `asynq.Config{ RetryDelayFunc: ... }` para backoff exponencial.
-2. Adicionar `asynq.TaskID` único no `Enqueue` de tarefas de enriquecimento e scraping para evitar processamento duplicado do mesmo lead em curto espaço de tempo.
-3. Implementar `ErrorHandler` global para logar falhas permanentes com stack trace.
-</action>
-<acceptance_criteria>
-- Tarefas falhas são reprocessadas com atraso crescente.
-- Tentativas de duplicar a mesma tarefa (mesmo ID) são ignoradas pelo Asynq.
-</acceptance_criteria>
-
-### Wave 4: Observabilidade (Structured Logs)
-**Task 4: Padronização JSON Logging e Tracing**
-<read_first>
-- `whatsmeow/lib/log-connect/`
-- `backend/cmd/api/main.go` (config do zap)
-</read_first>
-<action>
-1. Configurar o `zap` para usar `NewProductionEncoderConfig` (JSON) em ambientes que não sejam `development`.
-2. Garantir que logs de tarefas assíncronas incluam o `task_id` e `lead_id` como campos de primeira classe.
-</action>
-<acceptance_criteria>
-- Logs saem em formato JSON estruturado.
-- É possível filtrar logs de uma tarefa específica pelo `task_id`.
-</acceptance_criteria>
-
-### Wave 5: Inteligência e Resiliência AI
-**Task 5: Retry Gemini e Handoff Híbrido**
-<read_first>
-- `whatsmeow/services/sales_agent.go`
-</read_first>
-<action>
-1. Adicionar loop de retry em `callGemini`.
-2. Implementar interceptador de palavras-chave críticas ("PROCON", "cancelar", "quero falar com humano") para interrupção instantânea (bypass da IA).
-3. Marcar leads com falha de IA (`ai_failed`) para auditoria manual.
-</action>
-<acceptance_criteria>
-- Blacklist de palavras-chave dispara handoff imediato.
-- Falhas do Gemini não derrubam o worker, mas marcam o lead para revisão.
-</acceptance_criteria>
-
-### Wave 6: Cobertura de Testes Expandida
-**Task 6: Testes de Integração e Cenários de Falha**
-<read_first>
-- `whatsmeow/services/kanban_automation.go`
-</read_first>
-<action>
-1. Criar testes para `env.Validate()`.
-2. Criar testes para o fallback Gemini -> Groq.
-3. Testar a lógica de idempotência do Asynq simulando tarefas duplicadas.
-</action>
-<acceptance_criteria>
-- `go test ./...` cobre os novos fluxos de estabilidade.
+- Nenhuma string de segredo "padrão" existe no middleware de autenticação.
 </acceptance_criteria>
 
 ## Verification
-- Executar migrations e verificar integridade.
-- Simular ausência de ENV e verificar panic.
-- Simular erro do Gemini e verificar retry/fallback.
-- Enviar mensagem de blacklist e verificar interrupção imediata.
+1. Rodar `docker compose up api` sem o arquivo `.env` e verificar se ele morre com log de erro.
+2. Rodar com `.env` completo e verificar startup normal.
 
 ---
-**Status:** Ready for Execution (YOLO Mode)
+**Status:** Ready for Execution (Restricted Scope)
