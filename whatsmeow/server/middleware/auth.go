@@ -10,16 +10,16 @@ import (
 
 func Auth(ctx echo.Context, next echo.HandlerFunc) error {
 	gotApikey := ctx.Request().Header.Get("apikey")
-	if len(env.Env.ApiKey) == 0 {
+	if len(env.Get().ApiKey) == 0 {
 		return next(ctx)
 	}
 
-	if gotApikey != env.Env.ApiKey {
+	if gotApikey != env.Get().ApiKey {
 		zap.L().Warn("API key mismatch",
 			zap.String("method", ctx.Request().Method),
 			zap.String("path", ctx.Request().URL.Path),
 			zap.String("got_apikey", gotApikey),
-			zap.String("expected_apikey", env.Env.ApiKey),
+			zap.String("expected_apikey", env.Get().ApiKey),
 		)
 		return echo.NewHTTPError(http.StatusUnauthorized)
 	}

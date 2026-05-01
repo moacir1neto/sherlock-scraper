@@ -22,7 +22,7 @@ type GeminiService struct {
 
 func NewGeminiService() *GeminiService {
 	return &GeminiService{
-		apiKey:     env.Env.GeminiAPIKey,
+		apiKey:     env.Get().GeminiAPIKey,
 		httpClient: &http.Client{Timeout: 60 * time.Second},
 	}
 }

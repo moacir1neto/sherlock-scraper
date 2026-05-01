@@ -47,7 +47,7 @@ func PublishDossierEvent(leadID, payload string) {
 // InitRedisPublisher cria o client go-redis reutilizando REDIS_ADDR.
 // Deve ser chamado em main.go logo após InitClient().
 func InitRedisPublisher() {
-	addr := config.Env.RedisURL
+	addr := config.Get().RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}

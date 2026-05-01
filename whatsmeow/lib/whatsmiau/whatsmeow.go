@@ -58,7 +58,7 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container, repo interface
 	}
 
 	level := "INFO"
-	if env.Env.DebugWhatsmeow {
+	if env.Get().DebugWhatsmeow {
 		level = "DEBUG"
 	}
 
@@ -107,8 +107,8 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container, repo interface
 	}
 
 	var storage interfaces.Storage
-	if env.Env.GCSEnabled {
-		storage, err = gcs.New(env.Env.GCSBucket)
+	if env.Get().GCSEnabled {
+		storage, err = gcs.New(env.Get().GCSBucket)
 		if err != nil {
 			zap.L().Panic("failed to create GCS storage", zap.Error(err))
 		}
@@ -123,12 +123,12 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container, repo interface
 		instanceCache:   xsync.NewMap[string, models.Instance](),
 		observerRunning: xsync.NewMap[string, bool](),
 		lockConnection:  xsync.NewMap[string, *sync.Mutex](),
-		emitter:         make(chan emitter, env.Env.EmitterBufferSize),
+		emitter:         make(chan emitter, env.Get().EmitterBufferSize),
 		httpClient: &http.Client{
 			Timeout: time.Second * 30, // TODO: load from env
 		},
 		fileStorage:      storage,
-		handlerSemaphore: make(chan struct{}, env.Env.HandlerSemaphoreSize),
+		handlerSemaphore: make(chan struct{}, env.Get().HandlerSemaphoreSize),
 	}
 	// chatJobChan is set by main via SetChatJobChan() if chat persistence is enabled
 

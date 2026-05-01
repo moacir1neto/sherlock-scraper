@@ -11,7 +11,7 @@ var Client *asynq.Client
 
 // InitClient initializes the Asynq client
 func InitClient() {
-	redisAddr := config.Env.RedisURL
+	redisAddr := config.Get().RedisURL
 	if redisAddr == "" {
 		redisAddr = "localhost:6379" // Default if not provided
 	}

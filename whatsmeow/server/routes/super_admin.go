@@ -24,7 +24,7 @@ func SuperAdmin(group *echo.Group) {
 	// Em modo desenvolvimento, usar apenas SQL (sem cache)
 	var companyRepo interfaces.CompanyRepository = sqlCompanyRepo
 	var userRepo interfaces.UserRepository = sqlUserRepo
-	if !env.Env.DebugMode {
+	if !env.Get().DebugMode {
 		companyRepo = companies.NewRedis(sqlCompanyRepo, services.Redis())
 		userRepo = users.NewRedis(sqlUserRepo, services.Redis())
 	}

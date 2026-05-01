@@ -59,7 +59,7 @@ func (s *authService) Login(ctx context.Context, email, password string) (string
 	}
 
 	// Generate JWT
-	secret := config.Env.JWTSecret
+	secret := config.Get().JWTSecret
 	if secret == "" {
 		secret = "super_secret_key_change_in_production"
 	}

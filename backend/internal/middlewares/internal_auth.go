@@ -9,7 +9,7 @@ import (
 // Reads the expected token from the INTERNAL_API_TOKEN environment variable.
 func InternalAuth() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		expected := config.Env.WhatsmeowAPIToken
+		expected := config.Get().WhatsmeowAPIToken
 		if expected == "" {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "internal auth not configured",

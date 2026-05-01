@@ -12,7 +12,7 @@ import (
 
 // StartServer starts the Asynq server and registers handlers
 func StartServer() {
-	redisAddr := config.Env.RedisURL
+	redisAddr := config.Get().RedisURL
 	if redisAddr == "" {
 		redisAddr = "localhost:6379" // Default if not provided
 	}

@@ -51,7 +51,7 @@ func (h *SSEHandler) Stream(c *fiber.Ctx) error {
 		})
 	}
 
-	jwtSecret := config.Env.JWTSecret
+	jwtSecret := config.Get().JWTSecret
 	if jwtSecret == "" {
 		jwtSecret = "super_secret_key_change_in_production"
 	}

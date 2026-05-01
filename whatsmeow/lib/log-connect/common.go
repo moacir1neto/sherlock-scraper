@@ -6,7 +6,7 @@ import (
 )
 
 func StartLogger() error {
-	if env.Env.GCLEnabled {
+	if env.Get().GCLEnabled {
 		c, err := startGCL()
 		if err != nil {
 			return err
@@ -16,7 +16,7 @@ func StartLogger() error {
 	}
 
 	logger, err := zap.NewProduction()
-	if env.Env.DebugMode {
+	if env.Get().DebugMode {
 		logger, err = zap.NewDevelopment()
 	}
 

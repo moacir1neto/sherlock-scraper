@@ -406,7 +406,7 @@ type geminiAgentResponse struct {
 const geminiAgentModel = "gemini-2.5-flash"
 
 func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*AgentResponse, error) {
-	apiKey := env.Env.GeminiAPIKey
+	apiKey := env.Get().GeminiAPIKey
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
 	}
@@ -483,14 +483,14 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 
 // callAI tenta Gemini primeiro; se falhar ou não estiver configurado, tenta Groq.
 func (s *SalesAgentService) callAI(ctx context.Context, prompt string) (*AgentResponse, error) {
-	if env.Env.GeminiAPIKey != "" {
+	if env.Get().GeminiAPIKey != "" {
 		resp, err := s.callGemini(ctx, prompt)
 		if err == nil {
 			return resp, nil
 		}
 		zap.L().Warn("[SalesAgent] Gemini falhou, tentando Groq", zap.Error(err))
 	}
-	if env.Env.GroqAPIKey != "" {
+	if env.Get().GroqAPIKey != "" {
 		return CallGroqForAgent(ctx, prompt)
 	}
 	return nil, fmt.Errorf("nenhum provider de IA disponível (GEMINI_API_KEY e GROQ_API_KEY ausentes)")

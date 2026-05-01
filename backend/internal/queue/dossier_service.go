@@ -484,7 +484,7 @@ func (s *DossierService) generateAnalysis(ctx context.Context, leadID string, le
 		return nil
 	}
 
-	apiKey := config.Env.GeminiAPIKey
+	apiKey := config.Get().GeminiAPIKey
 	if apiKey == "" {
 		return fmt.Errorf("GEMINI_API_KEY não configurada")
 	}

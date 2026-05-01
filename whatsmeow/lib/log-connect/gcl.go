@@ -10,12 +10,12 @@ import (
 
 func startGCL() (*zapcore.Core, error) {
 	ctx := context.Background()
-	client, err := logging.NewClient(ctx, env.Env.GCLProjectID)
+	client, err := logging.NewClient(ctx, env.Get().GCLProjectID)
 	if err != nil {
 		return nil, err
 	}
 
-	lg := client.Logger(env.Env.GCL)
+	lg := client.Logger(env.Get().GCL)
 
 	enc := zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig())
 	errorPriority := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {

@@ -23,7 +23,7 @@ type RedisBroadcaster struct {
 
 // NewRedisBroadcaster cria o broadcaster reutilizando a variável REDIS_ADDR.
 func NewRedisBroadcaster() *RedisBroadcaster {
-	addr := config.Env.RedisURL
+	addr := config.Get().RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}

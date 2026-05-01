@@ -48,7 +48,7 @@ type RedisSubscriber struct {
 // REDIS_ADDR já utilizada pelo restante do sistema (queue/client.go).
 // Se a variável não estiver definida, usa "localhost:6379" como fallback.
 func NewRedisSubscriber(service ports.KanbanAutomationService) *RedisSubscriber {
-	addr := config.Env.RedisURL
+	addr := config.Get().RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}

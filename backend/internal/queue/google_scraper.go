@@ -68,7 +68,7 @@ func ScrapeGoogleReviews(nomeEmpresa string) (*GoogleData, error) {
 	log.Printf("🔍 Iniciando extração de Google Reviews via API para: %s", nomeEmpresa)
 
 	// A. Validar API Key
-	apiKey := config.Env.GooglePlacesAPIKey
+	apiKey := config.Get().GooglePlacesAPIKey
 	if apiKey == "" {
 		log.Printf("❌ Erro: GOOGLE_PLACES_API_KEY não configurada")
 		return nil, fmt.Errorf("GOOGLE_PLACES_API_KEY não configurada")

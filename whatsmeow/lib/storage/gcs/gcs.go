@@ -104,7 +104,7 @@ func (s *Gcs) Upload(ctx context.Context, fileName, mimetype string, file io.Rea
 	}
 
 	return fmt.Sprintf("%s/%s/%s",
-		env.Env.GCSURL,
+		env.Get().GCSURL,
 		obj.BucketName(),
 		fileName,
 	), fileName, nil

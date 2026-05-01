@@ -13,7 +13,7 @@ import (
 var DB *gorm.DB
 
 func Connect() {
-	dsn := config.Env.DatabaseURL
+	dsn := config.Get().DatabaseURL
 	if dsn == "" {
 		dsn = "host=localhost user=postgres password=postgres dbname=crm port=5432 sslmode=disable TimeZone=America/Sao_Paulo"
 	}

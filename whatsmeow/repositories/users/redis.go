@@ -114,7 +114,7 @@ func (r *RedisUser) GetByEmail(ctx context.Context, email string) (*models.User,
 		var user models.User
 		if json.Unmarshal([]byte(cached), &user) == nil {
 			// Log cache hit (apenas em desenvolvimento)
-			if env.Env.DebugMode {
+			if env.Get().DebugMode {
 				fmt.Printf("[CACHE HIT] User by email: %s (ID: %s)\n", email, user.ID)
 			}
 			return &user, nil
@@ -133,7 +133,7 @@ func (r *RedisUser) GetByEmail(ctx context.Context, email string) (*models.User,
 	r.redis.Set(ctx, r.emailKey(email), data, r.ttl)
 
 	// Log cache miss (apenas em desenvolvimento)
-	if env.Env.DebugMode {
+	if env.Get().DebugMode {
 		fmt.Printf("[CACHE MISS] User by email: %s (ID: %s) - Cached\n", email, user.ID)
 	}
 

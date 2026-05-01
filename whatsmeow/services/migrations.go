@@ -12,7 +12,7 @@ import (
 )
 
 func RunMigrations() error {
-	db, err := sql.Open(env.Env.DBDialect, env.Env.DBURL)
+	db, err := sql.Open(env.Get().DBDialect, env.Get().DBURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
@@ -38,7 +38,7 @@ func RunMigrations() error {
 	);
 	`
 
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		companiesTable = `
 		CREATE TABLE IF NOT EXISTS companies (
 			id VARCHAR(36) PRIMARY KEY,
@@ -73,7 +73,7 @@ func RunMigrations() error {
 	);
 	`
 
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		usersTable = `
 		CREATE TABLE IF NOT EXISTS users (
 			id VARCHAR(36) PRIMARY KEY,
@@ -110,7 +110,7 @@ func RunMigrations() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_chats_instance_last ON chats(instance_id, last_message_at DESC);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		chatsTable = `
 		CREATE TABLE IF NOT EXISTS chats (
 			id VARCHAR(36) PRIMARY KEY,
@@ -149,7 +149,7 @@ func RunMigrations() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at DESC);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		messagesTable = `
 		CREATE TABLE IF NOT EXISTS messages (
 			id VARCHAR(36) PRIMARY KEY,
@@ -193,7 +193,7 @@ func RunMigrations() error {
 	CREATE INDEX IF NOT EXISTS idx_incidents_tenant ON incidents(tenant_id, created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_incidents_code ON incidents(code, created_at DESC);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		incidentsTable = `
 		CREATE TABLE IF NOT EXISTS incidents (
 			id VARCHAR(36) PRIMARY KEY,
@@ -238,7 +238,7 @@ func RunMigrations() error {
 	CREATE INDEX IF NOT EXISTS idx_webhook_logs_company ON webhook_logs(company_id, created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_webhook_logs_created ON webhook_logs(created_at DESC);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		webhookLogsTable = `
 		CREATE TABLE IF NOT EXISTS webhook_logs (
 			id VARCHAR(36) PRIMARY KEY,
@@ -273,7 +273,7 @@ func RunMigrations() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_tags_company ON tags(company_id);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		tagsTable = `
 		CREATE TABLE IF NOT EXISTS tags (
 			id VARCHAR(36) PRIMARY KEY,
@@ -299,7 +299,7 @@ func RunMigrations() error {
 			}
 		}
 	}
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		addTagKanbanOrder("kanban_enabled", "BOOLEAN DEFAULT false")
 		addTagKanbanOrder("sort_order", "INTEGER DEFAULT 0")
 	} else {
@@ -319,7 +319,7 @@ func RunMigrations() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_chat_tags_tag ON chat_tags(tag_id);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		chatTagsTable = `
 		CREATE TABLE IF NOT EXISTS chat_tags (
 			chat_id VARCHAR(36) NOT NULL,
@@ -353,7 +353,7 @@ func RunMigrations() error {
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_company ON audit_logs(company_id, created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		auditLogsTable = `
 		CREATE TABLE IF NOT EXISTS audit_logs (
 			id VARCHAR(36) PRIMARY KEY,
@@ -389,7 +389,7 @@ func RunMigrations() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_sectors_company ON sectors(company_id);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		sectorsTable = `
 		CREATE TABLE IF NOT EXISTS sectors (
 			id VARCHAR(36) PRIMARY KEY,
@@ -413,7 +413,7 @@ func RunMigrations() error {
 	if _, err := db.Exec(`ALTER TABLE chats ADD COLUMN IF NOT EXISTS sector_id VARCHAR(36)`); err != nil {
 		zap.L().Debug("alter chats add sector_id ignored", zap.Error(err))
 	}
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		if _, err := db.Exec(`ALTER TABLE chats ADD COLUMN IF NOT EXISTS status VARCHAR(32) NOT NULL DEFAULT 'aguardando'`); err != nil {
 			zap.L().Debug("alter chats add status ignored", zap.Error(err))
 		}
@@ -472,7 +472,7 @@ func RunMigrations() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_quick_replies_company ON quick_replies(company_id);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		quickRepliesTable = `
 		CREATE TABLE IF NOT EXISTS quick_replies (
 			id VARCHAR(36) PRIMARY KEY,
@@ -501,7 +501,7 @@ func RunMigrations() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_flows_company ON flows(company_id);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		flowsTable = `
 		CREATE TABLE IF NOT EXISTS flows (
 			id VARCHAR(36) PRIMARY KEY,
@@ -528,7 +528,7 @@ func RunMigrations() error {
 			}
 		}
 	}
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		addFlowCommand("ALTER TABLE flows ADD COLUMN command VARCHAR(64)")
 		addFlowCommand("CREATE UNIQUE INDEX IF NOT EXISTS idx_flows_company_command ON flows(company_id, command)")
 	} else {
@@ -556,7 +556,7 @@ func RunMigrations() error {
 	CREATE INDEX IF NOT EXISTS idx_scheduled_company_status ON scheduled_messages(company_id, status);
 	CREATE INDEX IF NOT EXISTS idx_scheduled_at_status ON scheduled_messages(scheduled_at, status);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		scheduledTable = `
 		CREATE TABLE IF NOT EXISTS scheduled_messages (
 			id VARCHAR(36) PRIMARY KEY,
@@ -596,7 +596,7 @@ func RunMigrations() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_scrapes_company ON scrapes(company_id, created_at DESC);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		scrapesTable = `
 		CREATE TABLE IF NOT EXISTS scrapes (
 			id VARCHAR(36) PRIMARY KEY,
@@ -641,7 +641,7 @@ func RunMigrations() error {
 	CREATE INDEX IF NOT EXISTS idx_leads_company ON leads(company_id);
 	CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(company_id, kanban_status);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		leadsTable = `
 		CREATE TABLE IF NOT EXISTS leads (
 			id VARCHAR(36) PRIMARY KEY,
@@ -711,7 +711,7 @@ func RunMigrations() error {
 		FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 	);
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		aiSettingsTable = `
 		CREATE TABLE IF NOT EXISTS company_ai_settings (
 			company_id   VARCHAR(36) PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
@@ -733,7 +733,7 @@ func RunMigrations() error {
 	INSERT INTO companies (id, nome, cnpj, email, ativo)
 	VALUES ('00000000-0000-0000-0000-000000000001', 'Empresa Padrão', '00.000.000/0000-00', 'admin@whatsmiau.com', true)
 	`
-	if env.Env.DBDialect == "postgres" {
+	if env.Get().DBDialect == "postgres" {
 		defaultCompanySQL += " ON CONFLICT (id) DO NOTHING"
 	} else {
 		defaultCompanySQL = `INSERT OR IGNORE INTO companies (id, nome, cnpj, email, ativo)
@@ -749,7 +749,7 @@ func RunMigrations() error {
 	// Super Vendedor: novos campos em company_ai_settings
 	addAICol := func(col, def string) {
 		var q string
-		if env.Env.DBDialect == "postgres" {
+		if env.Get().DBDialect == "postgres" {
 			q = fmt.Sprintf("ALTER TABLE company_ai_settings ADD COLUMN IF NOT EXISTS %s %s", col, def)
 		} else {
 			q = fmt.Sprintf("ALTER TABLE company_ai_settings ADD COLUMN %s %s", col, def)
@@ -766,7 +766,7 @@ func RunMigrations() error {
 	// Pausa da IA por conversa (chats)
 	addChatsAIPaused := func() {
 		var q string
-		if env.Env.DBDialect == "postgres" {
+		if env.Get().DBDialect == "postgres" {
 			q = "ALTER TABLE chats ADD COLUMN IF NOT EXISTS ai_paused BOOLEAN NOT NULL DEFAULT FALSE"
 		} else {
 			q = "ALTER TABLE chats ADD COLUMN ai_paused BOOLEAN NOT NULL DEFAULT FALSE"
@@ -784,7 +784,7 @@ func RunMigrations() error {
 }
 
 func SeedSuperAdmin() error {
-	db, err := sql.Open(env.Env.DBDialect, env.Env.DBURL)
+	db, err := sql.Open(env.Get().DBDialect, env.Get().DBURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}

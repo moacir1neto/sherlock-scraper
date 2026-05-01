@@ -9,7 +9,7 @@ import (
 
 // Protected verifies the JWT associated with the request
 func Protected() fiber.Handler {
-	secret := config.Env.JWTSecret
+	secret := config.Get().JWTSecret
 
 	return jwtware.New(jwtware.Config{
 		SigningKey: jwtware.SigningKey{Key: []byte(secret)},

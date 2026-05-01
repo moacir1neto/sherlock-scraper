@@ -45,7 +45,7 @@ type EnrichLeadPayload struct {
 }
 
 func GetAsynqClient() *asynq.Client {
-	redisAddr := config.Env.RedisURL
+	redisAddr := config.Get().RedisURL
 	if redisAddr == "" {
 		redisAddr = "localhost:6379"
 	}
@@ -247,7 +247,7 @@ func buildProspectionMessage(lead domain.Lead) string {
 
 // sendViaWhatsMiau performs an HTTP POST to the WhatsMiau /v1/message/sendText/:instance endpoint.
 func sendViaWhatsMiau(instanceID, phone, text string) error {
-	apiURL := config.Env.WhatsmeowURL
+	apiURL := config.Get().WhatsmeowURL
 	if apiURL == "" {
 		apiURL = "http://whatsmiau-api:8080"
 	}
@@ -274,7 +274,7 @@ func sendViaWhatsMiau(instanceID, phone, text string) error {
 	req.Header.Set("Content-Type", "application/json")
 
 	// Adiciona apikey se configurada
-	if apiToken := config.Env.WhatsmeowAPIToken; apiToken != "" {
+	if apiToken := config.Get().WhatsmeowAPIToken; apiToken != "" {
 		req.Header.Set("apikey", apiToken)
 	}
 
@@ -307,7 +307,7 @@ type CheckWhatsAppResponse []WhatsAppExistsItem
 // checkWhatsAppExistence consulta o WhatsMiau para verificar se o número está na rede Meta.
 // Reutiliza o endpoint /v1/chat/whatsappNumbers/:instance (padrão Evolution/WhatsMiau).
 func checkWhatsAppExistence(instanceID, phone string) (bool, string, error) {
-	apiURL := config.Env.WhatsmeowURL
+	apiURL := config.Get().WhatsmeowURL
 	if apiURL == "" {
 		apiURL = "http://whatsmiau-api:8080"
 	}
@@ -329,7 +329,7 @@ func checkWhatsAppExistence(instanceID, phone string) (bool, string, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if apiToken := config.Env.WhatsmeowAPIToken; apiToken != "" {
+	if apiToken := config.Get().WhatsmeowAPIToken; apiToken != "" {
 		req.Header.Set("apikey", apiToken)
 	}
 
@@ -878,7 +878,7 @@ func searchCasaDosDadosWorker(empresa string) (*SherlockCNPJResponse, error) {
 // ExtractBusinessInsightsFallback gera insights estruturados via LLM quando não há website disponível.
 // Usa dados do Google Reviews, nome da empresa e nicho como contexto alternativo.
 func ExtractBusinessInsightsFallback(companyName, nicho string, googleData *GoogleData) (*BusinessInsights, error) {
-	apiKey := config.Env.GeminiAPIKey
+	apiKey := config.Get().GeminiAPIKey
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
 	}
@@ -959,7 +959,7 @@ func ExtractBusinessInsights(rawText string) (*BusinessInsights, error) {
 		textToAnalyze = textToAnalyze[:3000]
 	}
 
-	apiKey := config.Env.GeminiAPIKey
+	apiKey := config.Get().GeminiAPIKey
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
 	}

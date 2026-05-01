@@ -41,7 +41,7 @@ func (h *CampaignSSEHandler) Stream(c *fiber.Ctx) error {
 			})
 		}
 
-		jwtSecret := config.Env.JWTSecret
+		jwtSecret := config.Get().JWTSecret
 		if jwtSecret == "" {
 			jwtSecret = "super_secret_key_change_in_production"
 		}
@@ -162,7 +162,7 @@ func (h *CampaignSSEHandler) Stream(c *fiber.Ctx) error {
 // Cada conexão SSE precisa de uma conexão Redis separada porque o go-redis
 // entra em modo Pub/Sub exclusivo, impedindo outros comandos na mesma conexão.
 func newCampaignRedisClient() *redis.Client {
-	addr := config.Env.RedisURL
+	addr := config.Get().RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}

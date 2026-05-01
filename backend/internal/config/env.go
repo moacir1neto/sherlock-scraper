@@ -1,50 +1,73 @@
 package config
 
 import (
-	"fmt"
+	"log"
+	"os"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 )
 
-type Environment struct {
+type environment struct {
 	DatabaseURL string `env:"DATABASE_URL"`
 	RedisURL    string `env:"REDIS_URL"`
 	JWTSecret   string `env:"JWT_SECRET"`
 
-	// Other non-critical or optional envs can go here if needed.
-	// For now we map what's strictly required by the contract.
-	// External API Keys (Optional at startup but required for specific features)
 	GeminiAPIKey       string `env:"GEMINI_API_KEY"`
 	GooglePlacesAPIKey string `env:"GOOGLE_PLACES_API_KEY"`
 
-	// WhatsMiau Service Integration
 	WhatsmeowURL      string `env:"WHATSMEOW_URL" envDefault:"http://whatsmeow:8080"`
-	WhatsmeowAPIToken string `env:"INTERNAL_API_TOKEN"` // Matches WhatsmeowAPIKey or WHATSMIau_API_TOKEN uses
+	WhatsmeowAPIToken string `env:"INTERNAL_API_TOKEN"`
 
 	Port string `env:"PORT" envDefault:"3000"`
 }
 
-var Env Environment
+var instance environment
 
-func (e *Environment) Validate() error {
-	if e.DatabaseURL == "" {
-		return fmt.Errorf("DATABASE_URL is required")
-	}
-	if e.RedisURL == "" {
-		return fmt.Errorf("REDIS_URL is required")
-	}
-	if e.JWTSecret == "" {
-		return fmt.Errorf("JWT_SECRET is required")
-	}
-	return nil
+// Get retorna a instância de configuração
+func Get() environment {
+	return instance
 }
 
-func Load() error {
-	_ = godotenv.Load(".env")
-	err := env.Parse(&Env)
-	if err != nil {
-		return err
+func (e *environment) validate() {
+	missing := false
+
+	if e.DatabaseURL == "" {
+		log.Println("ERRO: DATABASE_URL é obrigatória")
+		missing = true
 	}
-	return Env.Validate()
+	if e.RedisURL == "" {
+		log.Println("ERRO: REDIS_URL é obrigatória")
+		missing = true
+	}
+	if e.JWTSecret == "" {
+		log.Println("ERRO: JWT_SECRET é obrigatória")
+		missing = true
+	}
+
+	if missing {
+		log.Fatal("Falha no startup do backend: Variáveis de ambiente obrigatórias ausentes.")
+	}
+
+	// Avisos para variáveis opcionais
+	if e.GeminiAPIKey == "" {
+		log.Println("AVISO: GEMINI_API_KEY não configurada. Funcionalidades de IA estarão desativadas.")
+	}
+	if e.GooglePlacesAPIKey == "" {
+		log.Println("AVISO: GOOGLE_PLACES_API_KEY não configurada. O enriquecimento de leads via Google Maps estará desativado.")
+	}
+}
+
+func Load() {
+	if os.Getenv("APP_ENV") != "production" {
+		if err := godotenv.Load(".env"); err != nil {
+			log.Println("Aviso: Arquivo .env não encontrado no backend, usando variáveis do sistema.")
+		}
+	}
+
+	if err := env.Parse(&instance); err != nil {
+		log.Fatalf("Erro ao parsear variáveis de ambiente no backend: %v", err)
+	}
+
+	instance.validate()
 }

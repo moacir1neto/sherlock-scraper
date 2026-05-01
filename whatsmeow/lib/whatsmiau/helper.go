@@ -326,7 +326,7 @@ func configProxy(client *whatsmeow.Client, instanceProxy models.InstanceProxy) {
 	}
 
 	opts := whatsmeow.SetProxyOptions{
-		NoMedia: env.Env.ProxyNoMedia,
+		NoMedia: env.Get().ProxyNoMedia,
 	}
 
 	proxyUrl := mountProxyUrl(instanceProxy)

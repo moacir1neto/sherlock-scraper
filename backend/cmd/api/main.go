@@ -19,9 +19,7 @@ import (
 
 func main() {
 	// 0. Load and validate environment configuration
-	if err := config.Load(); err != nil {
-		log.Fatalf("Environment configuration error: %v", err)
-	}
+	config.Load()
 
 	// 1. Initialize Database connection & Auto-migrations
 	database.Connect()
@@ -174,7 +172,7 @@ func main() {
 	log.Println("📡 Kanban Automation subscriber iniciado (canal: whatsapp:messages:received)")
 
 	// 7. Start HTTP Server
-	port := config.Env.Port
+	port := config.Get().Port
 	log.Printf("🌐 Server is running on port %s...", port)
 	log.Fatal(app.Listen(":" + port))
 }

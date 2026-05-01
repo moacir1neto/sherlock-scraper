@@ -14,7 +14,7 @@ var dbInstance *sql.DB
 
 func DB() (*sql.DB, error) {
 	if dbInstance == nil {
-		db, err := sql.Open(env.Env.DBDialect, env.Env.DBURL)
+		db, err := sql.Open(env.Get().DBDialect, env.Get().DBURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open database: %w", err)
 		}

@@ -156,7 +156,7 @@ func (h *DossierHandler) Stream(c *fiber.Ctx) error {
 
 // newDossierRedisClient cria um client go-redis dedicado para o subscriber SSE do dossier.
 func newDossierRedisClient() *redis.Client {
-	addr := config.Env.RedisURL
+	addr := config.Get().RedisURL
 	if addr == "" {
 		addr = "localhost:6379"
 	}

@@ -100,9 +100,9 @@ func (s *Instance) Create(ctx echo.Context) error {
 		)
 	}
 
-	if len(request.ProxyHost) <= 0 && len(env.Env.ProxyAddresses) > 0 {
-		rd := rand.IntN(len(env.Env.ProxyAddresses))
-		proxyUrl := env.Env.ProxyAddresses[rd]
+	if len(request.ProxyHost) <= 0 && len(env.Get().ProxyAddresses) > 0 {
+		rd := rand.IntN(len(env.Get().ProxyAddresses))
+		proxyUrl := env.Get().ProxyAddresses[rd]
 
 		proxy, err := parseProxyURL(proxyUrl)
 		if err != nil {

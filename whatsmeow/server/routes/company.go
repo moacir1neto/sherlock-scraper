@@ -15,7 +15,7 @@ func Company(group *echo.Group) {
 
 	// Em modo desenvolvimento, usar apenas SQL (sem cache)
 	var companyRepo interfaces.CompanyRepository = sqlCompanyRepo
-	if !env.Env.DebugMode {
+	if !env.Get().DebugMode {
 		companyRepo = companies.NewRedis(sqlCompanyRepo, services.Redis())
 	}
 

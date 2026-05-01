@@ -17,13 +17,13 @@ type whatsAppService struct {
 }
 
 func NewWhatsAppService() ports.WhatsAppService {
-	url := config.Env.WhatsmeowURL
+	url := config.Get().WhatsmeowURL
 	if url == "" {
 		url = "http://localhost:8081"
 	}
 	return &whatsAppService{
 		baseURL: url,
-		apiKey:  config.Env.WhatsmeowAPIToken,
+		apiKey:  config.Get().WhatsmeowAPIToken,
 	}
 }
 

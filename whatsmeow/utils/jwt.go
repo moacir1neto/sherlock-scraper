@@ -19,7 +19,7 @@ type Claims struct {
 var jwtSecret []byte
 
 func init() {
-	secret := env.Env.ApiKey
+	secret := env.Get().ApiKey
 	if secret == "" {
 		secret = "default-secret-key-change-in-production"
 	}

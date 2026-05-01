@@ -74,7 +74,7 @@ type LeadAnalysisOutput struct {
 // NewAIService cria uma nova instância do serviço de IA
 func NewAIService() *AIService {
 	return &AIService{
-		apiKey: config.Env.GeminiAPIKey,
+		apiKey: config.Get().GeminiAPIKey,
 	}
 }
 
