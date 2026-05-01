@@ -1,120 +1,107 @@
-# Plan: Phase 01-Inteligência e Estabilidade Core
+# Plan: Phase 01-Inteligência e Estabilidade Core (Production-Grade)
 
-Este plano visa fortalecer a base do sistema, garantindo segurança no startup, resiliência na comunicação com IA e cobertura de testes na lógica de automação de vendas.
+Este plano estabelece a base de confiabilidade e segurança necessária para a expansão do Sherlock Scraper e WhatsMiau.
 
 ## Waves
 
-### Wave 1: Segurança e Startup (Enforcement)
-Foco em garantir que o sistema nunca opere em estado inseguro.
-
-**Task 1: Validar variáveis críticas no startup**
+### Wave 1: Segurança e Ambiente (Fail-Fast)
+**Task 1: Centralização e Validação de Envs**
 <read_first>
-- `whatsmeow/main.go`
 - `backend/cmd/api/main.go`
-- `whatsmeow/env/env.go` (ou arquivo de config de env)
+- `whatsmeow/main.go`
+- `whatsmeow/env/env.go`
 </read_first>
 <action>
-1. No pacote de ambiente (`env`), criar uma função `ValidateCritical()` que verifica a presença de `JWT_SECRET`, `INTERNAL_API_TOKEN` e `DATABASE_URL`.
-2. Em `whatsmeow/main.go` e `backend/cmd/api/main.go`, chamar esta validação logo após carregar as envs.
-3. Se faltar variável, usar `log.Fatal` ou `panic` com mensagem clara do que está faltando.
+1. Criar um pacote `config` unificado para cada serviço.
+2. Implementar validação estrita: o serviço deve disparar `zap.L().Fatal` se `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET` ou `INTERNAL_API_TOKEN` estiverem ausentes.
+3. Remover todos os fallbacks de strings hardcoded nos middlewares e handlers.
 </action>
 <acceptance_criteria>
-- Ao rodar o serviço sem `JWT_SECRET` no `.env`, o processo deve encerrar imediatamente com erro.
-- Logs indicam exatamente qual variável está faltando.
+- Startup falha imediatamente se o arquivo `.env` estiver vazio ou faltar chaves críticas.
+- Logs de erro de startup são claros e indicam o campo faltante.
 </acceptance_criteria>
 
-**Task 2: Remover fallbacks de segurança**
+### Wave 2: Persistência Versionada (Migrations)
+**Task 2: Integrar golang-migrate**
 <read_first>
-- `backend/internal/middlewares/auth_middleware.go`
+- `whatsmeow/services/migrations.go`
+- `docker-compose.yml`
 </read_first>
 <action>
-Remover a atribuição de fallback para a variável `secret` na linha 14: `secret = "super_secret_key_change_in_production"`. Se a env for vazia, a assinatura do JWT deve falhar ou o sistema já deve ter parado no startup.
+1. Instalar `github.com/golang-migrate/migrate/v4`.
+2. Criar diretórios de migração e mover o DDL existente para arquivos `.up.sql`.
+3. Adicionar lógica de execução automática das migrações no `main.go` antes da inicialização dos serviços.
 </action>
 <acceptance_criteria>
-- String "super_secret_key_change_in_production" não existe mais no codebase.
+- O esquema do banco é criado/atualizado via arquivos de migração versionados.
+- Tabela `schema_migrations` existe no banco de dados.
 </acceptance_criteria>
 
-### Wave 2: Estabilidade Kanban (Testes Unitários)
-Foco em garantir que leads não "pulem" status indevidamente.
-
-**Task 3: Migração de flag ai_failed**
+### Wave 3: Confiabilidade de Filas (Asynq)
+**Task 3: Retry e Idempotência no Asynq**
 <read_first>
-- `whatsmeow/services/migrations.go` (ou onde as migrações SQL residem)
+- `backend/internal/queue/server.go`
+- `backend/internal/queue/tasks.go`
 </read_first>
 <action>
-Adicionar a coluna `ai_failed` (boolean, default false) na tabela `leads` para permitir rastreamento de falhas do agente.
+1. Configurar `asynq.Config{ RetryDelayFunc: ... }` para backoff exponencial.
+2. Adicionar `asynq.TaskID` único no `Enqueue` de tarefas de enriquecimento e scraping para evitar processamento duplicado do mesmo lead em curto espaço de tempo.
+3. Implementar `ErrorHandler` global para logar falhas permanentes com stack trace.
 </action>
 <acceptance_criteria>
-- Tabela `leads` possui a coluna `ai_failed`.
+- Tarefas falhas são reprocessadas com atraso crescente.
+- Tentativas de duplicar a mesma tarefa (mesmo ID) são ignoradas pelo Asynq.
 </acceptance_criteria>
 
-**Task 4: Implementar Testes Unitários Kanban**
+### Wave 4: Observabilidade (Structured Logs)
+**Task 4: Padronização JSON Logging e Tracing**
+<read_first>
+- `whatsmeow/lib/log-connect/`
+- `backend/cmd/api/main.go` (config do zap)
+</read_first>
+<action>
+1. Configurar o `zap` para usar `NewProductionEncoderConfig` (JSON) em ambientes que não sejam `development`.
+2. Garantir que logs de tarefas assíncronas incluam o `task_id` e `lead_id` como campos de primeira classe.
+</action>
+<acceptance_criteria>
+- Logs saem em formato JSON estruturado.
+- É possível filtrar logs de uma tarefa específica pelo `task_id`.
+</acceptance_criteria>
+
+### Wave 5: Inteligência e Resiliência AI
+**Task 5: Retry Gemini e Handoff Híbrido**
+<read_first>
+- `whatsmeow/services/sales_agent.go`
+</read_first>
+<action>
+1. Adicionar loop de retry em `callGemini`.
+2. Implementar interceptador de palavras-chave críticas ("PROCON", "cancelar", "quero falar com humano") para interrupção instantânea (bypass da IA).
+3. Marcar leads com falha de IA (`ai_failed`) para auditoria manual.
+</action>
+<acceptance_criteria>
+- Blacklist de palavras-chave dispara handoff imediato.
+- Falhas do Gemini não derrubam o worker, mas marcam o lead para revisão.
+</acceptance_criteria>
+
+### Wave 6: Cobertura de Testes Expandida
+**Task 6: Testes de Integração e Cenários de Falha**
 <read_first>
 - `whatsmeow/services/kanban_automation.go`
 </read_first>
 <action>
-1. Criar `whatsmeow/services/kanban_automation_test.go`.
-2. Implementar structs de Mock para `LeadRepository`, `InstanceRepository` e `ChatBroadcaster`.
-3. Adicionar casos de teste para:
-    - Mensagem de entrada move lead para "em_conversa" (se status permitir).
-    - Mensagem de saída move lead para "contatado" (se status permitir).
-    - Idempotência: Se o lead já estiver em status final (ex: ganho), não deve ser movido.
+1. Criar testes para `env.Validate()`.
+2. Criar testes para o fallback Gemini -> Groq.
+3. Testar a lógica de idempotência do Asynq simulando tarefas duplicadas.
 </action>
 <acceptance_criteria>
-- `go test -v ./whatsmeow/services/kanban_automation_test.go` passa com sucesso.
-</acceptance_criteria>
-
-### Wave 3: Resiliência AI Agent
-Foco em reduzir falhas de processamento por instabilidade do Gemini.
-
-**Task 5: Implementar Retry no callGemini**
-<read_first>
-- `whatsmeow/services/sales_agent.go`
-</read_first>
-<action>
-1. No método `callGemini`, envolver o bloco de requisição HTTP e unmarshal em um loop de 2 tentativas (1 original + 1 retry).
-2. Adicionar um delay de 500ms entre as tentativas em caso de erro 5xx ou JSON inválido.
-3. Logar cada tentativa falha para auditoria.
-</action>
-<acceptance_criteria>
-- Em caso de timeout ou erro transiente do Gemini, o sistema tenta uma segunda vez antes de desistir.
-</acceptance_criteria>
-
-**Task 6: Fail-safe Handoff em erros de IA**
-<read_first>
-- `whatsmeow/services/sales_agent.go`
-</read_first>
-<action>
-1. Se `callAI` (que tenta Gemini e Groq) retornar erro após retries, o sistema deve:
-    - Marcar o lead com `ai_failed = true`.
-    - Pausar a IA no chat (`pauseChat`).
-    - Emitir o evento de handoff humano via `handoffHub.PublishHandoff`.
-2. Garantir que nenhuma mensagem errática seja enviada ao lead.
-</action>
-<acceptance_criteria>
-- Leads com falha de IA são pausados e aparecem no alerta de handoff humano.
-</acceptance_criteria>
-
-### Wave 4: Handoff Híbrido (Sentimento)
-Foco em sensibilidade humana imediata.
-
-**Task 7: Blacklist de Palavras-chave Locais**
-<read_first>
-- `whatsmeow/services/sales_agent.go`
-</read_first>
-<action>
-1. Definir uma lista de strings de interrupção em `sales_agent.go`: `["reclamação", "procon", "processo", "cancelar", "quero falar com humano", "falar com pessoa"]`.
-2. Em `ProcessIncoming`, antes de chamar a IA, verificar se a mensagem do lead contém algum desses termos (case-insensitive).
-3. Se contiver, forçar `agentResp.AcionarHumano = true` e pular a chamada da IA se possível, ou processar como handoff imediato.
-</action>
-<acceptance_criteria>
-- Mensagem "Vou reclamar no PROCON" pausa a IA e aciona handoff sem intervenção do Gemini.
+- `go test ./...` cobre os novos fluxos de estabilidade.
 </acceptance_criteria>
 
 ## Verification
-1. Executar testes unitários do Kanban.
-2. Validar startup sem variáveis de ambiente críticas.
-3. Testar envio de palavras da blacklist via WhatsApp e verificar pausa automática.
+- Executar migrations e verificar integridade.
+- Simular ausência de ENV e verificar panic.
+- Simular erro do Gemini e verificar retry/fallback.
+- Enviar mensagem de blacklist e verificar interrupção imediata.
 
 ---
 **Status:** Ready for Execution (YOLO Mode)

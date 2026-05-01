@@ -20,9 +20,11 @@
 - [ ] **DOS-03**: Salvar o dossiê em formato Markdown estruturado no banco de dados para fácil leitura pelo agente de IA.
 
 ### Core & Qualidade (Suporte às features)
-- [ ] **CORE-01**: Refatorar a gestão de tokens e secrets para carregar estritamente de variáveis de ambiente (remover fallbacks hardcoded).
-- [ ] **CORE-02**: Implementar testes unitários básicos para a lógica de transição de status do Kanban (kanban_automation).
-- [ ] **CORE-03**: Otimizar o pooling de conexões Redis para suportar maior volume de tarefas assíncronas.
+- [ ] **CORE-01**: Refatorar a gestão de tokens e secrets para carregar estritamente de variáveis de ambiente com validação estrita (fail-fast).
+- [ ] **CORE-02**: Implementar testes unitários e de integração para a lógica de transição de status do Kanban e automações críticas.
+- [ ] **CORE-03**: Otimizar o pooling de conexões Redis e implementar estratégias de retry/idempotência no Asynq.
+- [ ] **CORE-04**: Implementar sistema de migrações versionadas (Goose ou Golang-Migrate) para PostgreSQL.
+- [ ] **CORE-05**: Padronizar observabilidade com logs estruturados (JSON) e tracing de erros para processos assíncronos.
 
 ## v2 Requirements (Deferred)
 - [ ] Suporte a múltiplos modelos de LLM (Claude/GPT-4) chaveáveis por empresa.

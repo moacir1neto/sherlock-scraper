@@ -1,48 +1,51 @@
 # Phase Context: 01-Inteligência e Estabilidade Core
 
 ## Domain
-Evolução da inteligência do Agente de Vendas (WhatsMiau) e saneamento da segurança e qualidade do sistema (CRM/WhatsMiau).
+Evolução da inteligência do Agente de Vendas (WhatsMiau) e estabelecimento de infraestrutura de estabilidade de nível de produção (Core Reliability).
 
 ## Decisions
 
-### 1. Resiliência de Resposta AI (WhatsMiau)
-- **Retry Logic**: Implementar retry automático de 1x com backoff exponencial (ex: 500ms) se a resposta do Gemini falhar ou retornar JSON inválido.
-- **Fail-safe**: Se o retry falhar, logar o erro de forma estruturada, marcar o lead com a flag `ai_failed` (no banco) e realizar o handoff humano imediato via SSE sem enviar resposta automática ao lead.
-- **Arquivo Alvo**: `whatsmeow/services/sales_agent.go`.
+### 1. Mensageria e Filas (Asynq)
+- **Retry Strategy**: Configurar retries exponenciais para tarefas de Scraping e chamadas de IA.
+- **Idempotência**: Implementar verificação de idempotência em tasks críticas usando IDs únicos de lead/processo como `TaskID` do Asynq.
+- **Failure Handling**: Criar handlers de `ErrorHandler` no Asynq para logar falhas permanentes com contexto completo no banco e via Zap.
 
-### 2. Gatilhos de Interrupção Híbridos
-- **Abordagem**: Combinar decisão da IA (`acionar_humano: true`) com uma lista de palavras-chave críticas local (ex: "reclamação", "processo", "procon", "cancelar", "quero falar com uma pessoa").
-- **Ação**: Se qualquer um dos gatilhos disparar, pausar a IA para aquele chat (`ai_paused = true`) e emitir alerta de handoff.
-- **Arquivo Alvo**: `whatsmeow/services/sales_agent.go`.
+### 2. Gestão de Ambiente (Environment)
+- **Centralização**: Criar um carregador de ambiente centralizado em `backend/internal/config` (CRM) e `whatsmeow/env` (WhatsMiau).
+- **Fail-Fast**: O startup de ambos os serviços deve abortar (`Panic/Fatal`) se variáveis críticas estiverem ausentes (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `INTERNAL_API_TOKEN`).
 
-### 3. Enforcement de Segurança (Zero Tolerance)
-- **Startup Panic**: Ambos os serviços Go devem falhar no startup (panic/Fatal) se as seguintes variáveis estiverem ausentes no `.env`:
-    - `JWT_SECRET`
-    - `INTERNAL_API_TOKEN`
-    - `DATABASE_URL`
-- **Rationale**: Garantir que o ambiente seja explícito e seguro, evitando fallbacks silenciosos para chaves de desenvolvimento.
-- **Arquivos Alvo**: `backend/cmd/api/main.go`, `whatsmeow/main.go`, `backend/internal/middlewares/auth_middleware.go`.
+### 3. Observabilidade e Logs
+- **Structured Logging**: Migrar todos os logs para formato JSON estruturado usando `uber-go/zap`.
+- **Tracing**: Incluir `trace_id` em logs que atravessam chamadas de IA e processamento de filas para facilitar o debug fim-a-fim.
 
-### 4. Estratégia de Testes Kanban
-- **Mocks**: Utilizar mocks manuais baseados nas interfaces existentes (`interfaces.LeadRepository`, etc). Não introduzir geradores automáticos (gomock) agora para manter a simplicidade.
-- **Foco**: Testar o comportamento da lógica de negócio em `kanban_automation.go` (mudança de status em mensagens de entrada/saída).
-- **Arquivo Alvo**: `whatsmeow/services/kanban_automation.go`.
+### 4. Testes e Cobertura
+- **Escopo**: Expandir testes unitários para cobrir cenários de fallback de IA (Gemini -> Groq), validação de ambiente e lógica de processamento do Asynq.
+- **Mocks**: Continuar com mocks manuais baseados em interfaces para manter a simplicidade e portabilidade.
+
+### 5. Migrações de Banco de Dados
+- **Tooling**: Introduzir **`golang-migrate`** (recomendado pela versatilidade) para gerenciar migrações de esquema versionadas.
+- **Transição**: Mover migrações existentes (ex: `whatsmeow/services/migrations.go`) para arquivos `.sql` versionados em `/migrations`.
+
+### 6. Agente de IA e Handoff
+- **Resiliência**: Retry automático (1x) em chamadas de IA falhas.
+- **Handoff Híbrido**: Interrupção imediata por palavras-chave críticas ("PROCON", "cancelar", etc) combinada com a decisão da IA.
 
 ## Code Context
-- **AI Agent**: `whatsmeow/services/sales_agent.go` (lógica principal de decisão).
-- **Auth Middleware**: `backend/internal/middlewares/auth_middleware.go` (ponto de injeção de segredos).
-- **Kanban Logic**: `whatsmeow/services/kanban_automation.go` (alvo dos testes).
+- **Asynq Setup**: `backend/internal/queue/` e workers.
+- **AI Agent**: `whatsmeow/services/sales_agent.go`.
+- **Auth Middleware**: `backend/internal/middlewares/auth_middleware.go`.
+- **Database**: `whatsmeow/services/migrations.go`.
 
 ## Canonical Refs
 - `whatsmeow/services/sales_agent.go`
-- `whatsmeow/services/kanban_automation.go`
 - `backend/internal/middlewares/auth_middleware.go`
 - `whatsmeow/main.go`
 - `backend/cmd/api/main.go`
+- `docker-compose.yml` (para referências de env)
 
 ## Deferred Ideas
-- Suporte a múltiplos modelos de LLM (Claude/GPT-4) — Movido para Fase 4+.
-- Interface Visual para edição da lista de palavras-chave de interrupção.
+- Dashboard de monitoramento visual do Asynq (Asynqmon integrado ao admin).
+- Rotação dinâmica de chaves API sem restart.
 
 ---
-*Last updated: 2026-05-01 after discussion*
+*Last updated: 2026-05-01 after infra refinement*
