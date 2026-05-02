@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/ports"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/logger"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 // WhatsAppMessagesChannel é o canal Redis Pub/Sub no qual o WhatsMeow publica
@@ -62,7 +63,7 @@ func NewRedisSubscriber(service ports.KanbanAutomationService) *RedisSubscriber 
 		WriteTimeout: 3 * time.Second,
 	})
 
-	log.Printf("[RedisSubscriber] 📡 Cliente Redis configurado em %q", addr)
+	logger.Get().Info("redis_subscriber_configurado", zap.String("addr", addr))
 	return &RedisSubscriber{client: client, service: service}
 }
 
@@ -72,7 +73,7 @@ func NewRedisSubscriber(service ports.KanbanAutomationService) *RedisSubscriber 
 // O loop implementa backoff exponencial: começa em 1s e dobra a cada falha,
 // até o máximo de 30s. Ao receber cancelamento do contexto, encerra limpo.
 func (s *RedisSubscriber) Listen(ctx context.Context) {
-	log.Printf("[RedisSubscriber] 🚀 Iniciando listener no canal %q", WhatsAppMessagesChannel)
+	logger.FromContext(ctx).Info("iniciando_listener_redis_subscriber", zap.String("channel", WhatsAppMessagesChannel))
 
 	backoff := time.Second
 	const maxBackoff = 30 * time.Second
@@ -81,14 +82,14 @@ func (s *RedisSubscriber) Listen(ctx context.Context) {
 		if err := s.subscribe(ctx); err != nil {
 			if ctx.Err() != nil {
 				// Contexto cancelado — shutdown limpo, sem log de erro
-				log.Printf("[RedisSubscriber] 🛑 Contexto cancelado. Encerrando listener.")
+				logger.FromContext(ctx).Info("redis_subscriber_encerrado_contexto_cancelado")
 				return
 			}
-			log.Printf("[RedisSubscriber] ⚠️  Erro na subscrição Redis: %v — reconectando em %s", err, backoff)
+			logger.FromContext(ctx).Warn("erro_subscricao_redis", zap.Error(err), zap.Duration("backoff", backoff))
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():
-				log.Printf("[RedisSubscriber] 🛑 Contexto cancelado durante backoff. Encerrando.")
+				logger.FromContext(ctx).Info("redis_subscriber_encerrado_durante_backoff")
 				return
 			}
 			// Backoff exponencial até o teto
@@ -117,7 +118,7 @@ func (s *RedisSubscriber) subscribe(ctx context.Context) error {
 	pubsub := s.client.Subscribe(ctx, WhatsAppMessagesChannel)
 	defer func() {
 		if err := pubsub.Close(); err != nil {
-			log.Printf("[RedisSubscriber] ⚠️  Erro ao fechar pubsub: %v", err)
+			logger.FromContext(ctx).Warn("erro_fechar_pubsub", zap.Error(err))
 		}
 	}()
 
@@ -127,7 +128,7 @@ func (s *RedisSubscriber) subscribe(ctx context.Context) error {
 		return fmt.Errorf("erro ao confirmar subscrição: %w", err)
 	}
 
-	log.Printf("[RedisSubscriber] ✅ Subscrição ativa no canal %q", WhatsAppMessagesChannel)
+	logger.FromContext(ctx).Info("subscricao_redis_ativa", zap.String("channel", WhatsAppMessagesChannel))
 
 	// Loop bloqueante: ReceiveMessage() retorna apenas mensagens de dados reais.
 	// Ignora pings internos e confirmações — nenhuma goroutine concorrente.
@@ -148,21 +149,30 @@ func (s *RedisSubscriber) subscribe(ctx context.Context) error {
 // Erros de parse são logados e descartados (não param o subscriber).
 // Erros do serviço são logados mas não causam reconexão.
 func (s *RedisSubscriber) handleMessage(ctx context.Context, payload string) {
-	log.Printf("[RedisSubscriber] 📨 Evento recebido: %s", payload)
+	// Cada mensagem recebida via Pub/Sub inicia uma nova "transação" de log
+	traceID := logger.NewTraceID()
+	ctx = logger.WithTraceID(ctx, traceID)
+	l := logger.FromContext(ctx)
+
+	l.Debug("evento_redis_recebido", zap.String("payload", payload))
 
 	var event WhatsAppMessageEvent
 	if err := json.Unmarshal([]byte(payload), &event); err != nil {
-		log.Printf("[RedisSubscriber] ❌ Falha ao desserializar payload: %v | raw: %s", err, payload)
+		l.Error("falha_desserializar_payload_redis", zap.Error(err), zap.String("raw", payload))
 		return
 	}
 
 	if event.Phone == "" {
-		log.Printf("[RedisSubscriber] ⚠️  Evento com phone vazio — ignorando | raw: %s", payload)
+		l.Warn("evento_redis_sem_telefone", zap.String("raw", payload))
 		return
 	}
 
-	log.Printf("[RedisSubscriber] ➡️  Despachando para KanbanAutomation: phone=%q instance=%q msgID=%q",
-		event.Phone, event.InstanceID, event.MessageID)
+	ctx = logger.WithLeadID(ctx, event.Phone) // Aqui o Phone funciona como um ID temporário ou busca
+	l.Info("despachando_mensagem_whatsapp_automacao",
+		zap.String("phone", event.Phone),
+		zap.String("instance_id", event.InstanceID),
+		zap.String("msg_id", event.MessageID),
+	)
 
 	// Contexto com timeout para não bloquear o loop de eventos caso o DB leve
 	// mais de 5 segundos (ex: connection pool esgotado)
@@ -170,8 +180,10 @@ func (s *RedisSubscriber) handleMessage(ctx context.Context, payload string) {
 	defer cancel()
 
 	if err := s.service.OnWhatsAppMessageReceived(callCtx, event.MessageID, event.Phone); err != nil {
-		log.Printf("[RedisSubscriber] ❌ KanbanAutomation retornou erro para phone %q: %v",
-			event.Phone, err)
+		l.Error("kanban_automation_erro",
+			zap.String("phone", event.Phone),
+			zap.Error(err),
+		)
 		// Não retorna o erro — um lead não encontrado não deve parar o subscriber
 	}
 }

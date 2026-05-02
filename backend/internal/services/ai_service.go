@@ -80,6 +80,10 @@ func NewAIService() *AIService {
 
 // GenerateLeadStrategy gera estratégia comercial usando IA para um lead
 func (s *AIService) GenerateLeadStrategy(input LeadAnalysisInput, settings domain.CompanySetting, skill string) (*LeadAnalysisOutput, error) {
+	if config.Get().AIProvider == "groq" {
+		return groqGenerateLeadStrategy(input, settings, skill)
+	}
+
 	if s.apiKey == "" || s.apiKey == "MOCK" {
 		log.Printf("⚠️  GEMINI_API_KEY não configurada - Usando MOCK para %s", input.Empresa)
 		time.Sleep(2 * time.Second) // Simula processamento
@@ -484,8 +488,12 @@ type AIPipelineResponse struct {
 	Stages       []AIPipelineStage `json:"stages"`
 }
 
-// GeneratePipelineStages usa o Gemini para criar colunas sugeridas de um Pipeline de Vendas baseado no nicho
+// GeneratePipelineStages cria colunas sugeridas de Pipeline de Vendas baseado no nicho
 func (s *AIService) GeneratePipelineStages(niche string) (*AIPipelineResponse, error) {
+	if config.Get().AIProvider == "groq" {
+		return groqGeneratePipelineStages(niche)
+	}
+
 	if s.apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
 	}

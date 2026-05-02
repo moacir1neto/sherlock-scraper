@@ -7,6 +7,7 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/handlers"
+	applog "github.com/digitalcombo/sherlock-scraper/backend/internal/logger"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/middlewares"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/repositories"
@@ -14,12 +15,15 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/sse"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 func main() {
 	// 0. Load and validate environment configuration
 	config.Load()
+
+	// 0.1 Initialize structured logger (Zap)
+	applog.Init()
+	defer applog.Sync()
 
 	// 1. Initialize Database connection & Auto-migrations
 	database.Connect()
@@ -33,7 +37,7 @@ func main() {
 	app := fiber.New(fiber.Config{
 		StrictRouting: false,
 	})
-	app.Use(logger.New())
+	app.Use(middlewares.TraceMiddleware())
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     "http://localhost:5173, http://localhost:3031, http://127.0.0.1:3031, https://whatsmiau.test",

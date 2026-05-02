@@ -7,11 +7,12 @@ package queue
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/logger"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 // RedisPublisher é o client go-redis usado exclusivamente para Publish.
@@ -31,16 +32,19 @@ func DossierLogChannel(leadID string) string {
 
 // PublishDossierEvent publica um payload JSON no canal de dossier do lead.
 // Usa timeout curto de 2s para não bloquear o worker em caso de falha Redis.
-func PublishDossierEvent(leadID, payload string) {
+func PublishDossierEvent(ctx context.Context, leadID, payload string) {
 	if RedisPublisher == nil {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	publishCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	if err := RedisPublisher.Publish(ctx, DossierLogChannel(leadID), payload).Err(); err != nil {
-		log.Printf("[Queue] ⚠️  Falha ao publicar evento dossier (lead=%s): %v", leadID, err)
+	if err := RedisPublisher.Publish(publishCtx, DossierLogChannel(leadID), payload).Err(); err != nil {
+		logger.FromContext(ctx).Error("redis_publish_dossier_failed",
+			zap.String("lead_id", leadID),
+			zap.Error(err),
+		)
 	}
 }
 
@@ -58,20 +62,23 @@ func InitRedisPublisher() {
 		WriteTimeout: 3 * time.Second,
 	})
 
-	log.Printf("[Queue] 📡 Redis publisher configurado em %q", addr)
+	logger.Get().Info("redis_publisher_initialized", zap.String("addr", addr))
 }
 
 // PublishCampaignEvent publica um payload JSON no canal da campanha.
 // Usa timeout curto de 2s para não bloquear o worker em caso de falha Redis.
-func PublishCampaignEvent(campaignID, payload string) {
+func PublishCampaignEvent(ctx context.Context, campaignID, payload string) {
 	if RedisPublisher == nil {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	publishCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	if err := RedisPublisher.Publish(ctx, CampaignLogChannel(campaignID), payload).Err(); err != nil {
-		log.Printf("[Queue] ⚠️  Falha ao publicar evento (campaign=%s): %v", campaignID, err)
+	if err := RedisPublisher.Publish(publishCtx, CampaignLogChannel(campaignID), payload).Err(); err != nil {
+		logger.FromContext(ctx).Error("redis_publish_campaign_failed",
+			zap.String("campaign_id", campaignID),
+			zap.Error(err),
+		)
 	}
 }

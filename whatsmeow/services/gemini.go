@@ -81,6 +81,14 @@ func (g *GeminiService) GenerateLeadStrategy(input LeadAnalysisInput, skill stri
 	}
 
 	prompt := buildGeminiPrompt(input, skill)
+	cfg := env.Get()
+
+	if cfg.AIProvider == "groq" {
+		if cfg.GroqAPIKey != "" {
+			return CallGroqForLeadAnalysis(context.Background(), prompt, skill)
+		}
+		return nil, fmt.Errorf("AI_PROVIDER=groq mas GROQ_API_KEY ausente")
+	}
 
 	if g.apiKey == "" {
 		zap.L().Warn("[GeminiService] GEMINI_API_KEY ausente — tentando Groq")
@@ -134,7 +142,7 @@ type geminiResponse struct {
 
 func (g *GeminiService) callGemini(prompt string) (*LeadAnalysisOutput, error) {
 	apiURL := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=%s",
+		"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=%s",
 		g.apiKey,
 	)
 

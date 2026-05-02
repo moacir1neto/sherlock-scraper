@@ -14,6 +14,11 @@ services:
 
   redis:
     image: redis:alpine
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     ports:
       - "6379:6379"
 
@@ -27,7 +32,7 @@ services:
       - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+      - ./scripts/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d crm"]
       interval: 5s
@@ -43,21 +48,23 @@ services:
     ports:
       - "3005:3000"
     environment:
-      DATABASE_URL: "host=db user=postgres password=password dbname=crm port=5432 sslmode=disable"
+      DATABASE_URL: "postgres://postgres:password@db:5432/crm?sslmode=disable"
+      REDIS_URL: "redis:6379"
       JWT_SECRET: "my_dev_super_secret"
-      REDIS_ADDR: "redis:6379"
       GEMINI_API_KEY: "${GEMINI_API_KEY}"
+      GROQ_API_KEY: "${GROQ_API_KEY}"
+      AI_PROVIDER: "${AI_PROVIDER:-gemini}"
       GOOGLE_PLACES_API_KEY: "${GOOGLE_PLACES_API_KEY}"
       COMPOSE_FILE: "/workspace/docker-compose.yml"
       HOST_PROJECT_PATH: "${PWD:-.}"
-      # --- NOVAS VARIÁVEIS DA INTEGRAÇÃO ---
-      WHATSMIau_API_URL: "http://whatsmiau-api:8080"
-      WHATSMIau_API_TOKEN: "seu_token_de_api_aqui" # Vamos gerar isso no painel depois
+      WHATSMEOW_URL: "http://whatsmiau-api:8080"
       INTERNAL_API_TOKEN: "9a3c8f650547ee1b91c947c40f7c792bc303d5bb857f3bbb2c0f0af1c8d98e70"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/workspace
     depends_on:
+      redis:
+        condition: service_healthy
       db:
         condition: service_healthy
 
@@ -88,11 +95,13 @@ services:
       DEBUG_MODE: "true"
       DEBUG_WHATSMEOW: "true"
       DIALECT_DB: "postgres"
-      DB_URL: "postgres://postgres:password@db:5432/whatsmiau?sslmode=disable"
+      DATABASE_URL: "postgres://postgres:password@db:5432/whatsmiau?sslmode=disable"
       REDIS_URL: "redis:6379"
       SHERLOCK_URL: "http://api:3000"
       INTERNAL_API_TOKEN: "9a3c8f650547ee1b91c947c40f7c792bc303d5bb857f3bbb2c0f0af1c8d98e70"
       GEMINI_API_KEY: "${GEMINI_API_KEY}"
+      GROQ_API_KEY: "${GROQ_API_KEY}"
+      AI_PROVIDER: "${AI_PROVIDER:-gemini}"
       JWT_SECRET: "my_dev_super_secret"
     volumes:
       - whatsmiau_data:/app/data
@@ -100,7 +109,7 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
   whatsmiau-ui:
