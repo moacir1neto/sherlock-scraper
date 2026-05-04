@@ -90,3 +90,6 @@ whatsmeow/.env.example
 whatsmeow/whatsmiau
 .agents/rules/regras.md
 comandos-gsd.md
+.planning
+.planning/ROADMAP.md
+.planning/STATE.md

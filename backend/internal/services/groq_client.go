@@ -44,7 +44,7 @@ type groqResponse struct {
 	} `json:"choices"`
 }
 
-func callGroq(ctx context.Context, prompt string) (string, error) {
+func callGroq(ctx context.Context, prompt string, temperature float64) (string, error) {
 	apiKey := config.Get().GroqAPIKey
 	if apiKey == "" {
 		return "", fmt.Errorf("GROQ_API_KEY não configurada")
@@ -54,7 +54,7 @@ func callGroq(ctx context.Context, prompt string) (string, error) {
 		Model:          groqModel,
 		Messages:       []groqMessage{{Role: "user", Content: prompt}},
 		ResponseFormat: groqRespFmt{Type: "json_object"},
-		Temperature:    0.3,
+		Temperature:    temperature,
 	})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, groqURL, bytes.NewReader(body))
@@ -89,26 +89,71 @@ func callGroq(ctx context.Context, prompt string) (string, error) {
 }
 
 func groqGenerateLeadStrategy(input LeadAnalysisInput, settings domain.CompanySetting, skill string) (*LeadAnalysisOutput, error) {
-	prompt := buildSystemPrompt(settings, skill) + "\n\n" + buildDataAvailabilitySummary(input)
+	systemPrompt := buildSystemPrompt(settings, skill)
 
-	log.Printf("🟠 Enviando prompt para Groq API (skill: %s)...", skill)
-
-	text, err := callGroq(context.Background(), prompt)
-	if err != nil {
-		return nil, fmt.Errorf("groq lead strategy: %w", err)
+	var dataSummary string
+	if skill == "raiox" {
+		dataSummary = buildPromptInput(input)
+		systemPrompt = fmt.Sprintf(systemPrompt, dataSummary)
+		dataSummary = ""
+	} else {
+		dataSummary = buildDataAvailabilitySummary(input)
 	}
 
-	text = cleanJSONResponse(text)
+	basePrompt := fmt.Sprintf("%s\n\n%s", systemPrompt, dataSummary)
+	currentPrompt := basePrompt
+	hasComments := len(input.ComentariosRecentes) > 0
+
+	// Groq: temperatura maior para raiox evitar respostas homogêneas
+	baseTemp := 0.3
+	if skill == "raiox" {
+		baseTemp = 0.7
+	}
 
 	var out LeadAnalysisOutput
-	if err := json.Unmarshal([]byte(text), &out); err != nil {
-		log.Printf("❌ Groq parse error: %v | raw: %.200s", err, text)
-		return nil, fmt.Errorf("groq parse: %w", err)
+	for attempt := 1; attempt <= maxRaioxRetries; attempt++ {
+		// Aumenta temperatura a cada retry para forçar diversidade
+		temp := baseTemp + float64(attempt-1)*0.1
+
+		log.Printf("🟠 [tentativa %d/%d] Enviando prompt Groq (skill: %s, empresa: %s, temp=%.1f, %d chars)",
+			attempt, maxRaioxRetries, skill, input.Empresa, temp, len(currentPrompt))
+
+		text, err := callGroq(context.Background(), currentPrompt, temp)
+		if err != nil {
+			return nil, fmt.Errorf("groq lead strategy: %w", err)
+		}
+
+		log.Printf("📥 [tentativa %d] Resposta Groq (%d chars): %.300s...", attempt, len(text), text)
+		text = cleanJSONResponse(text)
+
+		if err := json.Unmarshal([]byte(text), &out); err != nil {
+			log.Printf("❌ Groq parse error: %v | raw: %.200s", err, text)
+			return nil, fmt.Errorf("groq parse: %w", err)
+		}
+
+		if skill == "raiox" {
+			log.Printf("TENTATIVA %d - GAP: %s", attempt, out.GapCritico)
+		}
+
+		if skill == "raiox" && gapNeedsRegen(out.GapCritico, hasComments) {
+			log.Printf("⚠️  [tentativa %d] Gap rejeitado (hasComments=%v): %q", attempt, hasComments, out.GapCritico)
+			if attempt < maxRaioxRetries {
+				currentPrompt = basePrompt + buildRetryPrompt(out.GapCritico, attempt)
+				continue
+			}
+			log.Printf("⚠️  Máximo de tentativas atingido (%d). Mantendo último resultado.", maxRaioxRetries)
+		} else if skill == "raiox" {
+			log.Printf("✅ [tentativa %d] Gap aprovado: %q", attempt, out.GapCritico)
+		}
+		break
 	}
+
 	out.SkillUsed = skill
+	log.Printf("GAP FINAL RETORNADO: %s", out.GapCritico)
 	log.Printf("✅ Groq análise concluída (skill: %s): Score %d/10", skill, out.ScoreMaturidade)
 	return &out, nil
 }
+
 
 func groqGeneratePipelineStages(niche string) (*AIPipelineResponse, error) {
 	systemPrompt := `Você é um Especialista Sênior em Operações de Vendas e CRM.
@@ -128,7 +173,7 @@ Gere entre 4 a 6 etapas lógicas para uma jornada B2B daquele nicho. Cores em he
 
 	log.Printf("🟠 Enviando prompt de pipeline para Groq API...")
 
-	text, err := callGroq(context.Background(), prompt)
+	text, err := callGroq(context.Background(), prompt, 0.3)
 	if err != nil {
 		return nil, fmt.Errorf("groq pipeline: %w", err)
 	}
