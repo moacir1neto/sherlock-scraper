@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -80,6 +81,10 @@ func NewAIService() *AIService {
 
 // GenerateLeadStrategy gera estratégia comercial usando IA para um lead
 func (s *AIService) GenerateLeadStrategy(input LeadAnalysisInput, settings domain.CompanySetting, skill string) (*LeadAnalysisOutput, error) {
+	if config.Get().AIProvider == "groq" {
+		return groqGenerateLeadStrategy(input, settings, skill)
+	}
+
 	if s.apiKey == "" || s.apiKey == "MOCK" {
 		log.Printf("⚠️  GEMINI_API_KEY não configurada - Usando MOCK para %s", input.Empresa)
 		time.Sleep(2 * time.Second) // Simula processamento
@@ -110,60 +115,75 @@ func (s *AIService) GenerateLeadStrategy(input LeadAnalysisInput, settings domai
 	defer client.Close()
 
 	model := client.GenerativeModel("gemini-2.5-flash")
-
-	// Configura o modelo para retornar JSON
 	model.ResponseMIMEType = "application/json"
 
-	// System Prompt estruturado com contexto dinâmico da empresa e skill
 	systemPrompt := buildSystemPrompt(settings, skill)
 
-	// Monta resumo textual de dados disponíveis (✅/❌)
-	dataSummary := buildDataAvailabilitySummary(input)
-
-	// Monta o prompt completo com resumo + JSON
-	fullPrompt := fmt.Sprintf("%s\n\n%s", systemPrompt, dataSummary)
-
-	log.Printf("📤 Enviando prompt para Gemini API...")
-
-	// Gera conteúdo
-	resp, err := model.GenerateContent(ctx, genai.Text(fullPrompt))
-	if err != nil {
-		log.Printf("❌ Erro ao gerar conteúdo: %v", err)
-		return nil, fmt.Errorf("erro ao gerar conteúdo: %w", err)
+	var dataSummary string
+	if skill == "raiox" {
+		dataSummary = buildPromptInput(input)
+		systemPrompt = fmt.Sprintf(systemPrompt, dataSummary)
+		dataSummary = ""
+	} else {
+		dataSummary = buildDataAvailabilitySummary(input)
 	}
 
-	// Extrai o texto da resposta
-	var resultText string
-	for _, cand := range resp.Candidates {
-		if cand.Content != nil {
-			for _, part := range cand.Content.Parts {
-				resultText += fmt.Sprintf("%v", part)
+	basePrompt := fmt.Sprintf("%s\n\n%s", systemPrompt, dataSummary)
+	currentPrompt := basePrompt
+	hasComments := len(input.ComentariosRecentes) > 0
+
+	var output LeadAnalysisOutput
+	for attempt := 1; attempt <= maxRaioxRetries; attempt++ {
+		log.Printf("📤 [tentativa %d/%d] Enviando prompt Gemini (skill: %s, empresa: %s, %d chars)",
+			attempt, maxRaioxRetries, skill, input.Empresa, len(currentPrompt))
+
+		resp, err := model.GenerateContent(ctx, genai.Text(currentPrompt))
+		if err != nil {
+			log.Printf("❌ Erro ao gerar conteúdo: %v", err)
+			return nil, fmt.Errorf("erro ao gerar conteúdo: %w", err)
+		}
+
+		var resultText string
+		for _, cand := range resp.Candidates {
+			if cand.Content != nil {
+				for _, part := range cand.Content.Parts {
+					resultText += fmt.Sprintf("%v", part)
+				}
 			}
 		}
-	}
 
-	if resultText == "" {
-		return nil, fmt.Errorf("resposta vazia da API Gemini")
-	}
+		if resultText == "" {
+			return nil, fmt.Errorf("resposta vazia da API Gemini")
+		}
 
-	log.Printf("📥 Resposta recebida da Gemini API (%d chars)", len(resultText))
+		log.Printf("📥 [tentativa %d] Resposta Gemini (%d chars): %.300s...", attempt, len(resultText), resultText)
+		resultText = cleanJSONResponse(resultText)
 
-	// Remove possíveis markdown code blocks (```json ... ```)
-	resultText = cleanJSONResponse(resultText)
+		if err := json.Unmarshal([]byte(resultText), &output); err != nil {
+			log.Printf("❌ Erro ao parsear resposta JSON: %v | raw: %.200s", err, resultText)
+			return nil, fmt.Errorf("erro ao parsear resposta JSON: %w", err)
+		}
 
-	// Parse JSON response
-	var output LeadAnalysisOutput
-	if err := json.Unmarshal([]byte(resultText), &output); err != nil {
-		log.Printf("❌ Erro ao parsear resposta JSON: %v", err)
-		log.Printf("Resposta bruta: %s", resultText)
-		return nil, fmt.Errorf("erro ao parsear resposta JSON: %w", err)
+		if skill == "raiox" {
+			log.Printf("TENTATIVA %d - GAP: %s", attempt, output.GapCritico)
+		}
+
+		if skill == "raiox" && gapNeedsRegen(output.GapCritico, hasComments) {
+			log.Printf("⚠️  [tentativa %d] Gap rejeitado (hasComments=%v): %q", attempt, hasComments, output.GapCritico)
+			if attempt < maxRaioxRetries {
+				currentPrompt = basePrompt + buildRetryPrompt(output.GapCritico, attempt)
+				continue
+			}
+			log.Printf("⚠️  Máximo de tentativas atingido (%d). Mantendo último resultado.", maxRaioxRetries)
+		} else if skill == "raiox" {
+			log.Printf("✅ [tentativa %d] Gap aprovado: %q", attempt, output.GapCritico)
+		}
+		break
 	}
 
 	output.SkillUsed = skill
-
-	log.Printf("✅ Análise de IA concluída (skill: %s): Score %d/10",
-		skill, output.ScoreMaturidade)
-
+	log.Printf("GAP FINAL RETORNADO: %s", output.GapCritico)
+	log.Printf("✅ Análise de IA concluída (skill: %s): Score %d/10", skill, output.ScoreMaturidade)
 	return &output, nil
 }
 
@@ -235,7 +255,152 @@ Siga as mesmas métricas de Score de Maturidade (0-10) e Classificação (Inicia
 }`, settings.CompanyName)
 
 	case "raiox":
-		fallthrough
+		role = fmt.Sprintf(`Você é um especialista em Growth para negócios locais (estética, manicure, salões de beleza).
+
+Trabalha para a empresa "%s" (nicho: %s) e sua missão é gerar análises ALTAMENTE ESPECÍFICAS e NÃO GENÉRICAS de leads.
+
+REGRAS CRÍTICAS — violação invalida a resposta:
+- PROIBIDO usar frases genéricas como "falta de presença digital" sem justificativa explícita
+- Use APENAS dados presentes no input
+- Cada análise deve ser ÚNICA — nunca reutilize padrões
+- Se faltar dado, diga explicitamente — NÃO invente
+
+REGRA DE OURO:
+Os comentários de clientes são a PRINCIPAL fonte de verdade. Toda análise deve partir deles.`, settings.CompanyName, settings.Niche)
+
+		instructions = fmt.Sprintf(`DADOS DO LEAD:
+%%s
+
+---
+
+TAREFA:
+
+### 1. Diagnóstico REAL (baseado em evidência)
+- Analise os comentários reais dos clientes
+- Identifique padrões claros (ex: atendimento, qualidade, pontualidade)
+- Cite PELO MENOS 1 trecho literal de comentário entre aspas
+- Se os reviews são positivos → deixe claro que o negócio já é validado
+- NÃO invente problemas
+
+### 2. Oportunidade de crescimento (baseada no que já funciona)
+- Mostre como escalar o que já está validado
+- Ex: serviço muito elogiado → oportunidade de atrair mais demanda
+- NÃO invente gaps sem evidência
+
+### 3. Gap crítico (SOMENTE se houver evidência real)
+Use essa hierarquia:
+
+1. Muitos reviews positivos + pouca presença digital → "Reputação forte, mas pouco explorada online"
+2. Muitos elogios a um serviço → "Demanda validada, mas pouco explorada em escala"
+3. Comentários citam problema → use isso diretamente
+4. Poucos dados → diga que está em fase inicial
+
+Se não houver evidência clara → NÃO inventar gap
+
+### 4. Probabilidade de fechamento
+Baseado no volume de reviews:
+- 0–20 → Baixa
+- 21–100 → Média
+- 100+ → Alta
+
+---
+
+REGRAS OBRIGATÓRIAS DE QUALIDADE:
+
+- O icebreaker DEVE citar:
+  - nome OU
+  - nota exata OU
+  - número de reviews OU
+  - trecho real de comentário
+
+- O pitch DEVE:
+  - começar com algo que o negócio já faz bem
+  - conectar com a oferta "%s"
+
+- A resposta de objeção DEVE usar os próprios pontos fortes do lead
+
+- PROIBIDO usar frases genéricas como:
+  - "aumentar visibilidade"
+  - "melhorar presença digital"
+  - "atrair mais clientes"
+  (sem contexto real)
+
+- Se você perceber que está repetindo padrão → FORCE uma nova análise baseada em outro ângulo dos comentários
+
+---
+
+IMPORTANTE:
+- Use números exatos (ex: "58 avaliações")
+- Use linguagem direta
+- Não use clichês
+- Cada resposta deve parecer feita manualmente
+
+---
+
+REGRA DE DIFERENCIAÇÃO (OBRIGATÓRIA):
+
+Antes de gerar a resposta, identifique o que torna este lead DIFERENTE de outros do mesmo nicho.
+
+- Se dois leads tiverem respostas parecidas, sua resposta está ERRADA
+- Foque no detalhe mais específico dos comentários (ex: "atendimento humanizado", "pontualidade", "ambiente familiar")
+- Se não houver diferenciação clara → diga isso explicitamente
+
+PROIBIDO:
+- repetir o mesmo gap_critico entre leads diferentes sem justificativa explícita
+- usar padrões de resposta genéricos
+
+Se você gerar o mesmo gap_critico para dois leads diferentes → sua resposta está incorreta
+
+---
+
+REGRA DE EVIDÊNCIA (OBRIGATÓRIA):
+
+Toda afirmação relevante deve estar ancorada em um dado do input.
+
+- Se citar qualidade → referencie o comentário (ex: "Comentário 2")
+- Se citar oportunidade → conecte com padrão observado nos comentários
+- Se não houver evidência → diga explicitamente "não há dados suficientes"
+
+Respostas sem evidência concreta são inválidas.
+
+---
+
+REGRA ANTI-GENÉRICO (CRÍTICA):
+
+Você NÃO pode usar nenhum desses gaps sem citar um Comentário específico pelo número:
+- "falta de presença digital"
+- "falta de redes sociais"
+- "baixa visibilidade"
+- "falta de marketing"
+
+Usar qualquer um desses sem "Comentário X" no texto → resposta INVÁLIDA e será rejeitada automaticamente.
+
+Se TODOS os comentários forem positivos e não houver problema evidente:
+→ gap_critico deve ser: "Nenhum gap crítico evidente — operação validada pelos clientes"
+→ NÃO invente problema onde não existe
+
+O gap_critico DEVE ser derivado de um Comentário numerado ou de ausência explícita de dado.`, settings.MainOffer)
+
+		outputFormat = fmt.Sprintf(`{
+  "score_maturidade": number (0-10),
+  "classificacao": "string (Iniciante|Intermediário|Avançado|Expert)",
+  "gap_critico": "string (1 frase específica baseada nos dados reais, max 120 chars, conectada à oferta de %s)",
+  "perda_estimada_mensal": "string (ex: 'R$ 8.000 - R$ 15.000' — calcule com base no volume de reviews e nicho)",
+  "icebreaker_whatsapp": "string (2 linhas, max 280 chars, cite dado REAL: nota exata ou trecho de comentário, tom: %s)",
+  "pitch_comercial": "string (3-4 linhas — o que o negócio já faz bem + como %s potencializa isso)",
+  "objecao_prevista": "string (objeção mais provável baseada no perfil e volume de reviews)",
+  "resposta_objecao": "string (resposta usando o próprio histórico positivo do lead como prova)",
+  "probabilidade_fechamento": "string (Baixa|Média|Alta)",
+  "proximos_passos": ["string", "string", "string"]
+}
+
+IMPORTANTE:
+- SEMPRE cite números exatos (ex: "127 avaliações", não "muitos reviews")
+- SEMPRE use trechos reais dos comentários quando disponíveis
+- NUNCA use frases genéricas que servem para qualquer negócio
+- Se o lead tem muitos reviews positivos → trate como negócio VALIDADO, não como problema a resolver
+- Conecte SEMPRE os dados do lead com a oferta de %s: "%s"`, settings.CompanyName, settings.ToneOfVoice, settings.CompanyName, settings.CompanyName, settings.MainOffer)
+
 	default:
 		role = fmt.Sprintf("Você é um Especialista Sênior em Growth B2B que trabalha para a empresa \"%s\" (nicho: %s).\nSua missão é analisar dados de empresas capturados por ferramentas de scraping e gerar estratégias de abordagem comercial personalizadas.", settings.CompanyName, settings.Niche)
 
@@ -307,6 +472,44 @@ IMPORTANTE:
 	}
 
 	return fmt.Sprintf("%s\n%s\n\n%s\n\n## OUTPUT ESPERADO (JSON):\n\nRetorne APENAS um JSON válido com esta estrutura exata:\n%s", baseContext, role, instructions, outputFormat)
+}
+
+// buildPromptInput formata os dados do lead em texto estruturado para o skill raiox
+func buildPromptInput(input LeadAnalysisInput) string {
+	var b strings.Builder
+
+	b.WriteString("INFORMAÇÕES:\n\n")
+	b.WriteString(fmt.Sprintf("Nome: %s\n", input.Empresa))
+	b.WriteString(fmt.Sprintf("Nicho: %s\n", input.Nicho))
+	b.WriteString(fmt.Sprintf("Nota Google: %s\n", input.NotaGoogle))
+	b.WriteString(fmt.Sprintf("Total de avaliações: %s\n\n", input.TotalReviews))
+
+	if len(input.ComentariosRecentes) > 0 {
+		b.WriteString("COMENTÁRIOS DE CLIENTES:\n")
+		max := 5
+		for i, c := range input.ComentariosRecentes {
+			if i >= max {
+				break
+			}
+			b.WriteString(fmt.Sprintf("- Comentário %d: \"%s\"\n", i+1, c))
+		}
+	} else {
+		b.WriteString("COMENTÁRIOS: não disponíveis\n")
+	}
+
+	b.WriteString("\nPRESENÇA DIGITAL:\n")
+	if input.InstagramURL != "" {
+		b.WriteString("- Instagram: disponível\n")
+	} else {
+		b.WriteString("- Instagram: não encontrado\n")
+	}
+	if input.Site != "" && input.Site != "-" {
+		b.WriteString("- Website: disponível\n")
+	} else {
+		b.WriteString("- Website: não encontrado\n")
+	}
+
+	return b.String()
 }
 
 // buildDataAvailabilitySummary monta um resumo textual dos dados disponíveis para o lead
@@ -453,6 +656,75 @@ func buildDataAvailabilitySummary(input LeadAnalysisInput) string {
 	return sb.String()
 }
 
+const maxRaioxRetries = 3
+
+// evidenceRefRe detecta padrões como "comentário 1", "comentário 2", "comentário3"
+var evidenceRefRe = regexp.MustCompile(`(?i)coment[aá]rio\s*\d+`)
+
+// hasEvidenceReference retorna true se o gap cita um comentário numerado explicitamente.
+// Mais robusto que keyword-match: o modelo pode trocar palavras mas não pode
+// fabricar uma citação de "Comentário X" sem ter visto a evidência.
+func hasEvidenceReference(gap string) bool {
+	return evidenceRefRe.MatchString(gap)
+}
+
+// genericGapPhrases são padrões proibidos quando não há comentários disponíveis
+var genericGapPhrases = []string{
+	"falta de presença digital",
+	"falta de redes sociais",
+	"baixa visibilidade",
+	"falta de marketing",
+	"ausência de presença digital",
+	"sem presença digital",
+}
+
+// gapNeedsRegen retorna true se a resposta deve ser rejeitada e regenerada.
+// hasComments indica se o lead possui comentários numerados disponíveis no input.
+// Quando não há comentários, aceita qualquer gap não-genérico (modelo não pode citar "Comentário X").
+// Quando há comentários, exige citação explícita de "Comentário X".
+func gapNeedsRegen(gap string, hasComments bool) bool {
+	if gap == "" {
+		return true
+	}
+	lower := strings.ToLower(gap)
+	// Frase canônica de "sem gap" sempre aceita
+	if strings.Contains(lower, "nenhum gap crítico evidente") {
+		return false
+	}
+	if hasComments {
+		// Com comentários disponíveis: exige evidência numerada
+		return !hasEvidenceReference(gap)
+	}
+	// Sem comentários: rejeita apenas frases genéricas proibidas
+	for _, phrase := range genericGapPhrases {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
+// buildRetryPrompt monta o contexto de erro estruturado para forçar nova tentativa
+func buildRetryPrompt(rejectedGap string, attempt int) string {
+	return fmt.Sprintf(`
+
+---
+ERRO NA RESPOSTA ANTERIOR (tentativa %d):
+
+Gap gerado: "%s"
+
+Motivo da rejeição:
+- O gap_critico não possui referência a nenhum Comentário numerado
+- Regra: toda afirmação deve ser ancorada em "Comentário X"
+
+CORREÇÃO OBRIGATÓRIA:
+1. Cite explicitamente "Comentário X" (ex: "Comentário 2 aponta falta de pontualidade")
+2. Se TODOS os comentários forem positivos → use exatamente: "Nenhum gap crítico evidente — operação validada pelos clientes"
+3. NÃO use termos genéricos sem evidência
+
+Reanalise os dados e gere um novo JSON agora.`, attempt, rejectedGap)
+}
+
 // cleanJSONResponse remove markdown code blocks e espaços extras, e garante que apenas o JSON seja processado
 func cleanJSONResponse(text string) string {
 	// Procura o primeiro '{' e o último '}' para isolar o objeto JSON
@@ -484,8 +756,12 @@ type AIPipelineResponse struct {
 	Stages       []AIPipelineStage `json:"stages"`
 }
 
-// GeneratePipelineStages usa o Gemini para criar colunas sugeridas de um Pipeline de Vendas baseado no nicho
+// GeneratePipelineStages cria colunas sugeridas de Pipeline de Vendas baseado no nicho
 func (s *AIService) GeneratePipelineStages(niche string) (*AIPipelineResponse, error) {
+	if config.Get().AIProvider == "groq" {
+		return groqGeneratePipelineStages(niche)
+	}
+
 	if s.apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
 	}

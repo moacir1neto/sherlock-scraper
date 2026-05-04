@@ -481,16 +481,25 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 	return &agentResp, nil
 }
 
-// callAI tenta Gemini primeiro; se falhar ou não estiver configurado, tenta Groq.
+// callAI roteia para o provider configurado via AI_PROVIDER (gemini|groq).
+// Se AI_PROVIDER=groq, vai direto ao Groq sem tentar Gemini.
 func (s *SalesAgentService) callAI(ctx context.Context, prompt string) (*AgentResponse, error) {
-	if env.Get().GeminiAPIKey != "" {
+	cfg := env.Get()
+	if cfg.AIProvider == "groq" {
+		if cfg.GroqAPIKey != "" {
+			return CallGroqForAgent(ctx, prompt)
+		}
+		return nil, fmt.Errorf("AI_PROVIDER=groq mas GROQ_API_KEY ausente")
+	}
+	// provider=gemini (padrão): tenta Gemini, cai no Groq só se falhar
+	if cfg.GeminiAPIKey != "" {
 		resp, err := s.callGemini(ctx, prompt)
 		if err == nil {
 			return resp, nil
 		}
 		zap.L().Warn("[SalesAgent] Gemini falhou, tentando Groq", zap.Error(err))
 	}
-	if env.Get().GroqAPIKey != "" {
+	if cfg.GroqAPIKey != "" {
 		return CallGroqForAgent(ctx, prompt)
 	}
 	return nil, fmt.Errorf("nenhum provider de IA disponível (GEMINI_API_KEY e GROQ_API_KEY ausentes)")

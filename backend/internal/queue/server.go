@@ -44,6 +44,9 @@ func StartServer() {
 
 	mux := asynq.NewServeMux()
 
+	// Middleware de rastreabilidade: injeta trace_id e task_id em cada tarefa
+	mux.Use(traceMiddleware)
+
 	// 3. Adicionar rate limiting: Máximo de X execuções por minuto
 	mux.Use(rateLimitMiddleware)
 

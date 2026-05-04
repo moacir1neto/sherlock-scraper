@@ -1,16 +1,18 @@
 package queue
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/logger"
+	"go.uber.org/zap"
 )
 
 // GoogleData representa os dados de avaliação extraídos do Google Places API
@@ -59,39 +61,40 @@ type Review struct {
 
 // ScrapeGoogleReviews extrai avaliações do Google usando a Places API oficial
 // Retorna nil e erro se não encontrar o estabelecimento ou houver problemas de API
-func ScrapeGoogleReviews(nomeEmpresa string) (*GoogleData, error) {
+func ScrapeGoogleReviews(ctx context.Context, nomeEmpresa string) (*GoogleData, error) {
+	l := logger.FromContext(ctx)
 	if nomeEmpresa == "" {
-		log.Printf("⚠️  Google Reviews: Nome da empresa vazio, pulando extração")
+		l.Warn("google_reviews_nome_vazio")
 		return nil, fmt.Errorf("nome da empresa vazio")
 	}
 
-	log.Printf("🔍 Iniciando extração de Google Reviews via API para: %s", nomeEmpresa)
+	l.Info("iniciando_google_reviews_api", zap.String("empresa", nomeEmpresa))
 
 	// A. Validar API Key
 	apiKey := config.Get().GooglePlacesAPIKey
 	if apiKey == "" {
-		log.Printf("❌ Erro: GOOGLE_PLACES_API_KEY não configurada")
+		l.Error("google_places_api_key_ausente")
 		return nil, fmt.Errorf("GOOGLE_PLACES_API_KEY não configurada")
 	}
 
 	// B. Text Search para obter place_id
-	placeID, err := searchPlace(nomeEmpresa, apiKey)
+	placeID, err := searchPlace(ctx, nomeEmpresa, apiKey)
 	if err != nil {
-		log.Printf("⚠️  Erro ao buscar place_id: %v", err)
+		l.Warn("erro_buscar_place_id", zap.Error(err))
 		return nil, fmt.Errorf("erro ao buscar place_id: %w", err)
 	}
 
 	if placeID == "" {
-		log.Printf("⚠️  Nenhum estabelecimento encontrado para: %s", nomeEmpresa)
+		l.Warn("estabelecimento_google_nao_encontrado", zap.String("empresa", nomeEmpresa))
 		return nil, fmt.Errorf("estabelecimento não encontrado")
 	}
 
-	log.Printf("✓ Place ID encontrado: %s", placeID)
+	l.Debug("place_id_encontrado", zap.String("place_id", placeID))
 
 	// C. Place Details para obter rating, total de avaliações e reviews
-	details, err := getPlaceDetails(placeID, apiKey)
+	details, err := getPlaceDetails(ctx, placeID, apiKey)
 	if err != nil {
-		log.Printf("⚠️  Erro ao buscar detalhes do place: %v", err)
+		l.Warn("erro_buscar_detalhes_place", zap.Error(err))
 		return nil, fmt.Errorf("erro ao buscar detalhes: %w", err)
 	}
 
@@ -104,13 +107,13 @@ func ScrapeGoogleReviews(nomeEmpresa string) (*GoogleData, error) {
 	if details.Result.Rating > 0 {
 		googleData.NotaGeral = fmt.Sprintf("%.1f", details.Result.Rating)
 		googleData.NotaGeral = replaceDecimalDot(googleData.NotaGeral)
-		log.Printf("⭐ Nota extraída: %s", googleData.NotaGeral)
+		l.Debug("nota_google_extraida", zap.String("nota", googleData.NotaGeral))
 	}
 
 	// Converter total de avaliações para string
 	if details.Result.UserRatingsTotal > 0 {
 		googleData.TotalAvaliacoes = strconv.Itoa(details.Result.UserRatingsTotal)
-		log.Printf("📊 Total de avaliações: %s", googleData.TotalAvaliacoes)
+		l.Debug("total_avaliacoes_google", zap.String("total", googleData.TotalAvaliacoes))
 	}
 
 	// Extrair até 5 comentários recentes
@@ -123,10 +126,10 @@ func ScrapeGoogleReviews(nomeEmpresa string) (*GoogleData, error) {
 	}
 
 	if len(googleData.ComentariosRecentes) > 0 {
-		log.Printf("💬 Comentários extraídos: %d", len(googleData.ComentariosRecentes))
+		l.Debug("comentarios_google_extraidos", zap.Int("count", len(googleData.ComentariosRecentes)))
 	}
 
-	log.Printf("✅ Google Reviews extraído com sucesso via API para: %s", nomeEmpresa)
+	l.Info("google_reviews_extraido_sucesso", zap.String("empresa", nomeEmpresa))
 	return googleData, nil
 }
 
@@ -135,7 +138,7 @@ func ScrapeGoogleReviews(nomeEmpresa string) (*GoogleData, error) {
 // ═══════════════════════════════════════════════════════════════
 
 // searchPlace faz uma busca textual para encontrar o place_id
-func searchPlace(query string, apiKey string) (string, error) {
+func searchPlace(ctx context.Context, query string, apiKey string) (string, error) {
 	baseURL := "https://maps.googleapis.com/maps/api/place/textsearch/json"
 
 	// Build query parameters
@@ -146,7 +149,7 @@ func searchPlace(query string, apiKey string) (string, error) {
 
 	searchURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
 
-	log.Printf("🌐 Fazendo Text Search na Google Places API...")
+	logger.FromContext(ctx).Debug("executando_google_text_search")
 
 	// Create HTTP client with timeout
 	client := &http.Client{
@@ -180,9 +183,9 @@ func searchPlace(query string, apiKey string) (string, error) {
 	// Check API status
 	if searchResponse.Status != "OK" {
 		if searchResponse.Status == "REQUEST_DENIED" {
-			log.Printf("🚨 Google API DENIED: %s. Verifique se a 'Places API' está ativa e o faturamento configurado.", searchResponse.ErrorMessage)
+			logger.FromContext(ctx).Error("google_api_denied", zap.String("message", searchResponse.ErrorMessage))
 		} else {
-			log.Printf("⚠️  Google Places API retornou status: %s", searchResponse.Status)
+			logger.FromContext(ctx).Warn("google_places_api_status", zap.String("status", searchResponse.Status))
 		}
 
 		if searchResponse.Status == "ZERO_RESULTS" {
@@ -193,9 +196,10 @@ func searchPlace(query string, apiKey string) (string, error) {
 
 	// Return first result's place_id
 	if len(searchResponse.Results) > 0 {
-		log.Printf("✓ Encontrado: %s (place_id: %s)",
-			searchResponse.Results[0].Name,
-			searchResponse.Results[0].PlaceID)
+		logger.FromContext(ctx).Debug("estabelecimento_encontrado_google",
+			zap.String("name", searchResponse.Results[0].Name),
+			zap.String("place_id", searchResponse.Results[0].PlaceID),
+		)
 		return searchResponse.Results[0].PlaceID, nil
 	}
 
@@ -203,7 +207,7 @@ func searchPlace(query string, apiKey string) (string, error) {
 }
 
 // getPlaceDetails busca detalhes completos do lugar incluindo reviews
-func getPlaceDetails(placeID string, apiKey string) (*PlaceDetailsResponse, error) {
+func getPlaceDetails(ctx context.Context, placeID string, apiKey string) (*PlaceDetailsResponse, error) {
 	baseURL := "https://maps.googleapis.com/maps/api/place/details/json"
 
 	// Build query parameters
@@ -215,7 +219,7 @@ func getPlaceDetails(placeID string, apiKey string) (*PlaceDetailsResponse, erro
 
 	detailsURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
 
-	log.Printf("🌐 Fazendo Place Details na Google Places API...")
+	logger.FromContext(ctx).Debug("executando_google_place_details")
 
 	// Create HTTP client with timeout
 	client := &http.Client{
@@ -249,7 +253,7 @@ func getPlaceDetails(placeID string, apiKey string) (*PlaceDetailsResponse, erro
 	// Check API status
 	if detailsResponse.Status != "OK" {
 		if detailsResponse.Status == "REQUEST_DENIED" {
-			log.Printf("🚨 Google API DENIED: %s. Verifique se a 'Places API' está ativa e o faturamento configurado.", detailsResponse.ErrorMessage)
+			logger.FromContext(ctx).Error("google_api_denied_details", zap.String("message", detailsResponse.ErrorMessage))
 		}
 		return nil, fmt.Errorf("API status: %s", detailsResponse.Status)
 	}

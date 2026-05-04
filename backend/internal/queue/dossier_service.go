@@ -17,7 +17,9 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/logger"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/datatypes"
 )
 
@@ -59,7 +61,7 @@ type dossierAggregated struct {
 
 // ── Helpers de publicação SSE ─────────────────────────────────────────────────
 
-func publishDossierEvent(leadID string, stage domain.DossierStage, status domain.DossierEventStatus, message string) {
+func publishDossierEvent(ctx context.Context, leadID string, stage domain.DossierStage, status domain.DossierEventStatus, message string) {
 	evt := domain.DossierEvent{
 		Stage:   stage,
 		Status:  status,
@@ -67,10 +69,10 @@ func publishDossierEvent(leadID string, stage domain.DossierStage, status domain
 	}
 	data, err := json.Marshal(evt)
 	if err != nil {
-		log.Printf("[DossierService] ⚠️ falha ao serializar evento: %v", err)
+		logger.FromContext(ctx).Error("falha_serializar_evento_dossier", zap.Error(err))
 		return
 	}
-	PublishDossierEvent(leadID, string(data))
+	PublishDossierEvent(ctx, leadID, string(data))
 }
 
 // ── Pipeline principal ────────────────────────────────────────────────────────
@@ -85,12 +87,12 @@ func (s *DossierService) RunPipeline(ctx context.Context, leadID string) error {
 	}
 
 	agg := &dossierAggregated{}
-	s.loadPreEnrichedData(lead, agg)
+	s.loadPreEnrichedData(ctx, lead, agg)
 
 	// Auto-enrichment: se Insights ainda não existem, rodar enrichment automaticamente.
 	if agg.Insights == nil {
-		log.Printf("[DossierService] Insights ausentes para lead=%s — iniciando enrichment automático", leadID)
-		publishDossierEvent(leadID, domain.DossierStageEnrich, domain.DossierStatusRunning,
+		logger.FromContext(ctx).Info("insights_ausentes_iniciando_enrichment_automatico", zap.String("lead_id", leadID))
+		publishDossierEvent(ctx, leadID, domain.DossierStageEnrich, domain.DossierStatusRunning,
 			"Dados insuficientes — iniciando enrichment automático...")
 
 		// Lock atômico: só avança se conseguir setar ENRIQUECENDO atomicamente.
@@ -103,8 +105,8 @@ func (s *DossierService) RunPipeline(ctx context.Context, leadID string) error {
 			return fmt.Errorf("falha ao adquirir lock de enrichment: %w", res.Error)
 		}
 		if res.RowsAffected == 0 {
-			log.Printf("[DossierService] lead=%s já está em ENRIQUECENDO — aguarde e tente novamente", leadID)
-			publishDossierEvent(leadID, domain.DossierStageEnrich, domain.DossierStatusError,
+			logger.FromContext(ctx).Warn("lead_em_enriquecimento", zap.String("lead_id", leadID))
+			publishDossierEvent(ctx, leadID, domain.DossierStageEnrich, domain.DossierStatusError,
 				"Enrichment já em andamento, aguarde e tente novamente.")
 			return nil
 		}
@@ -116,41 +118,43 @@ func (s *DossierService) RunPipeline(ctx context.Context, leadID string) error {
 
 		if enrichErr != nil {
 			if errors.Is(enrichCtx.Err(), context.DeadlineExceeded) {
-				log.Printf("[DossierService] lead=%s: enrichment não concluiu em 60s — continuando em background", leadID)
-				publishDossierEvent(leadID, domain.DossierStageEnrich, domain.DossierStatusRunning,
+				logger.FromContext(ctx).Warn("enrichment_timeout_continuando_background", zap.String("lead_id", leadID))
+				publishDossierEvent(ctx, leadID, domain.DossierStageEnrich, domain.DossierStatusRunning,
 					"Enrichment demorou mais que o esperado — continuando em background. Tente o dossiê novamente em alguns minutos.")
+				bgCtx := logger.WithTraceID(context.Background(), logger.TraceIDFrom(ctx))
+				bgCtx = logger.WithLeadID(bgCtx, leadID)
 				go func() {
-					bgErr := performLeadEnrichment(context.Background(), lead)
+					bgErr := performLeadEnrichment(bgCtx, lead)
 					if bgErr != nil {
-						log.Printf("[DossierService] ⚠️ enrichment background falhou lead=%s: %v", leadID, bgErr)
+						logger.FromContext(bgCtx).Error("enrichment_background_falhou", zap.Error(bgErr))
 					} else {
-						log.Printf("[DossierService] ✅ enrichment background concluído lead=%s", leadID)
+						logger.FromContext(bgCtx).Info("enrichment_background_concluido")
 					}
 				}()
 				return nil
 			}
 			// Erro real (não timeout): marcar falha e abortar
-			log.Printf("[DossierService] Enrichment automático falhou para lead=%s: %v", leadID, enrichErr)
+			logger.FromContext(ctx).Error("enrichment_automatico_falhou", zap.String("lead_id", leadID), zap.Error(enrichErr))
 			database.DB.Model(&domain.Lead{}).Where("id = ?", leadID).
 				Update("status", domain.StatusEnrichmentFailed)
-			publishDossierEvent(leadID, domain.DossierStageEnrich, domain.DossierStatusError,
+			publishDossierEvent(ctx, leadID, domain.DossierStageEnrich, domain.DossierStatusError,
 				"Enrichment automático falhou: "+enrichErr.Error())
 			return enrichErr
 		}
 
-		log.Printf("[DossierService] ✅ Enrichment concluído para lead=%s — recarregando dados", leadID)
+		logger.FromContext(ctx).Info("enrichment_automatico_concluido", zap.String("lead_id", leadID))
 
 		if err := database.DB.First(lead, "id = ?", leadID).Error; err != nil {
 			return fmt.Errorf("falha ao recarregar lead após enrichment: %w", err)
 		}
-		s.loadPreEnrichedData(lead, agg)
+		s.loadPreEnrichedData(ctx, lead, agg)
 
 		// Validar que Insights foram populados
 		if agg.Insights == nil {
-			log.Printf("[DossierService] ⚠️ lead=%s: enrichment concluído mas Insights ainda nil — lead_id=%s", leadID, leadID)
+			logger.FromContext(ctx).Warn("insights_ausentes_apos_enrichment", zap.String("lead_id", leadID))
 			database.DB.Model(&domain.Lead{}).Where("id = ?", leadID).
 				Update("status", domain.StatusEnrichmentFailed)
-			publishDossierEvent(leadID, domain.DossierStageEnrich, domain.DossierStatusError,
+			publishDossierEvent(ctx, leadID, domain.DossierStageEnrich, domain.DossierStatusError,
 				"Enrichment concluído mas não gerou dados suficientes. Verifique se o lead possui site.")
 			return fmt.Errorf("insights ausentes após enrichment para lead=%s", leadID)
 		}
@@ -158,10 +162,10 @@ func (s *DossierService) RunPipeline(ctx context.Context, leadID string) error {
 
 	// Etapa 1 — Google Maps / Reviews (só re-scrapa se não veio do DeepData)
 	if agg.Google == nil {
-		publishDossierEvent(leadID, domain.DossierStageMaps, domain.DossierStatusRunning, "Coletando dados externos...")
+		publishDossierEvent(ctx, leadID, domain.DossierStageMaps, domain.DossierStatusRunning, "Coletando dados externos...")
 		agg.Google = s.investigateMaps(ctx, leadID, lead.Empresa)
 	} else {
-		publishDossierEvent(leadID, domain.DossierStageMaps, domain.DossierStatusDone,
+		publishDossierEvent(ctx, leadID, domain.DossierStageMaps, domain.DossierStatusDone,
 			fmt.Sprintf("Google Maps: nota %s (%s avaliações) — dados do enriquecimento", agg.Google.NotaGeral, agg.Google.TotalAvaliacoes))
 	}
 
@@ -182,81 +186,58 @@ func (s *DossierService) RunPipeline(ctx context.Context, leadID string) error {
 	s.investigateSocial(ctx, leadID, lead, agg)
 
 	if err := s.saveDossierData(ctx, leadID, agg); err != nil {
-		log.Printf("[DossierService] ⚠️ falha ao salvar dossier_data (lead=%s): %v", leadID, err)
+		logger.FromContext(ctx).Error("falha_salvar_dossier_data", zap.String("lead_id", leadID), zap.Error(err))
 	}
 
-	logDossierDiagnostic(leadID, lead, agg)
+	logDossierDiagnostic(ctx, leadID, lead, agg)
 
 	if agg.Insights == nil {
-		log.Printf("[DossierService] 🚨 lead=%s sem Insights — enrichment não executado ou falhou. Abortando dossiê.", leadID)
-		publishDossierEvent(leadID, domain.DossierStageLLM, domain.DossierStatusError,
+		logger.FromContext(ctx).Error("lead_sem_insights_abortando_dossie", zap.String("lead_id", leadID))
+		publishDossierEvent(ctx, leadID, domain.DossierStageLLM, domain.DossierStatusError,
 			"Lead sem insights — enrichment não executado ou falhou. Execute o enriquecimento antes de gerar o dossiê.")
 		return fmt.Errorf("lead sem insights — enrichment não executado ou falhou (lead=%s)", leadID)
 	}
 
 	// Etapa 4 — Análise LLM
-	publishDossierEvent(leadID, domain.DossierStageLLM, domain.DossierStatusRunning, "Analisando com inteligência artificial...")
+	publishDossierEvent(ctx, leadID, domain.DossierStageLLM, domain.DossierStatusRunning, "Analisando com inteligência artificial...")
 	if err := s.generateAnalysis(ctx, leadID, lead, agg); err != nil {
-		publishDossierEvent(leadID, domain.DossierStageLLM, domain.DossierStatusError,
+		publishDossierEvent(ctx, leadID, domain.DossierStageLLM, domain.DossierStatusError,
 			fmt.Sprintf("Erro na análise LLM: %v", err))
-		log.Printf("[DossierService] ⚠️ falha na análise LLM (lead=%s): %v", leadID, err)
+		logger.FromContext(ctx).Error("falha_analise_llm", zap.String("lead_id", leadID), zap.Error(err))
 		return nil
 	}
 
-	publishDossierEvent(leadID, domain.DossierStageLLM, domain.DossierStatusDone, "Dossiê gerado com sucesso.")
+	publishDossierEvent(ctx, leadID, domain.DossierStageLLM, domain.DossierStatusDone, "Dossiê gerado com sucesso.")
 	return nil
 }
 
 // logDossierDiagnostic imprime no log um raio-X completo dos dados disponíveis
 // antes de acionar o LLM, permitindo identificar exatamente o que a IA recebe.
-func logDossierDiagnostic(leadID string, lead *domain.Lead, agg *dossierAggregated) {
-	log.Printf("[Dossier Diagnóstico] ══════════════ PRÉ-LLM (lead=%s | %s) ══════════════", leadID, lead.Empresa)
+func logDossierDiagnostic(ctx context.Context, leadID string, lead *domain.Lead, agg *dossierAggregated) {
+	l := logger.FromContext(ctx).With(zap.String("lead_id", leadID), zap.String("empresa", lead.Empresa))
+	l.Info("dossier_diagnostico_pre_llm")
 
 	// Score
-	log.Printf("[Dossier Diagnóstico] Score de Oportunidade: %d/100", lead.Score)
+	l.Info("dossier_score_oportunidade", zap.Int("score", lead.Score))
 
 	// BusinessInsights
 	if agg.Insights == nil {
-		log.Printf("[Dossier Diagnóstico] ❌ BusinessInsights: AUSENTE — dossiê será genérico")
+		l.Warn("dossier_insights_ausentes")
 	} else {
-		log.Printf("[Dossier Diagnóstico] ✅ BusinessInsights: PRESENTE")
-
-		if agg.Insights.BusinessType != "" {
-			log.Printf("[Dossier Diagnóstico]   ✅ business_type   : %s", agg.Insights.BusinessType)
-		} else {
-			log.Printf("[Dossier Diagnóstico]   ❌ business_type   : VAZIO")
-		}
-
-		if len(agg.Insights.Services) > 0 {
-			log.Printf("[Dossier Diagnóstico]   ✅ services (%d)   : %s", len(agg.Insights.Services), strings.Join(agg.Insights.Services, ", "))
-		} else {
-			log.Printf("[Dossier Diagnóstico]   ❌ services        : VAZIO")
-		}
-
-		if agg.Insights.MarketingLevel != "" {
-			log.Printf("[Dossier Diagnóstico]   ✅ marketing_level : %s", agg.Insights.MarketingLevel)
-		} else {
-			log.Printf("[Dossier Diagnóstico]   ❌ marketing_level : VAZIO")
-		}
-
-		if agg.Insights.TargetAudience != "" {
-			log.Printf("[Dossier Diagnóstico]   ✅ target_audience : %s", agg.Insights.TargetAudience)
-		} else {
-			log.Printf("[Dossier Diagnóstico]   ❌ target_audience : VAZIO")
-		}
-
-		log.Printf("[Dossier Diagnóstico]   ✅ has_whatsapp    : %v", agg.Insights.HasWhatsApp)
+		l.Info("dossier_insights_presentes",
+			zap.String("business_type", agg.Insights.BusinessType),
+			zap.Strings("services", agg.Insights.Services),
+			zap.String("marketing_level", agg.Insights.MarketingLevel),
+			zap.String("target_audience", agg.Insights.TargetAudience),
+			zap.Bool("has_whatsapp", agg.Insights.HasWhatsApp),
+		)
 	}
 
 	// RawText
 	if agg.RawText == "" {
-		log.Printf("[Dossier Diagnóstico] ❌ RawText: AUSENTE")
+		l.Warn("dossier_raw_text_ausente")
 	} else {
-		preview := agg.RawText
-		if len(preview) > 120 {
-			preview = preview[:120] + "..."
-		}
-		log.Printf("[Dossier Diagnóstico] ✅ RawText (%d chars): %s", len(agg.RawText), preview)
+		l.Info("dossier_raw_text_presente", zap.Int("chars", len(agg.RawText)))
 	}
 
 	// Google Maps
@@ -264,13 +245,7 @@ func logDossierDiagnostic(leadID string, lead *domain.Lead, agg *dossierAggregat
 	if agg.Google != nil && agg.Google.NotaGeral != "" && agg.Google.NotaGeral != "0.0" {
 		nota = agg.Google.NotaGeral
 	}
-	if nota != "" && nota != "-" && nota != "0.0" {
-		log.Printf("[Dossier Diagnóstico] ✅ Google Maps nota : %s", nota)
-	} else {
-		log.Printf("[Dossier Diagnóstico] ❌ Google Maps nota : SEM AVALIAÇÕES")
-	}
-
-	log.Printf("[Dossier Diagnóstico] ════════════════════════════════════════════════════════")
+	l.Info("dossier_google_maps_status", zap.String("nota", nota))
 }
 
 // normalizeDeepDataJSON converte chaves PascalCase para snake_case antes do unmarshal,
@@ -287,9 +262,9 @@ func normalizeDeepDataJSON(raw []byte) []byte {
 // loadPreEnrichedData extrai BusinessInsights e RawText do DeepData já persistido
 // pelo pipeline de enriquecimento (HandleEnrichLeadTask). Elimina a desconexão
 // entre enriquecimento e dossiê, evitando reprocessar dados já disponíveis.
-func (s *DossierService) loadPreEnrichedData(lead *domain.Lead, agg *dossierAggregated) {
+func (s *DossierService) loadPreEnrichedData(ctx context.Context, lead *domain.Lead, agg *dossierAggregated) {
 	if len(lead.DeepData) == 0 {
-		log.Printf("[DossierService] ℹ️ DeepData ausente para lead=%s — dossiê usará apenas dados brutos", lead.ID)
+		logger.FromContext(ctx).Info("deep_data_ausente_usando_dados_brutos", zap.String("lead_id", lead.ID.String()))
 		return
 	}
 
@@ -302,26 +277,22 @@ func (s *DossierService) loadPreEnrichedData(lead *domain.Lead, agg *dossierAggr
 
 	if deepData.Insights != nil {
 		agg.Insights = deepData.Insights
-		log.Printf("[DossierService] ✅ BusinessInsights carregados (tipo=%q, marketing=%q, serviços=%d, público=%q)",
-			deepData.Insights.BusinessType,
-			deepData.Insights.MarketingLevel,
-			len(deepData.Insights.Services),
-			deepData.Insights.TargetAudience,
+		logger.FromContext(ctx).Info("business_insights_carregados",
+			zap.String("business_type", deepData.Insights.BusinessType),
+			zap.String("marketing_level", deepData.Insights.MarketingLevel),
+			zap.Int("services_count", len(deepData.Insights.Services)),
 		)
 	} else {
-		log.Printf("[DossierService] ⚠️ DeepData presente mas Insights é nil — site pode não ter sido crawleado")
+		logger.FromContext(ctx).Warn("deep_data_presente_mas_insights_nil")
 	}
 
 	if deepData.Google != nil {
 		agg.Google = deepData.Google
-		log.Printf("[DossierService] ✅ GoogleData carregado do DeepData (nota=%q, avaliações=%q)",
-			deepData.Google.NotaGeral,
-			deepData.Google.TotalAvaliacoes,
+		logger.FromContext(ctx).Info("google_data_carregado_do_deep_data",
+			zap.String("nota", deepData.Google.NotaGeral),
+			zap.String("avaliacoes", deepData.Google.TotalAvaliacoes),
 		)
 	}
-
-	log.Println("Loaded Insights:", agg.Insights)
-	log.Println("Loaded GoogleData:", agg.Google)
 
 	// Construir RawText contextual a partir de posts das redes sociais já capturados
 	if deepData.Instagram != nil && len(deepData.Instagram.Posts) > 0 {
@@ -337,51 +308,51 @@ func (s *DossierService) loadPreEnrichedData(lead *domain.Lead, agg *dossierAggr
 // ── Etapas de investigação ────────────────────────────────────────────────────
 
 func (s *DossierService) investigateMaps(ctx context.Context, leadID, empresa string) *GoogleData {
-	publishDossierEvent(leadID, domain.DossierStageMaps, domain.DossierStatusRunning,
+	publishDossierEvent(ctx, leadID, domain.DossierStageMaps, domain.DossierStatusRunning,
 		"Buscando avaliações no Google Maps…")
 
-	data, err := ScrapeGoogleReviews(empresa)
+	data, err := ScrapeGoogleReviews(ctx, empresa)
 	if err != nil {
-		publishDossierEvent(leadID, domain.DossierStageMaps, domain.DossierStatusError,
+		publishDossierEvent(ctx, leadID, domain.DossierStageMaps, domain.DossierStatusError,
 			fmt.Sprintf("Google Maps indisponível: %v", err))
 		return nil
 	}
 
-	publishDossierEvent(leadID, domain.DossierStageMaps, domain.DossierStatusDone,
+	publishDossierEvent(ctx, leadID, domain.DossierStageMaps, domain.DossierStatusDone,
 		fmt.Sprintf("Google Maps: nota %s (%s avaliações)", data.NotaGeral, data.TotalAvaliacoes))
 	return data
 }
 
 func (s *DossierService) investigateWebsite(ctx context.Context, leadID, site, empresa string) *WebsiteData {
 	if site == "" {
-		publishDossierEvent(leadID, domain.DossierStageWebsite, domain.DossierStatusDone,
+		publishDossierEvent(ctx, leadID, domain.DossierStageWebsite, domain.DossierStatusDone,
 			"Site não informado, etapa pulada.")
 		return nil
 	}
 
-	publishDossierEvent(leadID, domain.DossierStageWebsite, domain.DossierStatusRunning,
+	publishDossierEvent(ctx, leadID, domain.DossierStageWebsite, domain.DossierStatusRunning,
 		fmt.Sprintf("Analisando site %s…", site))
 
-	data, err := FetchAndParseWebsite(site, empresa)
+	data, err := FetchAndParseWebsite(ctx, site, empresa)
 	if err != nil {
-		publishDossierEvent(leadID, domain.DossierStageWebsite, domain.DossierStatusError,
+		publishDossierEvent(ctx, leadID, domain.DossierStageWebsite, domain.DossierStatusError,
 			fmt.Sprintf("Falha ao analisar site: %v", err))
 		return nil
 	}
 
-	publishDossierEvent(leadID, domain.DossierStageWebsite, domain.DossierStatusDone,
+	publishDossierEvent(ctx, leadID, domain.DossierStageWebsite, domain.DossierStatusDone,
 		"Site analisado — rastreadores e redes sociais detectados.")
 	return data
 }
 
 func (s *DossierService) investigateSocial(ctx context.Context, leadID string, lead *domain.Lead, agg *dossierAggregated) {
-	publishDossierEvent(leadID, domain.DossierStageSocial, domain.DossierStatusRunning,
+	publishDossierEvent(ctx, leadID, domain.DossierStageSocial, domain.DossierStatusRunning,
 		"Investigando redes sociais…")
 
 	socialFound := false
 
 	if lead.Instagram != "" {
-		data := ScrapeInstagramProfile(lead.Instagram)
+		data := ScrapeInstagramProfile(ctx, lead.Instagram)
 		agg.Instagram = data
 		if data.Success {
 			socialFound = true
@@ -389,7 +360,7 @@ func (s *DossierService) investigateSocial(ctx context.Context, leadID string, l
 	}
 
 	if lead.Facebook != "" {
-		data := ScrapeFacebookPage(lead.Facebook)
+		data := ScrapeFacebookPage(ctx, lead.Facebook)
 		agg.Facebook = data
 		if data.Success {
 			socialFound = true
@@ -397,10 +368,10 @@ func (s *DossierService) investigateSocial(ctx context.Context, leadID string, l
 	}
 
 	if socialFound {
-		publishDossierEvent(leadID, domain.DossierStageSocial, domain.DossierStatusDone,
+		publishDossierEvent(ctx, leadID, domain.DossierStageSocial, domain.DossierStatusDone,
 			"Redes sociais investigadas.")
 	} else {
-		publishDossierEvent(leadID, domain.DossierStageSocial, domain.DossierStatusDone,
+		publishDossierEvent(ctx, leadID, domain.DossierStageSocial, domain.DossierStatusDone,
 			"Redes sociais sem dados disponíveis (URLs ausentes ou bloqueio).")
 	}
 }
@@ -480,33 +451,39 @@ func (s *DossierService) generateAnalysis(ctx context.Context, leadID string, le
 	// Verificar cache antes de chamar o LLM
 	var cached domain.LeadDossier
 	if err := database.DB.WithContext(ctx).Where("lead_id = ?", leadID).First(&cached).Error; err == nil {
-		log.Printf("[DossierService] cache hit para lead=%s — pulando chamada LLM", leadID)
+		logger.FromContext(ctx).Debug("dossier_cache_hit", zap.String("lead_id", leadID))
 		return nil
 	}
 
-	apiKey := config.Get().GeminiAPIKey
-	if apiKey == "" {
-		return fmt.Errorf("GEMINI_API_KEY não configurada")
-	}
+	// ── Debug data flow (opcional, manter como Debug) ──────────────────────────
+	l := logger.FromContext(ctx)
+	l.Debug("debug_data_flow_pre_prompt",
+		zap.Any("google_data", agg.Google),
+		zap.String("lead_rating", lead.Rating),
+		zap.String("lead_qtd_avaliacoes", lead.QtdAvaliacoes),
+	)
 
-	// INSTRUMENTATION LOGS REQUESTED BY USER
-	log.Println("=== DEBUG DATA FLOW BEFORE PROMPT ===")
-	if agg.Google != nil {
-		log.Printf("agg.Google.NotaGeral = %q\n", agg.Google.NotaGeral)
-		log.Printf("agg.Google.TotalAvaliacoes = %q\n", agg.Google.TotalAvaliacoes)
+	prompt := buildDossierPrompt(ctx, lead, agg)
+
+	logger.FromContext(ctx).Info("gerando_dossie_llm", zap.String("lead_id", leadID))
+
+	var analysis string
+	if config.Get().AIProvider == "groq" {
+		var err error
+		analysis, err = callGroqDossier(ctx, prompt)
+		if err != nil {
+			return err
+		}
 	} else {
-		log.Printf("agg.Google is NIL\n")
-	}
-	log.Printf("lead.Rating = %q\n", lead.Rating)
-	log.Printf("lead.QtdAvaliacoes = %q\n", lead.QtdAvaliacoes)
-	log.Println("=====================================")
-
-	prompt := buildDossierPrompt(lead, agg)
-
-	log.Printf("[DossierService] gerando dossiê via LLM para lead=%s", leadID)
-	analysis, err := s.callGemini(ctx, apiKey, prompt)
-	if err != nil {
-		return err
+		apiKey := config.Get().GeminiAPIKey
+		if apiKey == "" {
+			return fmt.Errorf("GEMINI_API_KEY não configurada")
+		}
+		var err error
+		analysis, err = s.callGemini(ctx, apiKey, prompt)
+		if err != nil {
+			return err
+		}
 	}
 
 	if err := s.saveDossierAnalysis(ctx, leadID, analysis); err != nil {
@@ -519,17 +496,17 @@ func (s *DossierService) generateAnalysis(ctx context.Context, leadID string, le
 		LeadID:  leadUUID,
 		Content: analysis,
 	}).Error; err != nil {
-		log.Printf("[DossierService] ⚠️ falha ao salvar cache de dossiê lead=%s: %v", leadID, err)
+		logger.FromContext(ctx).Warn("falha_salvar_cache_dossie", zap.String("lead_id", leadID), zap.Error(err))
 	}
 
-	log.Printf("[DossierService] ✅ dossiê gerado e cacheado para lead=%s", leadID)
+	logger.FromContext(ctx).Info("dossier_gerado_sucesso", zap.String("lead_id", leadID))
 	return nil
 }
 
 // buildDossierPrompt monta o prompt completo para a LLM injetando todos os dados
 // estruturados já enriquecidos, eliminando inferências genéricas.
-func buildDossierPrompt(lead *domain.Lead, agg *dossierAggregated) string {
-	log.Println("DEBUG PROMPT INSIGHTS:", agg.Insights)
+func buildDossierPrompt(ctx context.Context, lead *domain.Lead, agg *dossierAggregated) string {
+	logger.FromContext(ctx).Debug("build_dossier_prompt_insights", zap.Any("insights", agg.Insights))
 
 	var sb strings.Builder
 
@@ -594,11 +571,6 @@ func buildDossierPrompt(lead *domain.Lead, agg *dossierAggregated) string {
 	notaValida := nota != "" && nota != "-" && nota != "0.0" && nota != "0"
 	avaliacoesValidas := avaliacoes != "" && avaliacoes != "0"
 
-	// INSTRUMENTATION LOGS FOR VALIDATION
-	log.Printf("=== INSIDE buildDossierPrompt ===")
-	log.Printf("notaValida = %v", notaValida)
-	log.Printf("avaliacoesValidas = %v", avaliacoesValidas)
-
 	if notaValida || avaliacoesValidas {
 		if notaValida {
 			fmt.Fprintf(&sb, "✅ Nota Google Maps: %s (%s avaliações)\n", nota, avaliacoes)
@@ -615,8 +587,7 @@ func buildDossierPrompt(lead *domain.Lead, agg *dossierAggregated) string {
 		sb.WriteString("⚠️ Google Maps: dados indisponíveis (não assumir 0 avaliações)\n")
 	}
 
-	log.Printf("FINAL STRING ADDED: %q", sb.String())
-	log.Println("=================================")
+	// Remover logs de depuração da string final para evitar poluição
 
 	if agg.Website != nil {
 		pixelStatus := "NÃO"
@@ -661,6 +632,86 @@ func writeField(sb *strings.Builder, label, value string) {
 	if value != "" {
 		fmt.Fprintf(sb, "✅ %s: %s\n", label, value)
 	}
+}
+
+// ── Groq REST API (fallback quando AI_PROVIDER=groq) ─────────────────────────
+
+const groqDossierURL = "https://api.groq.com/openai/v1/chat/completions"
+const groqDossierModel = "llama-3.3-70b-versatile"
+
+type groqDossierRequest struct {
+	Model       string              `json:"model"`
+	Messages    []groqDossierMsg    `json:"messages"`
+	RespFormat  groqDossierRespFmt  `json:"response_format"`
+	Temperature float64             `json:"temperature"`
+}
+
+type groqDossierMsg struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type groqDossierRespFmt struct {
+	Type string `json:"type"`
+}
+
+type groqDossierResp struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+}
+
+func callGroqDossier(ctx context.Context, prompt string) (string, error) {
+	apiKey := config.Get().GroqAPIKey
+	if apiKey == "" {
+		return "", fmt.Errorf("GROQ_API_KEY não configurada")
+	}
+
+	body, _ := json.Marshal(groqDossierRequest{
+		Model:       groqDossierModel,
+		Messages:    []groqDossierMsg{{Role: "user", Content: prompt}},
+		RespFormat:  groqDossierRespFmt{Type: "json_object"},
+		Temperature: 0.3,
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, groqDossierURL, bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("groq dossier build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := (&http.Client{Timeout: 90 * time.Second}).Do(req)
+	if err != nil {
+		return "", fmt.Errorf("groq dossier http call: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("groq dossier read body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("groq dossier status %d: %s", resp.StatusCode, string(raw))
+	}
+
+	var gr groqDossierResp
+	if err := json.Unmarshal(raw, &gr); err != nil {
+		return "", fmt.Errorf("groq dossier unmarshal: %w", err)
+	}
+	if len(gr.Choices) == 0 {
+		return "", fmt.Errorf("groq dossier retornou resposta vazia")
+	}
+
+	text := gr.Choices[0].Message.Content
+	start := strings.Index(text, "{")
+	end := strings.LastIndex(text, "}")
+	if start != -1 && end != -1 && end > start {
+		text = text[start : end+1]
+	}
+	return text, nil
 }
 
 // ── Gemini REST API ───────────────────────────────────────────────────────────

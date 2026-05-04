@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/logger"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
 	"github.com/gofiber/fiber/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/valyala/fasthttp"
+	"go.uber.org/zap"
 )
 
 // DossierHandler expõe dois endpoints para o pipeline de deep research de lead:
@@ -38,12 +40,12 @@ func (h *DossierHandler) Enqueue(c *fiber.Ctx) error {
 	}
 
 	if err := database.DB.Where("lead_id = ?", leadID).Delete(&domain.LeadDossier{}).Error; err != nil {
-		log.Printf("[DossierHandler] ⚠️ falha ao limpar cache de dossiê (lead=%s): %v", leadID, err)
+		logger.FromContext(c.UserContext()).Warn("falha_limpar_cache_dossie", zap.String("lead_id", leadID), zap.Error(err))
 	}
 
 	task, err := queue.NewDossierAnalyzeTask(leadID)
 	if err != nil {
-		log.Printf("[DossierHandler] ❌ Erro ao criar task (lead=%s): %v", leadID, err)
+		logger.FromContext(c.UserContext()).Error("falha_criar_task_dossier", zap.String("lead_id", leadID), zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "falha ao criar task de dossier",
 		})
@@ -51,13 +53,13 @@ func (h *DossierHandler) Enqueue(c *fiber.Ctx) error {
 
 	info, err := queue.Client.Enqueue(task)
 	if err != nil {
-		log.Printf("[DossierHandler] ❌ Erro ao enfileirar task (lead=%s): %v", leadID, err)
+		logger.FromContext(c.UserContext()).Error("falha_enfileirar_task_dossier", zap.String("lead_id", leadID), zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "falha ao enfileirar dossier:analyze",
 		})
 	}
 
-	log.Printf("[DossierHandler] ✅ Task enfileirada (lead=%s, task_id=%s)", leadID, info.ID)
+	logger.FromContext(c.UserContext()).Info("dossier_task_enfileirada", zap.String("lead_id", leadID), zap.String("task_id", info.ID))
 
 	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
 		"message": "pipeline dossier:analyze enfileirado",

@@ -14,6 +14,8 @@ type environment struct {
 	JWTSecret   string `env:"JWT_SECRET"`
 
 	GeminiAPIKey       string `env:"GEMINI_API_KEY"`
+	GroqAPIKey         string `env:"GROQ_API_KEY"`
+	AIProvider         string `env:"AI_PROVIDER" envDefault:"gemini"`
 	GooglePlacesAPIKey string `env:"GOOGLE_PLACES_API_KEY"`
 
 	WhatsmeowURL      string `env:"WHATSMEOW_URL" envDefault:"http://whatsmeow:8080"`

@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/logger"
 	"github.com/playwright-community/playwright-go"
+	"go.uber.org/zap"
 )
 
 // SocialData holds the deep intelligence extracted from social media
@@ -38,7 +39,7 @@ func (b *BusinessInsights) Validate() {
 		b.BusinessType = b.BusinessType[:200]
 	}
 	if len(b.BusinessType) < 3 {
-		log.Printf("⚠️  [Validation] BusinessType muito curto ou vazio: '%s'", b.BusinessType)
+		logger.Get().Warn("validation_business_type_curto", zap.String("type", b.BusinessType))
 	}
 
 	// 2. Validar e filtrar Services
@@ -60,7 +61,7 @@ func (b *BusinessInsights) Validate() {
 	b.MarketingLevel = strings.ToLower(strings.TrimSpace(b.MarketingLevel))
 	validLevels := map[string]bool{"baixo": true, "medio": true, "alto": true}
 	if !validLevels[b.MarketingLevel] {
-		log.Printf("⚠️  [Validation] MarketingLevel inválido ('%s'), usando fallback 'medio'", b.MarketingLevel)
+		logger.Get().Warn("validation_marketing_level_invalido", zap.String("level", b.MarketingLevel))
 		b.MarketingLevel = "medio"
 	}
 
@@ -96,8 +97,10 @@ type SocialPlatformData struct {
 }
 
 // ScrapeInstagramProfile extracts bio and recent posts from Instagram
-func ScrapeInstagramProfile(instagramURL string) *SocialData {
+func ScrapeInstagramProfile(ctx context.Context, instagramURL string) *SocialData {
 	data := &SocialData{Success: false}
+
+	l := logger.FromContext(ctx)
 
 	// Check if URL is valid
 	if !strings.Contains(instagramURL, "instagram.com") {
@@ -105,21 +108,21 @@ func ScrapeInstagramProfile(instagramURL string) *SocialData {
 		return data
 	}
 
-	log.Printf("🔍 Iniciando deep scraping do Instagram: %s", instagramURL)
+	l.Info("iniciando_deep_scraping_instagram", zap.String("url", instagramURL))
 
 	// Auto-install Playwright driver if needed
 	errInstall := playwright.Install(&playwright.RunOptions{
 		SkipInstallBrowsers: true, // Chromium já está instalado no sistema
 	})
 	if errInstall != nil {
-		log.Printf("⚠️  Aviso: Falha ao instalar driver do Playwright: %v", errInstall)
+		l.Warn("falha_instalar_driver_playwright", zap.Error(errInstall))
 	}
 
 	// Initialize Playwright
 	pw, err := playwright.Run()
 	if err != nil {
 		data.ErrorMessage = fmt.Sprintf("Falha ao iniciar Playwright: %v", err)
-		log.Printf("⚠️  %s", data.ErrorMessage)
+		l.Warn("falha_scraping", zap.String("error", data.ErrorMessage))
 		return data
 	}
 	defer pw.Stop()
@@ -137,20 +140,20 @@ func ScrapeInstagramProfile(instagramURL string) *SocialData {
 	})
 	if err != nil {
 		data.ErrorMessage = fmt.Sprintf("Falha ao lançar navegador: %v", err)
-		log.Printf("⚠️  %s", data.ErrorMessage)
+		l.Warn("falha_scraping", zap.String("error", data.ErrorMessage))
 		return data
 	}
 	defer browser.Close()
 
 	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	scrapeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	// Create new page
 	page, err := browser.NewPage()
 	if err != nil {
 		data.ErrorMessage = fmt.Sprintf("Falha ao criar página: %v", err)
-		log.Printf("⚠️  %s", data.ErrorMessage)
+		l.Warn("falha_scraping", zap.String("error", data.ErrorMessage))
 		return data
 	}
 	defer page.Close()
@@ -161,7 +164,7 @@ func ScrapeInstagramProfile(instagramURL string) *SocialData {
 		Timeout:   playwright.Float(20000),
 	}); err != nil {
 		data.ErrorMessage = fmt.Sprintf("Timeout ao carregar perfil: %v", err)
-		log.Printf("⚠️  %s", data.ErrorMessage)
+		l.Warn("timeout_carregar_perfil_instagram", zap.Error(err))
 		return data
 	}
 
@@ -170,22 +173,21 @@ func ScrapeInstagramProfile(instagramURL string) *SocialData {
 
 	// Check if login wall appeared
 	if hasLoginWall(page) {
-		log.Printf("⚠️  Instagram solicitou login - tentando extrair dados visíveis")
+		l.Warn("instagram_login_wall_detectado")
 	}
 
-	// Try to extract bio
-	bio, err := extractInstagramBio(page, ctx)
+	bio, err := extractInstagramBio(page, scrapeCtx)
 	if err == nil && bio != "" {
 		data.Bio = bio
-		log.Printf("📝 Bio extraída: %.50s...", bio)
+		l.Debug("bio_instagram_extraida", zap.String("bio_preview", bio))
 	}
 
 	// Try to extract recent posts
-	posts, lastPostDate := extractInstagramPosts(page, ctx)
+	posts, lastPostDate := extractInstagramPosts(page, scrapeCtx)
 	if len(posts) > 0 {
 		data.RecentPosts = posts
 		data.LastPostDate = lastPostDate
-		log.Printf("📸 Posts extraídos: %d", len(posts))
+		l.Debug("posts_instagram_extraidos", zap.Int("count", len(posts)))
 	}
 
 	// Mark as successful if we got at least some data
@@ -199,8 +201,10 @@ func ScrapeInstagramProfile(instagramURL string) *SocialData {
 }
 
 // ScrapeFacebookPage extracts bio and recent posts from Facebook
-func ScrapeFacebookPage(facebookURL string) *SocialData {
+func ScrapeFacebookPage(ctx context.Context, facebookURL string) *SocialData {
 	data := &SocialData{Success: false}
+
+	l := logger.FromContext(ctx)
 
 	// Check if URL is valid
 	if !strings.Contains(facebookURL, "facebook.com") && !strings.Contains(facebookURL, "fb.com") {
@@ -208,21 +212,21 @@ func ScrapeFacebookPage(facebookURL string) *SocialData {
 		return data
 	}
 
-	log.Printf("🔍 Iniciando deep scraping do Facebook: %s", facebookURL)
+	l.Info("iniciando_deep_scraping_facebook", zap.String("url", facebookURL))
 
 	// Auto-install Playwright driver if needed
 	errInstall := playwright.Install(&playwright.RunOptions{
 		SkipInstallBrowsers: true, // Chromium já está instalado no sistema
 	})
 	if errInstall != nil {
-		log.Printf("⚠️  Aviso: Falha ao instalar driver do Playwright: %v", errInstall)
+		l.Warn("falha_instalar_driver_playwright", zap.Error(errInstall))
 	}
 
 	// Initialize Playwright
 	pw, err := playwright.Run()
 	if err != nil {
 		data.ErrorMessage = fmt.Sprintf("Falha ao iniciar Playwright: %v", err)
-		log.Printf("⚠️  %s", data.ErrorMessage)
+		l.Warn("falha_scraping", zap.String("error", data.ErrorMessage))
 		return data
 	}
 	defer pw.Stop()
@@ -240,20 +244,20 @@ func ScrapeFacebookPage(facebookURL string) *SocialData {
 	})
 	if err != nil {
 		data.ErrorMessage = fmt.Sprintf("Falha ao lançar navegador: %v", err)
-		log.Printf("⚠️  %s", data.ErrorMessage)
+		l.Warn("falha_scraping", zap.String("error", data.ErrorMessage))
 		return data
 	}
 	defer browser.Close()
 
 	// Create context
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	scrapeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	// Create page
 	page, err := browser.NewPage()
 	if err != nil {
 		data.ErrorMessage = fmt.Sprintf("Falha ao criar página: %v", err)
-		log.Printf("⚠️  %s", data.ErrorMessage)
+		l.Warn("falha_scraping", zap.String("error", data.ErrorMessage))
 		return data
 	}
 	defer page.Close()
@@ -264,7 +268,7 @@ func ScrapeFacebookPage(facebookURL string) *SocialData {
 		Timeout:   playwright.Float(20000),
 	}); err != nil {
 		data.ErrorMessage = fmt.Sprintf("Timeout ao carregar página: %v", err)
-		log.Printf("⚠️  %s", data.ErrorMessage)
+		l.Warn("timeout_carregar_perfil_facebook", zap.Error(err))
 		return data
 	}
 
@@ -273,22 +277,21 @@ func ScrapeFacebookPage(facebookURL string) *SocialData {
 
 	// Check for login wall
 	if hasLoginWall(page) {
-		log.Printf("⚠️  Facebook solicitou login - tentando extrair dados visíveis")
+		l.Warn("facebook_login_wall_detectado")
 	}
 
-	// Try to extract about/bio
-	bio, err := extractFacebookBio(page, ctx)
+	bio, err := extractFacebookBio(page, scrapeCtx)
 	if err == nil && bio != "" {
 		data.Bio = bio
-		log.Printf("📝 Bio extraída: %.50s...", bio)
+		l.Debug("bio_facebook_extraida", zap.String("bio_preview", bio))
 	}
 
 	// Try to extract recent posts
-	posts, lastPostDate := extractFacebookPosts(page, ctx)
+	posts, lastPostDate := extractFacebookPosts(page, scrapeCtx)
 	if len(posts) > 0 {
 		data.RecentPosts = posts
 		data.LastPostDate = lastPostDate
-		log.Printf("📄 Posts extraídos: %d", len(posts))
+		l.Debug("posts_facebook_extraidos", zap.Int("count", len(posts)))
 	}
 
 	if data.Bio != "" || len(data.RecentPosts) > 0 {
