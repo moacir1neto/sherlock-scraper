@@ -26,6 +26,10 @@ type SherlockLead struct {
 	Nicho        string          `json:"nicho,omitempty"`
 	TipoTelefone string          `json:"tipo_telefone,omitempty"`
 	LinkWhatsapp string          `json:"link_whatsapp,omitempty"`
+	Resumo       string          `json:"resumo,omitempty"`
+	CNPJ         string          `json:"cnpj,omitempty"`
+	HasPixel     bool            `json:"has_pixel"`
+	HasGTM       bool            `json:"has_gtm"`
 }
 
 type ExtractLeadsResponse struct {

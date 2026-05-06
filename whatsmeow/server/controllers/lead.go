@@ -89,6 +89,14 @@ func (s *Lead) Create(c echo.Context) error {
 		Email:            req.Email,
 		Rating:           req.Rating,
 		Reviews:          req.Reviews,
+		Instagram:        req.Instagram,
+		Facebook:         req.Facebook,
+		LinkedIn:         req.LinkedIn,
+		TikTok:           req.TikTok,
+		YouTube:          req.YouTube,
+		CNPJ:             req.CNPJ,
+		HasPixel:         req.HasPixel,
+		HasGTM:           req.HasGTM,
 		KanbanStatus:     "prospeccao",
 		EnrichmentStatus: "CAPTURADO",
 		CreatedAt:        time.Now(),
@@ -128,6 +136,14 @@ func (s *Lead) BulkCreate(c echo.Context) error {
 			Email:            item.Email,
 			Rating:           item.Rating,
 			Reviews:          item.Reviews,
+			Instagram:        item.Instagram,
+			Facebook:         item.Facebook,
+			LinkedIn:         item.LinkedIn,
+			TikTok:           item.TikTok,
+			YouTube:          item.YouTube,
+			CNPJ:             item.CNPJ,
+			HasPixel:         item.HasPixel,
+			HasGTM:           item.HasGTM,
 			KanbanStatus:     "prospeccao",
 			EnrichmentStatus: "CAPTURADO",
 			CreatedAt:        now,
@@ -206,6 +222,14 @@ func (s *Lead) Update(c echo.Context) error {
 	existing.Notes = req.Notes
 	existing.EstimatedValue = req.EstimatedValue
 	existing.Tags = req.Tags
+	existing.Instagram = req.Instagram
+	existing.Facebook = req.Facebook
+	existing.LinkedIn = req.LinkedIn
+	existing.TikTok = req.TikTok
+	existing.YouTube = req.YouTube
+	existing.CNPJ = req.CNPJ
+	existing.HasPixel = req.HasPixel
+	existing.HasGTM = req.HasGTM
 	if req.KanbanStatus != "" {
 		existing.KanbanStatus = req.KanbanStatus
 	}

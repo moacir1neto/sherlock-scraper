@@ -34,7 +34,9 @@ type Lead struct {
 	YouTube      string          `json:"youtube" db:"youtube"`
 	CNPJ         string          `json:"cnpj" db:"cnpj"`
 	AIAnalysis   string          `json:"ai_analysis" db:"ai_analysis"` // JSON string do dossiê IA
-	DeepData     json.RawMessage `json:"deep_data" db:"deep_data"`
-	CreatedAt    time.Time       `json:"created_at" db:"created_at"`
+	DeepData         json.RawMessage `json:"deep_data" db:"deep_data"`
+	HasPixel         bool            `json:"has_pixel" db:"has_pixel"`
+	HasGTM           bool            `json:"has_gtm" db:"has_gtm"`
+	CreatedAt        time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time       `json:"updated_at" db:"updated_at"`
 }

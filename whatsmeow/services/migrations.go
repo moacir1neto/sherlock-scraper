@@ -692,10 +692,18 @@ func RunMigrations() error {
 	addLeadCol("cnpj", "VARCHAR(20) DEFAULT ''")
 	addLeadCol("ai_analysis", "TEXT DEFAULT NULL")
 	addLeadCol("deep_data", "JSONB DEFAULT NULL")
+	addLeadCol("has_pixel", "BOOLEAN DEFAULT FALSE")
+	addLeadCol("has_gtm", "BOOLEAN DEFAULT FALSE")
 	// Índice para buscar leads por campanha
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_leads_scrape ON leads(scrape_id)`); err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
 			zap.L().Warn("leads migration: create idx_leads_scrape", zap.Error(err))
+		}
+	}
+	// Índice composto para lookup do push-sync (scrape_id + name)
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_leads_scrape_name ON leads(scrape_id, name)`); err != nil {
+		if !strings.Contains(err.Error(), "already exists") {
+			zap.L().Warn("leads migration: create idx_leads_scrape_name", zap.Error(err))
 		}
 	}
 

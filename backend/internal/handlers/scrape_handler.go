@@ -92,7 +92,7 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 			// 4. Insere automaticamente os leads CSV vinculados ao JobID
 			nichoFmt := strings.ReplaceAll(req.Nicho, " ", "_")
 			cidadeFmt := strings.ReplaceAll(req.Localizacao, " ", "_")
-			fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
+			fileName := fmt.Sprintf("/workspace/leads_exports/leads_%s_%s.csv", nichoFmt, cidadeFmt)
 
 			if file, errFile := os.Open(fileName); errFile == nil {
 				defer file.Close()
@@ -194,6 +194,10 @@ type syncLeadDTO struct {
 	Nicho        string          `json:"nicho,omitempty"`
 	TipoTelefone string          `json:"tipo_telefone,omitempty"`
 	LinkWhatsapp string          `json:"link_whatsapp,omitempty"`
+	Resumo       string          `json:"resumo,omitempty"`
+	CNPJ         string          `json:"cnpj,omitempty"`
+	HasPixel     bool            `json:"has_pixel"`
+	HasGTM       bool            `json:"has_gtm"`
 }
 
 // StartSync runs the scraping pipeline synchronously and returns the parsed leads directly.
@@ -240,7 +244,7 @@ func (h *ScrapeHandler) StartSync(c *fiber.Ctx) error {
 
 	nichoFmt := strings.ReplaceAll(req.Keyword, " ", "_")
 	cidadeFmt := strings.ReplaceAll(req.Location, " ", "_")
-	fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
+	fileName := fmt.Sprintf("/workspace/leads_exports/leads_%s_%s.csv", nichoFmt, cidadeFmt)
 
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -279,6 +283,10 @@ func (h *ScrapeHandler) StartSync(c *fiber.Ctx) error {
 			Nicho:        l.Nicho,
 			TipoTelefone: l.TipoTelefone,
 			LinkWhatsapp: l.LinkWhatsapp,
+			Resumo:       l.ResumoNegocio,
+			CNPJ:         l.CNPJ,
+			HasPixel:     l.TemPixel,
+			HasGTM:       l.TemGTM,
 		}
 	}
 
@@ -336,7 +344,7 @@ func (h *ScrapeHandler) StartAsync(c *fiber.Ctx) error {
 		} else {
 			nichoFmt := strings.ReplaceAll(req.Keyword, " ", "_")
 			cidadeFmt := strings.ReplaceAll(req.Location, " ", "_")
-			fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
+			fileName := fmt.Sprintf("/workspace/leads_exports/leads_%s_%s.csv", nichoFmt, cidadeFmt)
 			if file, errFile := os.Open(fileName); errFile == nil {
 				defer file.Close()
 				reader := csv.NewReader(file)
@@ -376,13 +384,26 @@ func (h *ScrapeHandler) StatusWithLeads(c *fiber.Ctx) error {
 		mapped := make([]syncLeadDTO, len(leads))
 		for i, l := range leads {
 			mapped[i] = syncLeadDTO{
-				Name:     l.Empresa,
-				Phone:    l.Telefone,
-				Address:  l.Endereco,
-				Website:  l.Site,
-				Rating:   l.Rating,
-				Reviews:  l.QtdAvaliacoes,
-				DeepData: json.RawMessage(l.DeepData),
+				Name:         l.Empresa,
+				Phone:        l.Telefone,
+				Address:      l.Endereco,
+				Website:      l.Site,
+				Rating:       l.Rating,
+				Reviews:      l.QtdAvaliacoes,
+				DeepData:     json.RawMessage(l.DeepData),
+				Email:        l.Email,
+				Instagram:    l.Instagram,
+				Facebook:     l.Facebook,
+				LinkedIn:     l.LinkedIn,
+				TikTok:       l.TikTok,
+				YouTube:      l.YouTube,
+				Nicho:        l.Nicho,
+				TipoTelefone: l.TipoTelefone,
+				LinkWhatsapp: l.LinkWhatsapp,
+				Resumo:       l.ResumoNegocio,
+				CNPJ:         l.CNPJ,
+				HasPixel:     l.TemPixel,
+				HasGTM:       l.TemGTM,
 			}
 		}
 		resp["total"] = len(mapped)
