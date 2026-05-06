@@ -382,6 +382,22 @@ func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
 
 	g1, _ := errgroup.WithContext(enrichCtx)
 
+	// Quando o Google Maps coloca uma URL social no campo "website", corrige para o campo certo.
+	if lead.Site != "" {
+		siteLower := strings.ToLower(lead.Site)
+		switch {
+		case strings.Contains(siteLower, "instagram.com") && lead.Instagram == "":
+			lead.Instagram = lead.Site
+			lead.Site = ""
+		case strings.Contains(siteLower, "facebook.com") && lead.Facebook == "":
+			lead.Facebook = lead.Site
+			lead.Site = ""
+		case strings.Contains(siteLower, "tiktok.com") && lead.TikTok == "":
+			lead.TikTok = lead.Site
+			lead.Site = ""
+		}
+	}
+
 	hasWebsite := lead.Site != "" && strings.HasPrefix(strings.ToLower(lead.Site), "http")
 	if hasWebsite {
 		g1.Go(func() error {
@@ -420,6 +436,26 @@ func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
 		if result.WebsiteData.Facebook != "" && lead.Facebook == "" {
 			lead.Facebook = result.WebsiteData.Facebook
 			logger.FromContext(ctx).Info("facebook_encontrado", zap.String("facebook", lead.Facebook))
+		}
+		if lead.Email == "" && len(result.WebsiteData.Emails) > 0 {
+			lead.Email = result.WebsiteData.Emails[0]
+			logger.FromContext(ctx).Info("email_encontrado", zap.String("email", lead.Email))
+		}
+		if lead.Telefone == "" && len(result.WebsiteData.Phones) > 0 {
+			lead.Telefone = result.WebsiteData.Phones[0]
+			logger.FromContext(ctx).Info("telefone_encontrado", zap.String("telefone", lead.Telefone))
+		}
+		if lead.LinkedIn == "" {
+			if v, ok := result.WebsiteData.SocialLinks["linkedin"]; ok && v != "" {
+				lead.LinkedIn = v
+				logger.FromContext(ctx).Info("linkedin_encontrado", zap.String("linkedin", lead.LinkedIn))
+			}
+		}
+		if lead.TikTok == "" {
+			if v, ok := result.WebsiteData.SocialLinks["tiktok"]; ok && v != "" {
+				lead.TikTok = v
+				logger.FromContext(ctx).Info("tiktok_encontrado", zap.String("tiktok", lead.TikTok))
+			}
 		}
 		lead.TemPixel = result.WebsiteData.TemPixel
 		lead.TemGTM = result.WebsiteData.TemGTM

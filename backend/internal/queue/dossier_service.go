@@ -160,6 +160,22 @@ func (s *DossierService) RunPipeline(ctx context.Context, leadID string) error {
 		}
 	}
 
+	// Normaliza URLs sociais que o Google Maps coloca no campo "website".
+	if lead.Site != "" {
+		siteLower := strings.ToLower(lead.Site)
+		switch {
+		case strings.Contains(siteLower, "instagram.com") && lead.Instagram == "":
+			lead.Instagram = lead.Site
+			lead.Site = ""
+		case strings.Contains(siteLower, "facebook.com") && lead.Facebook == "":
+			lead.Facebook = lead.Site
+			lead.Site = ""
+		case strings.Contains(siteLower, "tiktok.com") && lead.TikTok == "":
+			lead.TikTok = lead.Site
+			lead.Site = ""
+		}
+	}
+
 	// Etapa 1 — Google Maps / Reviews (só re-scrapa se não veio do DeepData)
 	if agg.Google == nil {
 		publishDossierEvent(ctx, leadID, domain.DossierStageMaps, domain.DossierStatusRunning, "Coletando dados externos...")

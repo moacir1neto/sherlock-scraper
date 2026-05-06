@@ -4,13 +4,14 @@
 - [x] Mapeamento Profundo do Codebase
 - [x] Inicialização do Ciclo de Evolução (GSD New Project)
 - [x] Fase 1: Contexto e Decisões Capturadas
-- [x] Fase 1: Segurança e Validação de Ambiente (Foco Restrito)
-- [ ] Fase 2: Resiliência do Scraper e Enriquecimento
-- [ ] Fase 3: Dossiês Profundos e Autonomia
+- [x] Fase 1: Segurança e Hardening (Concluída)
+- [ ] Fase 2: Infraestrutura e Resiliência (Foco: Estabilidade e Filas)
+- [ ] Fase 3: Inteligência e Dossiês (Foco: Autonomia e Leads)
 
 ## Últimas Atividades
 - Mapeamento completo de STACK, ARCHITECTURE, CONVENTIONS e CONCERNS.
 - Definição de requisitos focados no Super Vendedor AI, Sherlock Scraper e Dossiês.
+- Estruturação da Fase 2 em 6 ondas de implementação (Infra & Resiliência).
 - Configuração do modo YOLO para execução ágil.
 
 ## Bloqueios / Pendências

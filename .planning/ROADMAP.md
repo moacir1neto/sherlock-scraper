@@ -1,49 +1,47 @@
 # Roadmap: Sherlock & WhatsMiau Evolution
 
-## Fase 1: Inteligência e Estabilidade Core
-Foco em tornar o agente de vendas mais robusto e sanear vulnerabilidades críticas de segurança identificadas no mapeamento.
+## Fase 1: Segurança e Hardening (Concluída)
+Foco em saneamento de credenciais e validação rigorosa de ambiente.
 
-- [ ] **AI & Handoff**
-    - Refinar Structured Output do Gemini [AI-01]
-    - Sistema de interrupção de IA por sentimento [AI-03]
-- [ ] **Segurança e Qualidade**
+- [x] **Segurança e Qualidade**
     - Saneamento de JWT e Tokens Internos [CORE-01]
-    - Testes unitários para Automação Kanban [CORE-02]
+    - Validação de ambiente Fail-Fast [ENV-01]
 
-## Fase 2: Resiliência do Scraper e Enriquecimento
-Foco em aumentar a taxa de sucesso da coleta de dados e iniciar o fluxo de dossiês.
+## Fase 2: Infraestrutura e Resiliência
+Foco em estabilidade operacional, observabilidade e robustez do scraper.
 
-- [ ] **Sherlock Evolution**
-    - Rotação de Headers e User-Agents [SCR-01]
-    - Webhooks de conclusão de tarefa [SCR-04]
-- [ ] **Dossier Foundation**
-    - Armazenamento estruturado de Dossiês (Markdown) [DOS-03]
-    - Gatilho automático de geração pós-importação [DOS-01]
+- [ ] **Queue & Reliability**
+    - Estratégia de Retry Asynq + DLQ [INFRA-01]
+    - Tarefas Idempotentes e Circuit Breaker [INFRA-02]
+- [ ] **Scraper Hardening**
+    - Rotação de Headers e Rate Limiting [SCR-01]
+    - Controle de Timeout (HTTP/AI/Queue) [INFRA-05]
+- [ ] **Observability**
+    - Logging Estruturado (Zap) + Context [INFRA-03]
+    - Observabilidade de Filas [INFRA-04]
 
-## Fase 3: Dossiês Profundos e Autonomia
-Foco em dar "profundidade" ao conhecimento do agente sobre o lead.
+## Fase 3: Inteligência e Dossiês
+Foco em enriquecimento de leads e capacidades cognitivas da IA.
 
-- [ ] **Advanced Dossiers**
-    - Integração com Google Search para pesquisa web [DOS-02]
-    - Injeção contextual de dossiê no prompt da IA [AI-04]
-- [ ] **UX & Memória**
-    - Memória de curto prazo para chats [AI-02]
-    - Busca multi-localização no scraper [SCR-02]
+- [ ] **Dossier Intelligence**
+    - Geração de Dossiês via IA [DOS-01]
+    - Pipelines de Enriquecimento de Leads [DOS-02]
+- [ ] **AI & Memory**
+    - Melhorias em Memória e Agentes [AI-02]
 
 ---
 ## Traceability Matrix
 
-| Req ID | Phase | Plan | Status |
-|--------|-------|------|--------|
-| AI-01  | 1     | -    | ⏳      |
-| AI-03  | 1     | -    | ⏳      |
-| CORE-01| 1     | -    | ⏳      |
-| CORE-02| 1     | -    | ⏳      |
-| SCR-01 | 2     | -    | ⏳      |
-| SCR-04 | 2     | -    | ⏳      |
-| DOS-01 | 2     | -    | ⏳      |
-| DOS-03 | 2     | -    | ⏳      |
-| DOS-02 | 3     | -    | ⏳      |
-| AI-04  | 3     | -    | ⏳      |
-| AI-02  | 3     | -    | ⏳      |
-| SCR-02 | 3     | -    | ⏳      |
+| Req ID  | Phase | Status |
+|---------|-------|--------|
+| CORE-01 | 1     | ✅      |
+| ENV-01  | 1     | ✅      |
+| INFRA-01| 2     | ⏳      |
+| INFRA-02| 2     | ⏳      |
+| SCR-01  | 2     | ⏳      |
+| INFRA-05| 2     | ⏳      |
+| INFRA-03| 2     | ⏳      |
+| INFRA-04| 2     | ⏳      |
+| DOS-01  | 3     | ⏳      |
+| DOS-02  | 3     | ⏳      |
+| AI-02   | 3     | ⏳      |

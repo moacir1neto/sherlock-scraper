@@ -106,6 +106,23 @@ func (s *AIService) GenerateLeadStrategy(input LeadAnalysisInput, settings domai
 
 	log.Printf("🤖 Iniciando análise de IA para: %s (skill: %s)", input.Empresa, skill)
 
+	// Early exit: todos comentários positivos → sem gap real
+	if skill == "raiox" {
+		log.Printf("🔍 [%s] pre-LLM check: comments=%d nota=%s",
+			input.Empresa, len(input.ComentariosRecentes), input.NotaGoogle)
+		if len(input.ComentariosRecentes) > 0 {
+			onlyPositive := hasOnlyPositiveComments(input.ComentariosRecentes)
+			log.Printf("🔍 [%s] hasOnlyPositiveComments=%v", input.Empresa, onlyPositive)
+			if onlyPositive {
+				log.Printf("✅ [%s] Apenas comentários positivos — forçando gap nulo", input.Empresa)
+				return &LeadAnalysisOutput{
+					SkillUsed:  skill,
+					GapCritico: "Nenhum gap crítico evidente — operação validada pelos clientes",
+				}, nil
+			}
+		}
+	}
+
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(s.apiKey))
 	if err != nil {
@@ -182,7 +199,15 @@ func (s *AIService) GenerateLeadStrategy(input LeadAnalysisInput, settings domai
 	}
 
 	output.SkillUsed = skill
-	log.Printf("GAP FINAL RETORNADO: %s", output.GapCritico)
+
+	// Fallback forçado: nunca retornar gap inválido
+	if skill == "raiox" && gapNeedsRegen(output.GapCritico, hasComments) {
+		log.Printf("🚨 [Gemini] FORÇANDO SAFE FALLBACK GAP — gap inválido após todos os retries: %q", output.GapCritico)
+		output.GapCritico = safeFallbackGap
+	}
+
+	log.Printf("GAP FINAL DECIDIDO empresa=%s gap=%q hasComments=%v comments=%d",
+		input.Empresa, output.GapCritico, hasComments, len(input.ComentariosRecentes))
 	log.Printf("✅ Análise de IA concluída (skill: %s): Score %d/10", skill, output.ScoreMaturidade)
 	return &output, nil
 }
@@ -668,20 +693,23 @@ func hasEvidenceReference(gap string) bool {
 	return evidenceRefRe.MatchString(gap)
 }
 
-// genericGapPhrases são padrões proibidos quando não há comentários disponíveis
-var genericGapPhrases = []string{
-	"falta de presença digital",
-	"falta de redes sociais",
-	"baixa visibilidade",
-	"falta de marketing",
-	"ausência de presença digital",
-	"sem presença digital",
+// forbiddenGapTerms são termos que tornam um gap inválido independentemente de ter comentários.
+// O LLM tende a usar esses termos como atalho genérico — todos são proibidos sem evidência numerada.
+var forbiddenGapTerms = []string{
+	"presença digital",
+	"presença nas redes",
+	"presença online",
+	"redes sociais",
+	"mídias sociais",
+	"marketing digital",
+	"marketing",
+	"visibilidade",
+	"online",
+	"gestão de redes",
 }
 
 // gapNeedsRegen retorna true se a resposta deve ser rejeitada e regenerada.
 // hasComments indica se o lead possui comentários numerados disponíveis no input.
-// Quando não há comentários, aceita qualquer gap não-genérico (modelo não pode citar "Comentário X").
-// Quando há comentários, exige citação explícita de "Comentário X".
 func gapNeedsRegen(gap string, hasComments bool) bool {
 	if gap == "" {
 		return true
@@ -691,17 +719,49 @@ func gapNeedsRegen(gap string, hasComments bool) bool {
 	if strings.Contains(lower, "nenhum gap crítico evidente") {
 		return false
 	}
-	if hasComments {
-		// Com comentários disponíveis: exige evidência numerada
-		return !hasEvidenceReference(gap)
-	}
-	// Sem comentários: rejeita apenas frases genéricas proibidas
-	for _, phrase := range genericGapPhrases {
-		if strings.Contains(lower, phrase) {
+	// Termos genéricos proibidos em qualquer cenário
+	for _, f := range forbiddenGapTerms {
+		if strings.Contains(lower, f) {
 			return true
 		}
 	}
+	// Com comentários disponíveis: exige evidência numerada
+	if hasComments {
+		return !hasEvidenceReference(gap)
+	}
 	return false
+}
+
+const safeFallbackGap = "Nenhum gap crítico evidente — dados insuficientes ou operação validada pelos clientes"
+
+// hasOnlyPositiveComments retorna true se nenhum comentário contém sinais negativos.
+// IMPORTANTE: "não" foi removido como sinal isolado — é comum em frases positivas em português.
+// Usamos frases compostas e termos inequivocamente negativos.
+func hasOnlyPositiveComments(comments []string) bool {
+	negativeSignals := []string{
+		// Adjetivos negativos claros
+		"ruim", "péssimo", "horrível", "terrível", "lamentável", "decepcionante",
+		// Verbos e frases de reclamação
+		"reclamação", "reclamei", "reclamar",
+		"problema", "problemas",
+		"erro", "erros",
+		"atraso", "atrasou", "atrasado",
+		"demora", "demorou", "demorada",
+		"insatisfeito", "insatisfeita",
+		// Frases negativas compostas (não como palavra isolada é falso positivo)
+		"não gostei", "não recomendo", "não voltaria", "não indicaria",
+		"não fui bem", "não voltarei", "não foi bom",
+		"pior experiência", "nunca mais",
+	}
+	for _, c := range comments {
+		lower := strings.ToLower(c)
+		for _, n := range negativeSignals {
+			if strings.Contains(lower, n) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // buildRetryPrompt monta o contexto de erro estruturado para forçar nova tentativa

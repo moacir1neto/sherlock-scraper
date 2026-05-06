@@ -178,13 +178,22 @@ type ScrapeSyncRequest struct {
 
 // syncLeadDTO maps domain.Lead fields to the naming convention expected by WhatsMiau.
 type syncLeadDTO struct {
-	Name     string          `json:"name"`
-	Phone    string          `json:"phone"`
-	Address  string          `json:"address,omitempty"`
-	Website  string          `json:"website,omitempty"`
-	Rating   string          `json:"rating,omitempty"`
-	Reviews  string          `json:"reviews,omitempty"`
-	DeepData json.RawMessage `json:"deep_data,omitempty"`
+	Name         string          `json:"name"`
+	Phone        string          `json:"phone"`
+	Address      string          `json:"address,omitempty"`
+	Website      string          `json:"website,omitempty"`
+	Rating       string          `json:"rating,omitempty"`
+	Reviews      string          `json:"reviews,omitempty"`
+	DeepData     json.RawMessage `json:"deep_data,omitempty"`
+	Email        string          `json:"email,omitempty"`
+	Instagram    string          `json:"instagram,omitempty"`
+	Facebook     string          `json:"facebook,omitempty"`
+	LinkedIn     string          `json:"linkedin,omitempty"`
+	TikTok       string          `json:"tiktok,omitempty"`
+	YouTube      string          `json:"youtube,omitempty"`
+	Nicho        string          `json:"nicho,omitempty"`
+	TipoTelefone string          `json:"tipo_telefone,omitempty"`
+	LinkWhatsapp string          `json:"link_whatsapp,omitempty"`
 }
 
 // StartSync runs the scraping pipeline synchronously and returns the parsed leads directly.
@@ -254,13 +263,22 @@ func (h *ScrapeHandler) StartSync(c *fiber.Ctx) error {
 	mapped := make([]syncLeadDTO, len(leads))
 	for i, l := range leads {
 		mapped[i] = syncLeadDTO{
-			Name:     l.Empresa,
-			Phone:    l.Telefone,
-			Address:  l.Endereco,
-			Website:  l.Site,
-			Rating:   l.Rating,
-			Reviews:  l.QtdAvaliacoes,
-			DeepData: json.RawMessage(l.DeepData),
+			Name:         l.Empresa,
+			Phone:        l.Telefone,
+			Address:      l.Endereco,
+			Website:      l.Site,
+			Rating:       l.Rating,
+			Reviews:      l.QtdAvaliacoes,
+			DeepData:     json.RawMessage(l.DeepData),
+			Email:        l.Email,
+			Instagram:    l.Instagram,
+			Facebook:     l.Facebook,
+			LinkedIn:     l.LinkedIn,
+			TikTok:       l.TikTok,
+			YouTube:      l.YouTube,
+			Nicho:        l.Nicho,
+			TipoTelefone: l.TipoTelefone,
+			LinkWhatsapp: l.LinkWhatsapp,
 		}
 	}
 
