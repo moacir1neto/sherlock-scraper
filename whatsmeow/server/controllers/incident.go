@@ -32,8 +32,8 @@ func (s *Incident) List(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to list incidents")
 	}
 	return ctx.JSON(http.StatusOK, map[string]interface{}{
-		"items":  list,
-		"total":  total,
+		"items": list,
+		"total": total,
 	})
 }
 

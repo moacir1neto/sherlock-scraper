@@ -69,7 +69,7 @@ func (s *Dashboard) Stats(c echo.Context) error {
 			MessagesLast7Days: []int{0, 0, 0, 0, 0, 0, 0},
 			ChatsAguardando:   0,
 			ChatsAtendendo:    0,
-			ChatsFinalizado:    0,
+			ChatsFinalizado:   0,
 		})
 	}
 

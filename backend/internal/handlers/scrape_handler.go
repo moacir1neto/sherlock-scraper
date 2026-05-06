@@ -74,7 +74,7 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 			"--localizacao", req.Localizacao,
 			"--limit", fmt.Sprintf("%d", req.Limit),
 		)
-		
+
 		// Captura stdout e stderr juntos para logs
 		cmd.Stdout = &combinedBuf
 		cmd.Stderr = &combinedBuf
@@ -92,7 +92,7 @@ func (h *ScrapeHandler) Start(c *fiber.Ctx) error {
 			// 4. Insere automaticamente os leads CSV vinculados ao JobID
 			nichoFmt := strings.ReplaceAll(req.Nicho, " ", "_")
 			cidadeFmt := strings.ReplaceAll(req.Localizacao, " ", "_")
-			fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
+			fileName := fmt.Sprintf("/workspace/leads_exports/leads_%s_%s.csv", nichoFmt, cidadeFmt)
 
 			if file, errFile := os.Open(fileName); errFile == nil {
 				defer file.Close()
@@ -178,13 +178,26 @@ type ScrapeSyncRequest struct {
 
 // syncLeadDTO maps domain.Lead fields to the naming convention expected by WhatsMiau.
 type syncLeadDTO struct {
-	Name     string          `json:"name"`
-	Phone    string          `json:"phone"`
-	Address  string          `json:"address,omitempty"`
-	Website  string          `json:"website,omitempty"`
-	Rating   string          `json:"rating,omitempty"`
-	Reviews  string          `json:"reviews,omitempty"`
-	DeepData json.RawMessage `json:"deep_data,omitempty"`
+	Name         string          `json:"name"`
+	Phone        string          `json:"phone"`
+	Address      string          `json:"address,omitempty"`
+	Website      string          `json:"website,omitempty"`
+	Rating       string          `json:"rating,omitempty"`
+	Reviews      string          `json:"reviews,omitempty"`
+	DeepData     json.RawMessage `json:"deep_data,omitempty"`
+	Email        string          `json:"email,omitempty"`
+	Instagram    string          `json:"instagram,omitempty"`
+	Facebook     string          `json:"facebook,omitempty"`
+	LinkedIn     string          `json:"linkedin,omitempty"`
+	TikTok       string          `json:"tiktok,omitempty"`
+	YouTube      string          `json:"youtube,omitempty"`
+	Nicho        string          `json:"nicho,omitempty"`
+	TipoTelefone string          `json:"tipo_telefone,omitempty"`
+	LinkWhatsapp string          `json:"link_whatsapp,omitempty"`
+	Resumo       string          `json:"resumo,omitempty"`
+	CNPJ         string          `json:"cnpj,omitempty"`
+	HasPixel     bool            `json:"has_pixel"`
+	HasGTM       bool            `json:"has_gtm"`
 }
 
 // StartSync runs the scraping pipeline synchronously and returns the parsed leads directly.
@@ -231,7 +244,7 @@ func (h *ScrapeHandler) StartSync(c *fiber.Ctx) error {
 
 	nichoFmt := strings.ReplaceAll(req.Keyword, " ", "_")
 	cidadeFmt := strings.ReplaceAll(req.Location, " ", "_")
-	fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
+	fileName := fmt.Sprintf("/workspace/leads_exports/leads_%s_%s.csv", nichoFmt, cidadeFmt)
 
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -254,13 +267,26 @@ func (h *ScrapeHandler) StartSync(c *fiber.Ctx) error {
 	mapped := make([]syncLeadDTO, len(leads))
 	for i, l := range leads {
 		mapped[i] = syncLeadDTO{
-			Name:     l.Empresa,
-			Phone:    l.Telefone,
-			Address:  l.Endereco,
-			Website:  l.Site,
-			Rating:   l.Rating,
-			Reviews:  l.QtdAvaliacoes,
-			DeepData: json.RawMessage(l.DeepData),
+			Name:         l.Empresa,
+			Phone:        l.Telefone,
+			Address:      l.Endereco,
+			Website:      l.Site,
+			Rating:       l.Rating,
+			Reviews:      l.QtdAvaliacoes,
+			DeepData:     json.RawMessage(l.DeepData),
+			Email:        l.Email,
+			Instagram:    l.Instagram,
+			Facebook:     l.Facebook,
+			LinkedIn:     l.LinkedIn,
+			TikTok:       l.TikTok,
+			YouTube:      l.YouTube,
+			Nicho:        l.Nicho,
+			TipoTelefone: l.TipoTelefone,
+			LinkWhatsapp: l.LinkWhatsapp,
+			Resumo:       l.ResumoNegocio,
+			CNPJ:         l.CNPJ,
+			HasPixel:     l.TemPixel,
+			HasGTM:       l.TemGTM,
 		}
 	}
 
@@ -318,7 +344,7 @@ func (h *ScrapeHandler) StartAsync(c *fiber.Ctx) error {
 		} else {
 			nichoFmt := strings.ReplaceAll(req.Keyword, " ", "_")
 			cidadeFmt := strings.ReplaceAll(req.Location, " ", "_")
-			fileName := fmt.Sprintf("/workspace/leads_%s_%s.csv", nichoFmt, cidadeFmt)
+			fileName := fmt.Sprintf("/workspace/leads_exports/leads_%s_%s.csv", nichoFmt, cidadeFmt)
 			if file, errFile := os.Open(fileName); errFile == nil {
 				defer file.Close()
 				reader := csv.NewReader(file)
@@ -358,13 +384,26 @@ func (h *ScrapeHandler) StatusWithLeads(c *fiber.Ctx) error {
 		mapped := make([]syncLeadDTO, len(leads))
 		for i, l := range leads {
 			mapped[i] = syncLeadDTO{
-				Name:     l.Empresa,
-				Phone:    l.Telefone,
-				Address:  l.Endereco,
-				Website:  l.Site,
-				Rating:   l.Rating,
-				Reviews:  l.QtdAvaliacoes,
-				DeepData: json.RawMessage(l.DeepData),
+				Name:         l.Empresa,
+				Phone:        l.Telefone,
+				Address:      l.Endereco,
+				Website:      l.Site,
+				Rating:       l.Rating,
+				Reviews:      l.QtdAvaliacoes,
+				DeepData:     json.RawMessage(l.DeepData),
+				Email:        l.Email,
+				Instagram:    l.Instagram,
+				Facebook:     l.Facebook,
+				LinkedIn:     l.LinkedIn,
+				TikTok:       l.TikTok,
+				YouTube:      l.YouTube,
+				Nicho:        l.Nicho,
+				TipoTelefone: l.TipoTelefone,
+				LinkWhatsapp: l.LinkWhatsapp,
+				Resumo:       l.ResumoNegocio,
+				CNPJ:         l.CNPJ,
+				HasPixel:     l.TemPixel,
+				HasGTM:       l.TemGTM,
 			}
 		}
 		resp["total"] = len(mapped)

@@ -4,10 +4,12 @@ import (
 	"fmt"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/logger"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/repositories"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 )
 
 type PipelineHandler struct {
@@ -25,66 +27,68 @@ func NewPipelineHandler(aiService *services.AIService, pipelineRepo *repositorie
 func getUserIDFromToken(c *fiber.Ctx) string {
 	localUser := c.Locals("user")
 	if localUser == nil {
-		fmt.Println("[Pipeline] c.Locals('user') is nil — JWT middleware may not have run")
+		logger.FromContext(c.UserContext()).Warn("pipeline_locals_user_nil")
 		return ""
 	}
 
 	userToken, ok := localUser.(*jwt.Token)
 	if !ok {
-		fmt.Printf("[Pipeline] c.Locals('user') is not *jwt.Token, got: %T\n", localUser)
+		logger.FromContext(c.UserContext()).Warn("pipeline_locals_user_type_error", zap.String("type", fmt.Sprintf("%T", localUser)))
 		return ""
 	}
 
 	claims, ok := userToken.Claims.(jwt.MapClaims)
 	if !ok {
-		fmt.Println("[Pipeline] Failed to cast token claims to MapClaims")
+		logger.FromContext(c.UserContext()).Warn("pipeline_token_claims_cast_error")
 		return ""
 	}
 
 	// Normal claim locations for user ID
 	if id, ok := claims["user_id"]; ok {
 		userID := fmt.Sprintf("%v", id)
-		fmt.Printf("[Pipeline] UserID extraído (user_id): %s\n", userID)
+		logger.FromContext(c.UserContext()).Debug("user_id_extraido", zap.String("source", "user_id"), zap.String("user_id", userID))
 		return userID
 	}
 	if id, ok := claims["sub"]; ok {
 		userID := fmt.Sprintf("%v", id)
-		fmt.Printf("[Pipeline] UserID extraído (sub): %s\n", userID)
+		logger.FromContext(c.UserContext()).Debug("user_id_extraido", zap.String("source", "sub"), zap.String("user_id", userID))
 		return userID
 	}
 
-	fmt.Printf("[Pipeline] Nenhum user_id/sub encontrado nos claims: %v\n", claims)
+	logger.FromContext(c.UserContext()).Warn("user_id_nao_encontrado_nos_claims")
 	return ""
 }
 
 func (h *PipelineHandler) GenerateAIPipeline(c *fiber.Ctx) error {
-	fmt.Println("[PipelineHandler] 🚀 Iniciando GenerateAIPipeline")
+	ctx := c.UserContext()
+	l := logger.FromContext(ctx)
+	l.Info("iniciando_generate_ai_pipeline")
 	type Request struct {
 		Niche string `json:"niche"`
 	}
 
 	var req Request
 	if err := c.BodyParser(&req); err != nil {
-		fmt.Printf("[PipelineHandler] ❌ Erro no BodyParser: %v\n", err)
+		l.Error("erro_body_parser_pipeline", zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	fmt.Printf("[PipelineHandler] 🔎 Nicho recebido: %s\n", req.Niche)
+	l.Info("nicho_recebido_pipeline", zap.String("niche", req.Niche))
 	if req.Niche == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Campo 'niche' é obrigatório"})
 	}
 
 	userID := getUserIDFromToken(c)
 	if userID == "" {
-		fmt.Println("[PipelineHandler] ❌ UserID não encontrado no token")
+		l.Warn("unauthorized_pipeline_no_user_id")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User ID not found in token"})
 	}
 
 	// 1. Gera do Gemini
-	fmt.Println("[PipelineHandler] 🤖 Chamando AIService.GeneratePipelineStages")
+	l.Info("chamando_ai_service_pipeline")
 	aiPipeline, err := h.aiService.GeneratePipelineStages(req.Niche)
 	if err != nil {
-		fmt.Printf("[PipelineHandler] ❌ Erro na geração da IA: %v\n", err)
+		l.Error("erro_geracao_ia_pipeline", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -102,12 +106,12 @@ func (h *PipelineHandler) GenerateAIPipeline(c *fiber.Ctx) error {
 	}
 
 	// 3. Salva no banco de dados via Transaction
-	fmt.Printf("[PipelineHandler] 💾 Salvando pipeline para o usuário: %v (name: %s, stages: %d)\n", userID, pipeline.Name, len(pipeline.Stages))
+	l.Info("salvando_pipeline_db", zap.String("user_id", userID), zap.String("name", pipeline.Name), zap.Int("stages", len(pipeline.Stages)))
 	if err := h.pipelineRepo.SavePipeline(pipeline); err != nil {
-		fmt.Printf("[PipelineHandler] ❌ ERRO GORM ao salvar no banco: %v\n", err)
+		l.Error("erro_gorm_salvar_pipeline", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Falha ao salvar pipeline no banco", "details": err.Error()})
 	}
-	fmt.Printf("[PipelineHandler] ✅ Pipeline salvo com sucesso! ID: %s\n", pipeline.ID)
+	l.Info("pipeline_salvo_sucesso", zap.String("id", pipeline.ID))
 
 	return c.JSON(pipeline)
 }

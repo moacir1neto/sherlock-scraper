@@ -51,7 +51,7 @@ func UploadFile(c echo.Context) error {
 		zap.L().Error("save upload", zap.Error(err))
 		return utils.HTTPFail(c, http.StatusInternalServerError, err, "failed to save file")
 	}
-	base := strings.TrimSuffix(env.Env.PublicURL, "/")
+	base := strings.TrimSuffix(env.Get().PublicURL, "/")
 	url := base + "/v1/uploads/" + name
 	return c.JSON(http.StatusOK, map[string]string{"url": url})
 }

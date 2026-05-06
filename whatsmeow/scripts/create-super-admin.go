@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/google/uuid"
 	"github.com/verbeux-ai/whatsmiau/env"
 	"github.com/verbeux-ai/whatsmiau/utils"
 	"go.uber.org/zap"
@@ -106,4 +106,3 @@ func main() {
 	fmt.Printf("  Senha: %s\n", senha)
 	fmt.Printf("\n⚠️  IMPORTANTE: Altere a senha após o primeiro login!\n")
 }
-

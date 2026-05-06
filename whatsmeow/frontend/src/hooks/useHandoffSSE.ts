@@ -21,7 +21,7 @@ interface HandoffAlert {
  * Implementa reconexão exponencial (2s → 4s → 8s → ... → 60s) para manter
  * a conexão ativa mesmo após quedas de rede ou reinicializações do backend.
  */
-export function useHandoffSSE(isAuthenticated: boolean) {
+export function useHandoffSSE(isAuthenticated: boolean, onHandoff?: (chatId: string) => void) {
   const esRef = useRef<EventSource | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(2000);
@@ -45,6 +45,7 @@ export function useHandoffSSE(isAuthenticated: boolean) {
         try {
           const data: HandoffAlert = JSON.parse(event.data);
           if (data.type === 'handoff_alert') {
+            onHandoff?.(data.chat_id);
             const name = data.lead_name || 'Lead';
             toast(
               `🚨 ${name} quer fechar negócio! Assuma o chat.`,
@@ -91,5 +92,5 @@ export function useHandoffSSE(isAuthenticated: boolean) {
         esRef.current = null;
       }
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, onHandoff]);
 }

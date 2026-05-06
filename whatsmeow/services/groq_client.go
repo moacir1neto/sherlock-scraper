@@ -42,7 +42,7 @@ type groqResponse struct {
 var groqHTTPClient = &http.Client{Timeout: 45 * time.Second}
 
 func callGroq(ctx context.Context, prompt string) (string, error) {
-	apiKey := env.Env.GroqAPIKey
+	apiKey := env.Get().GroqAPIKey
 	if apiKey == "" {
 		return "", fmt.Errorf("GROQ_API_KEY não configurada")
 	}

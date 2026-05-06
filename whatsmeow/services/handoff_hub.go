@@ -21,7 +21,7 @@ type HandoffHub struct {
 
 // HandoffEvent é o payload emitido quando a IA decide acionar um humano.
 type HandoffEvent struct {
-	Type       string `json:"type"`        // sempre "handoff_alert"
+	Type       string `json:"type"` // sempre "handoff_alert"
 	ChatID     string `json:"chat_id"`
 	LeadName   string `json:"lead_name"`
 	InstanceID string `json:"instance_id"`

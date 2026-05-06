@@ -28,4 +28,3 @@ func Auth(group *echo.Group) {
 	authController := controllers.NewAuth(sqlUserRepo, auditRepo)
 	group.POST("/login", authController.Login)
 }
-

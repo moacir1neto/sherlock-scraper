@@ -9,9 +9,9 @@ import (
 )
 
 type Claims struct {
-	UserID    string `json:"user_id"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
+	UserID    string  `json:"user_id"`
+	Email     string  `json:"email"`
+	Role      string  `json:"role"`
 	CompanyID *string `json:"company_id,omitempty"`
 	jwt.RegisteredClaims
 }
@@ -19,7 +19,7 @@ type Claims struct {
 var jwtSecret []byte
 
 func init() {
-	secret := env.Env.ApiKey
+	secret := env.Get().ApiKey
 	if secret == "" {
 		secret = "default-secret-key-change-in-production"
 	}
@@ -67,4 +67,3 @@ func ValidateToken(tokenString string) (*Claims, error) {
 
 	return claims, nil
 }
-

@@ -39,10 +39,11 @@ async def scrape_cnpj(termo_busca: str) -> dict:
             page = await context.new_page()
 
             # 2. Acessar a Casa dos Dados
-            await page.goto("https://casadosdados.com.br/", timeout=30000)
+            await page.goto("https://casadosdados.com.br/", timeout=60000)
+            await page.wait_for_load_state("domcontentloaded")
 
             # 3. Aguardar o seletor de input
-            await page.wait_for_selector('input[name="q"]', timeout=30000)
+            await page.wait_for_selector('input[name="q"]', timeout=60000)
 
             # 4. Preencher o input e enviar
             await page.fill('input[name="q"]', termo_busca)

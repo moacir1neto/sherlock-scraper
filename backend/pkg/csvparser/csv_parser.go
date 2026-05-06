@@ -29,7 +29,7 @@ func MapToLeads(records [][]string, nicho string) []*domain.Lead {
 	// Skip header (records[0])
 	for i := 1; i < len(records); i++ {
 		row := records[i]
-		
+
 		// Fill missing columns if rows are shorter than expected
 		// Our CSV format has ~15 columns max
 		if len(row) < 15 {
@@ -56,7 +56,7 @@ func MapToLeads(records [][]string, nicho string) []*domain.Lead {
 			KanbanStatus:  domain.StatusProspeccao,
 			Nicho:         nicho,
 		}
-		
+
 		if lead.Empresa != "" { // Skip empty companies
 			leads = append(leads, lead)
 		}

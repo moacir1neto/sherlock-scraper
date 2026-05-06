@@ -1,5 +1,5 @@
 package services
- 
+
 import (
 	"bytes"
 	"encoding/json"
@@ -31,13 +31,13 @@ func NewCNPJService(leadService ports.LeadService) *CNPJService {
 
 // CNPJResult represents the result of a CNPJ lookup
 type CNPJResult struct {
-	CNPJ          string `json:"cnpj"`
-	RazaoSocial   string `json:"razao_social"`
-	NomeFantasia  string `json:"nome_fantasia"`
-	Situacao      string `json:"situacao"`
-	Email         string `json:"email,omitempty"`
-	Telefone      string `json:"telefone,omitempty"`
-	Source        string `json:"source"`
+	CNPJ         string `json:"cnpj"`
+	RazaoSocial  string `json:"razao_social"`
+	NomeFantasia string `json:"nome_fantasia"`
+	Situacao     string `json:"situacao"`
+	Email        string `json:"email,omitempty"`
+	Telefone     string `json:"telefone,omitempty"`
+	Source       string `json:"source"`
 }
 
 // EnrichCNPJ looks up the CNPJ for a lead using its company name and address
@@ -69,7 +69,7 @@ func (s *CNPJService) EnrichCNPJ(leadID string) (*CNPJResult, error) {
 
 	// 3. Save CNPJ to database
 	lead.CNPJ = result.CNPJ
-	
+
 	// Enriquecimento opcional de campos (Email e Telefone) se vierem do Sherlock e estiverem vazios
 	if result.Email != "" && lead.Email == "" {
 		lead.Email = result.Email
@@ -90,7 +90,7 @@ func (s *CNPJService) EnrichCNPJ(leadID string) (*CNPJResult, error) {
 // searchViaSherlock consome a Bridge API (Python) rodando no container 'sherlock'
 func (s *CNPJService) searchViaSherlock(empresa string) (*CNPJResult, error) {
 	apiURL := "http://sherlock:8000/scrape-cnpj"
-	
+
 	payload := map[string]string{"termo": empresa}
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
@@ -111,7 +111,7 @@ func (s *CNPJService) searchViaSherlock(empresa string) (*CNPJResult, error) {
 	}
 
 	// Timeout estendido para scraping UI (45s)
-	client := &http.Client{Timeout: 45 * time.Second} 
+	client := &http.Client{Timeout: 45 * time.Second}
 	resp, err := client.Post(apiURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("falha na conexão com sherlock: %w", err)
@@ -174,15 +174,15 @@ func (s *CNPJService) searchCasaDosDados(empresa, city string) (*CNPJResult, err
 			},
 		},
 		"extras": map[string]interface{}{
-			"somente_mei":              false,
-			"excluir_mei":              false,
-			"com_email":                false,
+			"somente_mei":                  false,
+			"excluir_mei":                  false,
+			"com_email":                    false,
 			"incluir_atividade_secundaria": false,
-			"com_contato_telefonico":   false,
-			"somente_fixo":             false,
-			"somente_celular":          false,
-			"somente_matriz":           false,
-			"somente_filial":           false,
+			"com_contato_telefonico":       false,
+			"somente_fixo":                 false,
+			"somente_celular":              false,
+			"somente_matriz":               false,
+			"somente_filial":               false,
 		},
 		"page": 1,
 	}
@@ -268,10 +268,10 @@ func (s *CNPJService) ValidateCNPJ(cnpj string) (*CNPJResult, error) {
 	}
 
 	var apiResp struct {
-		CNPJ                string `json:"cnpj"`
-		RazaoSocial         string `json:"razao_social"`
-		NomeFantasia        string `json:"nome_fantasia"`
-		DescricaoSituacao   string `json:"descricao_situacao_cadastral"`
+		CNPJ              string `json:"cnpj"`
+		RazaoSocial       string `json:"razao_social"`
+		NomeFantasia      string `json:"nome_fantasia"`
+		DescricaoSituacao string `json:"descricao_situacao_cadastral"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {

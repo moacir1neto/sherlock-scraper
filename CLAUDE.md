@@ -118,3 +118,4 @@ The model used across the entire project is `gemini-2.5-flash`. Do not change it
 - Execute ferramentas primeiro, mostre resultado, depois pare.
 - Nunca adivinhe caminhos de arquivo ou nomes de função — verifique o código real.
 - Toda comunicação do Sherlock backend com o WhatsMiau é exclusivamente via HTTP.
+- **Prioridade de frontend:** Sempre trabalhar no painel do WhatsMiau (`whatsmeow/frontend/`) quando houver qualquer tarefa de frontend. O painel Sherlock (`frontend/`) é secundário.

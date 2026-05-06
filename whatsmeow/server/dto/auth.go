@@ -6,7 +6,7 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token string      `json:"token"`
+	Token string           `json:"token"`
 	User  AuthUserResponse `json:"user"`
 }
 
@@ -17,4 +17,3 @@ type AuthUserResponse struct {
 	Role      string  `json:"role"`
 	CompanyID *string `json:"company_id,omitempty"`
 }
-

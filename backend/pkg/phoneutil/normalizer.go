@@ -165,7 +165,7 @@ func Variants(normalized string) []string {
 	withoutDDI := normalized
 	if strings.HasPrefix(normalized, "55") && len(normalized) >= 12 {
 		withoutDDI = normalized[2:]
-		add(normalized)        // com DDI: "5548999999999"
+		add(normalized) // com DDI: "5548999999999"
 	} else {
 		// Número chegou sem DDI — gera a versão com DDI também
 		withDDI := "55" + normalized
@@ -179,22 +179,22 @@ func Variants(normalized string) []string {
 		// Formato moderno: DDD(2) + 9 + número(8) = 11 dígitos
 		// Ex: "48999999999" → DDD="48", localWith9="999999999", localNo9="99999999"
 		ddd := withoutDDI[:2]
-		localWith9 := withoutDDI[2:]  // "999999999"
-		localNo9 := withoutDDI[3:]    // "99999999"  (remove o 9 inicial)
-		add(localWith9)               // número local moderno
-		add(ddd + localNo9)           // DDD + número legado: "4899999999"
-		add(localNo9)                 // número local legado
+		localWith9 := withoutDDI[2:] // "999999999"
+		localNo9 := withoutDDI[3:]   // "99999999"  (remove o 9 inicial)
+		add(localWith9)              // número local moderno
+		add(ddd + localNo9)          // DDD + número legado: "4899999999"
+		add(localNo9)                // número local legado
 
 	case 10:
 		// Formato legado: DDD(2) + número(8) = 10 dígitos
 		// Ex: "4899999999" → DDD="48", local8="99999999"
 		ddd := withoutDDI[:2]
-		local8 := withoutDDI[2:]  // "99999999"
-		local9 := "9" + local8    // "999999999" (inserção do 9º dígito)
-		add(local8)               // número local legado
-		add(ddd + local9)         // DDD + número moderno: "48999999999"
-		add("55" + ddd + local9)  // com DDI + número moderno
-		add(local9)               // número local moderno
+		local8 := withoutDDI[2:] // "99999999"
+		local9 := "9" + local8   // "999999999" (inserção do 9º dígito)
+		add(local8)              // número local legado
+		add(ddd + local9)        // DDD + número moderno: "48999999999"
+		add("55" + ddd + local9) // com DDI + número moderno
+		add(local9)              // número local moderno
 	}
 
 	result := make([]string, 0, len(seen))

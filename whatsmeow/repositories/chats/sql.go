@@ -204,6 +204,15 @@ func (r *SQLChat) ResumeAgent(ctx context.Context, chatID string) error {
 	return err
 }
 
+// PauseAgent seta ai_paused=true, pausando as respostas automáticas do Super Vendedor.
+func (r *SQLChat) PauseAgent(ctx context.Context, chatID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE chats SET ai_paused = true, updated_at = $1 WHERE id = $2`,
+		time.Now(), chatID,
+	)
+	return err
+}
+
 // CountByInstanceIDsGroupByStatus retorna contagem por status para as instâncias dadas.
 func (r *SQLChat) CountByInstanceIDsGroupByStatus(ctx context.Context, instanceIDs []string) (aguardando, atendendo, finalizado int, err error) {
 	if len(instanceIDs) == 0 {

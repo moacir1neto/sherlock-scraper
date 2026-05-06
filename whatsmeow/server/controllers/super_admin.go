@@ -79,4 +79,3 @@ func (s *SuperAdmin) DeleteInstance(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, map[string]string{"message": "instance deleted successfully"})
 }
-

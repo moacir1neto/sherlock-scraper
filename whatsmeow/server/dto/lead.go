@@ -9,6 +9,14 @@ type CreateLeadRequest struct {
 	Email    string  `json:"email"`
 	Rating   float64 `json:"rating"`
 	Reviews  int     `json:"reviews"`
+	Instagram string  `json:"instagram"`
+	Facebook  string  `json:"facebook"`
+	LinkedIn  string  `json:"linkedin"`
+	TikTok    string  `json:"tiktok"`
+	YouTube   string  `json:"youtube"`
+	CNPJ      string  `json:"cnpj"`
+	HasPixel  bool    `json:"has_pixel"`
+	HasGTM    bool    `json:"has_gtm"`
 }
 
 type BulkCreateLeadsRequest struct {
@@ -26,6 +34,14 @@ type UpdateLeadRequest struct {
 	Notes          string  `json:"notes"`
 	EstimatedValue float64 `json:"estimated_value"`
 	Tags           string  `json:"tags"`
+	Instagram      string  `json:"instagram"`
+	Facebook       string  `json:"facebook"`
+	LinkedIn       string  `json:"linkedin"`
+	TikTok         string  `json:"tiktok"`
+	YouTube        string  `json:"youtube"`
+	CNPJ           string  `json:"cnpj"`
+	HasPixel       bool    `json:"has_pixel"`
+	HasGTM         bool    `json:"has_gtm"`
 }
 
 type UpdateLeadStatusRequest struct {
@@ -33,10 +49,10 @@ type UpdateLeadStatusRequest struct {
 }
 
 type LeadListResponse struct {
-	Leads  interface{} `json:"leads"`
-	Total  int         `json:"total"`
-	Page   int         `json:"page"`
-	Limit  int         `json:"limit"`
+	Leads interface{} `json:"leads"`
+	Total int         `json:"total"`
+	Page  int         `json:"page"`
+	Limit int         `json:"limit"`
 }
 
 type BulkAnalyzeRequest struct {
