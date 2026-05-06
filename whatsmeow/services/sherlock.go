@@ -22,8 +22,8 @@ func NewSherlockService() *SherlockService {
 	return &SherlockService{
 		// Sem timeout global — cada chamada de polling tem o seu próprio prazo
 		httpClient:       &http.Client{Timeout: 15 * time.Second},
-		baseURL:          env.Env.SherlockURL,
-		internalAPIToken: env.Env.InternalAPIToken,
+		baseURL:          env.Get().SherlockURL,
+		internalAPIToken: env.Get().InternalAPIToken,
 	}
 }
 

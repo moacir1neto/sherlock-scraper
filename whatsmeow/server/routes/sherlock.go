@@ -37,4 +37,7 @@ func Sherlock(group *echo.Group) {
 	protected.GET("/scrapes", ctrl.ListScrapes)
 	protected.GET("/scrapes/:id", ctrl.GetScrape)
 	protected.DELETE("/scrapes/:id", ctrl.DeleteScrape)
+
+	// PATCH /v1/admin/sherlock/sync — webhook interno para push sync de leads (protegido por API Key)
+	group.PATCH("/sync", ctrl.SyncLead, middleware.Simplify(middleware.Auth))
 }

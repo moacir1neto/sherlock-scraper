@@ -14,9 +14,9 @@ import (
 )
 
 type Sector struct {
-	repo        interfaces.SectorRepository
-	sectorUser  interfaces.SectorUserRepository
-	auditRepo   interfaces.AuditLogRepository
+	repo       interfaces.SectorRepository
+	sectorUser interfaces.SectorUserRepository
+	auditRepo  interfaces.AuditLogRepository
 }
 
 func NewSector(repo interfaces.SectorRepository, sectorUser interfaces.SectorUserRepository, auditRepo interfaces.AuditLogRepository) *Sector {
@@ -209,4 +209,3 @@ func (s *Sector) Delete(ctx echo.Context) error {
 	}
 	return ctx.JSON(http.StatusOK, map[string]string{"message": "sector deleted"})
 }
-

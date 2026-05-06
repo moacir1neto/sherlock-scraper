@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { NotificationProvider } from './contexts/NotificationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Instances } from './pages/Instances';
@@ -48,7 +47,6 @@ function App() {
       <ThemeProvider>
         <BrowserRouter>
           <AuthProvider>
-            <NotificationProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route
@@ -218,7 +216,6 @@ function App() {
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-            </NotificationProvider>
             <Toaster
               position="top-right"
               toastOptions={{

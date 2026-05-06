@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"log"
 
-	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/core/domain"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/database"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/queue"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/services"
 	"github.com/gofiber/fiber/v2"
@@ -52,8 +52,8 @@ func (h *AIHandler) AnalyzeLead(c *fiber.Ctx) error {
 	// B. Se o lead ainda está sendo enriquecido, avisa para esperar
 	if lead.Status == domain.StatusEnriquecendo {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "lead is being enriched",
-			"message": "O lead está sendo enriquecido no momento. Aguarde a conclusão.",
+			"error":          "lead is being enriched",
+			"message":        "O lead está sendo enriquecido no momento. Aguarde a conclusão.",
 			"current_status": lead.Status,
 		})
 	}
@@ -123,7 +123,7 @@ func (h *AIHandler) AnalyzeLead(c *fiber.Ctx) error {
 	if err != nil {
 		log.Printf("❌ Erro ao gerar análise de IA: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to generate AI analysis",
+			"error":   "failed to generate AI analysis",
 			"details": err.Error(),
 		})
 	}
@@ -153,8 +153,8 @@ func (h *AIHandler) AnalyzeLead(c *fiber.Ctx) error {
 
 	// G. Retornar análise para o frontend
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "AI analysis generated successfully",
-		"lead_id": leadID,
+		"message":  "AI analysis generated successfully",
+		"lead_id":  leadID,
 		"analysis": analysis,
 	})
 }
@@ -308,7 +308,7 @@ func (h *AIHandler) GetAnalysis(c *fiber.Ctx) error {
 	// Verificar se tem análise
 	if lead.AIAnalysis == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "no AI analysis found for this lead",
+			"error":   "no AI analysis found for this lead",
 			"message": "Use POST /leads/:id/analyze para gerar uma análise",
 		})
 	}
@@ -323,7 +323,7 @@ func (h *AIHandler) GetAnalysis(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"lead_id": leadID,
+		"lead_id":  leadID,
 		"analysis": analysis,
 	})
 }

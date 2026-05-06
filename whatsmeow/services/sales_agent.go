@@ -21,9 +21,11 @@ import (
 
 // AgentResponse é o structured output esperado do Gemini.
 type AgentResponse struct {
-	Resposta       string `json:"resposta"`
-	AcionarHumano  bool   `json:"acionar_humano"`
-	AgendouReuniao bool   `json:"agendou_reuniao"`
+	Resposta          string `json:"resposta"`
+	AcionarHumano     bool   `json:"acionar_humano"`
+	AgendouReuniao    bool   `json:"agendou_reuniao"`
+	IniciarNegociacao bool   `json:"iniciar_negociacao"`
+	FecharNegocio     bool   `json:"fechar_negocio"`
 }
 
 // SalesAgentService processa mensagens recebidas e decide se responde automaticamente
@@ -114,7 +116,17 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 
 	// 5. Montar prompt e chamar IA (Gemini com fallback Groq)
 	prompt := s.buildPrompt(settings, history, lead)
+
+	if err := s.whatsapp.SendPresence(ctx, instanceID, remoteJID, string(types.ChatPresenceComposing)); err != nil {
+		zap.L().Warn("[SalesAgent] falha ao enviar status composing", zap.String("chat", chatID), zap.Error(err))
+	}
+
 	agentResp, err := s.callAI(ctx, prompt)
+
+	if errPresence := s.whatsapp.SendPresence(ctx, instanceID, remoteJID, string(types.ChatPresencePaused)); errPresence != nil {
+		zap.L().Warn("[SalesAgent] falha ao remover status composing", zap.String("chat", chatID), zap.Error(errPresence))
+	}
+
 	if err != nil {
 		return fmt.Errorf("ai call: %w", err)
 	}
@@ -122,7 +134,7 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 	// 6. Executar ação
 	if agentResp.AgendouReuniao {
 		agentResp.AcionarHumano = true
-		
+
 		farewell := "Ótimo! Nossa equipe vai entrar em contato em breve para confirmar todos os detalhes da reunião. Foi um prazer falar com você!"
 		waResp, err := s.sendReply(ctx, instanceID, remoteJID, farewell)
 		if err != nil {
@@ -134,13 +146,39 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 		// Garante a chamada do advanceLeadStatus com os status de origem corretos
 		s.advanceLeadStatus(ctx, lead, companyID, instanceID, "reuniao_agendada",
 			"prospeccao", "contatado", "em_conversa", "negociacao")
-			
-	} else if agentResp.Resposta != "" {
-		waResp, err := s.sendReply(ctx, instanceID, remoteJID, agentResp.Resposta)
+
+	} else if agentResp.FecharNegocio {
+		if lead != nil {
+			s.advanceLeadStatus(ctx, lead, companyID, instanceID, "ganho", "negociacao", "prospeccao", "contatado", "em_conversa")
+		}
+		if err := s.pauseChat(ctx, chatID); err != nil {
+			zap.L().Warn("[SalesAgent] falha ao pausar chat pós fechamento", zap.String("chat", chatID), zap.Error(err))
+		}
+
+		msg := "Ótimo! Negócio fechado. Nossa equipe entrará em contato para os próximos passos."
+		waResp, err := s.sendReply(ctx, instanceID, remoteJID, msg)
 		if err != nil {
-			zap.L().Warn("[SalesAgent] falha ao enviar resposta", zap.String("chat", chatID), zap.Error(err))
+			zap.L().Warn("[SalesAgent] falha ao enviar confirmação de fechamento", zap.String("chat", chatID), zap.Error(err))
 		} else {
-			s.persistAgentMessage(ctx, chatID, instanceID, waResp, agentResp.Resposta)
+			s.persistAgentMessage(ctx, chatID, instanceID, waResp, msg)
+		}
+		// Aciona humano para avisar o fechamento
+		agentResp.AcionarHumano = true
+
+	} else {
+		// Negociação: lead perguntou preço, mas ainda não fechou
+		if agentResp.IniciarNegociacao && lead != nil {
+			s.advanceLeadStatus(ctx, lead, companyID, instanceID, "negociacao", "prospeccao", "contatado", "em_conversa")
+			// Não pausa o agente — Zé continua conversando
+		}
+
+		if agentResp.Resposta != "" {
+			waResp, err := s.sendReply(ctx, instanceID, remoteJID, agentResp.Resposta)
+			if err != nil {
+				zap.L().Warn("[SalesAgent] falha ao enviar resposta", zap.String("chat", chatID), zap.Error(err))
+			} else {
+				s.persistAgentMessage(ctx, chatID, instanceID, waResp, agentResp.Resposta)
+			}
 		}
 	}
 
@@ -335,20 +373,20 @@ func (s *SalesAgentService) buildPrompt(settings *models.AISettings, history []m
 // ── Gemini REST API ───────────────────────────────────────────────────────────
 
 type geminiAgentRequest struct {
-	Contents         []geminiContent        `json:"contents"`
-	GenerationConfig geminiAgentGenConfig   `json:"generationConfig"`
+	Contents         []geminiContent      `json:"contents"`
+	GenerationConfig geminiAgentGenConfig `json:"generationConfig"`
 }
 
 type geminiAgentGenConfig struct {
-	ResponseMIMEType string              `json:"responseMimeType"`
+	ResponseMIMEType string               `json:"responseMimeType"`
 	ResponseSchema   geminiResponseSchema `json:"responseSchema"`
-	Temperature      float64             `json:"temperature"`
+	Temperature      float64              `json:"temperature"`
 }
 
 type geminiResponseSchema struct {
-	Type       string                        `json:"type"`
-	Properties map[string]geminiSchemaProp   `json:"properties"`
-	Required   []string                      `json:"required"`
+	Type       string                      `json:"type"`
+	Properties map[string]geminiSchemaProp `json:"properties"`
+	Required   []string                    `json:"required"`
 }
 
 type geminiSchemaProp struct {
@@ -368,7 +406,7 @@ type geminiAgentResponse struct {
 const geminiAgentModel = "gemini-2.5-flash"
 
 func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*AgentResponse, error) {
-	apiKey := env.Env.GeminiAPIKey
+	apiKey := env.Get().GeminiAPIKey
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY não configurada")
 	}
@@ -383,11 +421,13 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 			ResponseSchema: geminiResponseSchema{
 				Type: "OBJECT",
 				Properties: map[string]geminiSchemaProp{
-					"resposta":        {Type: "STRING"},
-					"acionar_humano":  {Type: "BOOLEAN"},
-					"agendou_reuniao": {Type: "BOOLEAN"},
+					"resposta":           {Type: "STRING"},
+					"acionar_humano":     {Type: "BOOLEAN"},
+					"agendou_reuniao":    {Type: "BOOLEAN"},
+					"iniciar_negociacao": {Type: "BOOLEAN"},
+					"fechar_negocio":     {Type: "BOOLEAN"},
 				},
-				Required: []string{"resposta", "acionar_humano", "agendou_reuniao"},
+				Required: []string{"resposta", "acionar_humano", "agendou_reuniao", "iniciar_negociacao", "fechar_negocio"},
 			},
 		},
 	}
@@ -441,16 +481,25 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 	return &agentResp, nil
 }
 
-// callAI tenta Gemini primeiro; se falhar ou não estiver configurado, tenta Groq.
+// callAI roteia para o provider configurado via AI_PROVIDER (gemini|groq).
+// Se AI_PROVIDER=groq, vai direto ao Groq sem tentar Gemini.
 func (s *SalesAgentService) callAI(ctx context.Context, prompt string) (*AgentResponse, error) {
-	if env.Env.GeminiAPIKey != "" {
+	cfg := env.Get()
+	if cfg.AIProvider == "groq" {
+		if cfg.GroqAPIKey != "" {
+			return CallGroqForAgent(ctx, prompt)
+		}
+		return nil, fmt.Errorf("AI_PROVIDER=groq mas GROQ_API_KEY ausente")
+	}
+	// provider=gemini (padrão): tenta Gemini, cai no Groq só se falhar
+	if cfg.GeminiAPIKey != "" {
 		resp, err := s.callGemini(ctx, prompt)
 		if err == nil {
 			return resp, nil
 		}
 		zap.L().Warn("[SalesAgent] Gemini falhou, tentando Groq", zap.Error(err))
 	}
-	if env.Env.GroqAPIKey != "" {
+	if cfg.GroqAPIKey != "" {
 		return CallGroqForAgent(ctx, prompt)
 	}
 	return nil, fmt.Errorf("nenhum provider de IA disponível (GEMINI_API_KEY e GROQ_API_KEY ausentes)")

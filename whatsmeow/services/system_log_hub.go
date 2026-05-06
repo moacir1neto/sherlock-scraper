@@ -31,7 +31,7 @@ const (
 
 // SystemLogEvent é o payload enviado ao frontend via SSE.
 type SystemLogEvent struct {
-	Type      string      `json:"type"`       // sempre "system_log"
+	Type      string      `json:"type"` // sempre "system_log"
 	Level     LogLevel    `json:"level"`
 	Category  LogCategory `json:"category"`
 	Message   string      `json:"message"`
@@ -111,7 +111,7 @@ func (h *SystemLogHub) ConnectedCount() int {
 // e as publica no SystemLogHub como eventos SSE.
 // É adicionado ao logger global via zap.WithOptions(zap.WrapCore(...)).
 type HubZapCore struct {
-	hub     *SystemLogHub
+	hub      *SystemLogHub
 	minLevel zapcore.Level
 }
 

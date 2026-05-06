@@ -174,4 +174,3 @@ func (s *leadService) DeleteJob(ctx context.Context, id string) error {
 func formatDelay(d time.Duration) string {
 	return fmt.Sprintf("%.0fs", d.Seconds())
 }
-

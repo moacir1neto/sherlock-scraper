@@ -20,4 +20,3 @@ type UpdateSectorRequest struct {
 	Slug    string   `json:"slug,omitempty" validate:"max=128"`
 	UserIDs []string `json:"user_ids,omitempty"` // usuários com acesso ao setor
 }
-

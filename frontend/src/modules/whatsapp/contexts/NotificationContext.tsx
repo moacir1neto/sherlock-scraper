@@ -1,11 +1,12 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
+import { useKanbanRealtime } from '@/hooks/useKanbanRealtime';
 
 export interface AppNotification {
   id: string;
   type: 'new_message' | 'new_chat_aguardando' | 'reuniao_agendada';
   title: string;
-  body?: string;
-  chatId?: string;
+  message?: string;
+  leadId?: string;
   instanceId?: string;
   chatName?: string;
   createdAt: string;
@@ -45,12 +46,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const handleGlobalNotification = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail) {
+        console.log('[NotificationContext] app_notification recebido:', customEvent.detail);
         const payload = customEvent.detail;
         addNotification({
           type: payload.type || 'new_message',
           title: payload.title,
-          body: payload.body || payload.message,
-          chatId: payload.chatId || payload.leadId,
+          message: payload.message,
+          leadId: payload.leadId,
           chatName: payload.chatName,
           instanceId: payload.instanceId,
         });
@@ -59,6 +61,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     window.addEventListener('app_notification', handleGlobalNotification);
     return () => window.removeEventListener('app_notification', handleGlobalNotification);
   }, [addNotification]);
+
+  // Conexão global ao SSE de Kanban para acionar notificações independentemente da página atual
+  useKanbanRealtime(undefined, false);
 
   const value: NotificationContextValue = {
     notifications,

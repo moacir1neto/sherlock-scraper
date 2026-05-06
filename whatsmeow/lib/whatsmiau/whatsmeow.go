@@ -1,6 +1,7 @@
 package whatsmiau
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -57,7 +58,7 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container, repo interface
 	}
 
 	level := "INFO"
-	if env.Env.DebugWhatsmeow {
+	if env.Get().DebugWhatsmeow {
 		level = "DEBUG"
 	}
 
@@ -106,8 +107,8 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container, repo interface
 	}
 
 	var storage interfaces.Storage
-	if env.Env.GCSEnabled {
-		storage, err = gcs.New(env.Env.GCSBucket)
+	if env.Get().GCSEnabled {
+		storage, err = gcs.New(env.Get().GCSBucket)
 		if err != nil {
 			zap.L().Panic("failed to create GCS storage", zap.Error(err))
 		}
@@ -122,12 +123,12 @@ func LoadMiau(ctx context.Context, container *sqlstore.Container, repo interface
 		instanceCache:   xsync.NewMap[string, models.Instance](),
 		observerRunning: xsync.NewMap[string, bool](),
 		lockConnection:  xsync.NewMap[string, *sync.Mutex](),
-		emitter:         make(chan emitter, env.Env.EmitterBufferSize),
+		emitter:         make(chan emitter, env.Get().EmitterBufferSize),
 		httpClient: &http.Client{
 			Timeout: time.Second * 30, // TODO: load from env
 		},
 		fileStorage:      storage,
-		handlerSemaphore: make(chan struct{}, env.Env.HandlerSemaphoreSize),
+		handlerSemaphore: make(chan struct{}, env.Get().HandlerSemaphoreSize),
 	}
 	// chatJobChan is set by main via SetChatJobChan() if chat persistence is enabled
 
@@ -363,17 +364,17 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 				time.Sleep(2 * time.Second)
 
 				zap.L().Info("device connected successfully", zap.String("id", id), zap.String("jid", client.Store.ID.String()))
-				
+
 				// Ensure event handlers are set
 				client.RemoveEventHandlers()
 				client.AddEventHandler(s.Handle(id))
-				
+
 				if _, err := s.repo.Update(context.Background(), id, &models.Instance{
 					RemoteJID: client.Store.ID.String(),
 				}); err != nil {
 					zap.L().Error("failed to update instance after login", zap.Error(err))
 				}
-				
+
 				// Webhook CONNECTED
 				if inst := s.getInstance(id); inst != nil && inst.Webhook.Url != "" && webhookEventEnabled(inst.Webhook.Events, "CONNECTED") {
 					companyID := ""
@@ -382,7 +383,7 @@ func (s *Whatsmiau) observeConnection(client *whatsmeow.Client, id string) {
 					}
 					s.EmitEnvelope(inst.ID, companyID, "connected", inst.Webhook.Url, inst.Webhook.Secret, map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)})
 				}
-				
+
 				s.qrCache.Delete(id)
 				zap.L().Info("QR observation finished with success", zap.String("id", id))
 				return
@@ -452,7 +453,7 @@ func (s *Whatsmiau) Status(id string) (Status, error) {
 			return QrCode, nil
 		}
 		// If we have QR but not connected, it's still QrCode but might be reconnecting
-		return QrCode, nil 
+		return QrCode, nil
 	}
 
 	if loggedIn {
@@ -583,4 +584,19 @@ func (s *Whatsmiau) extractJidLid(ctx context.Context, id string, jid types.JID)
 	}
 
 	return jid.ToNonAD().String(), ""
+}
+
+func (s *Whatsmiau) SendPresence(ctx context.Context, instanceID string, remoteJid string, presence string) error {
+	client, ok := s.clients.Load(instanceID)
+	if !ok {
+		return fmt.Errorf("instance not found: %s", instanceID)
+	}
+
+	jid, err := types.ParseJID(remoteJid)
+	if err != nil {
+		return fmt.Errorf("invalid jid: %w", err)
+	}
+
+	state := types.ChatPresence(presence)
+	return client.SendChatPresence(ctx, jid, state, types.ChatPresenceMediaText)
 }

@@ -23,9 +23,8 @@ import (
 )
 
 func main() {
-	if err := env.Load(); err != nil {
-		panic(err)
-	}
+	// Load and validate environment variables
+	env.Load()
 
 	if err := log_connect.StartLogger(); err != nil {
 		log.Fatalln(err)
@@ -82,7 +81,7 @@ func main() {
 			var salesAgent *services.SalesAgentService
 			if db, err := services.DB(); err == nil {
 				salesAgent = services.NewSalesAgentService(db, instancesRepo, whatsmiau.Get(), handoffHub, leadRepo, messageRepo, hub)
-				if env.Env.GeminiAPIKey == "" {
+				if env.Get().GeminiAPIKey == "" {
 					zap.L().Warn("Super Vendedor: GEMINI_API_KEY não configurada — agente inicializado mas respostas automáticas estão desativadas")
 				} else {
 					zap.L().Info("Super Vendedor inicializado")
@@ -105,7 +104,7 @@ func main() {
 		services.RunScheduledWorker(schedRepo)
 	}
 
-	port := ":" + env.Env.Port
+	port := ":" + env.Get().Port
 	zap.L().Info("starting server...", zap.String("port", port))
 
 	s := &http2.Server{}

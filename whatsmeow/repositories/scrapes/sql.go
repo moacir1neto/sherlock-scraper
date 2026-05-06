@@ -52,6 +52,23 @@ func (r *SQLScrape) Create(ctx context.Context, scrape *models.Scrape) error {
 	return nil
 }
 
+func (r *SQLScrape) GetByIDInternal(ctx context.Context, id string) (*models.Scrape, error) {
+	query := `SELECT id, company_id, user_id, keyword, location, status, total_leads, created_at, updated_at
+		FROM scrapes WHERE id=$1`
+	var s models.Scrape
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&s.ID, &s.CompanyID, &s.UserID, &s.Keyword, &s.Location,
+		&s.Status, &s.TotalLeads, &s.CreatedAt, &s.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get scrape internal: %w", err)
+	}
+	return &s, nil
+}
+
 func (r *SQLScrape) GetByID(ctx context.Context, id, companyID string) (*models.Scrape, error) {
 	query := `SELECT id, company_id, user_id, keyword, location, status, total_leads, created_at, updated_at
 		FROM scrapes WHERE id=$1 AND company_id=$2`

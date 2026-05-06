@@ -695,6 +695,97 @@ export function LeadDetailsModal({ lead, isOpen, onClose, onUpdated }: LeadDetai
                           </a>
                         </div>
                       )}
+
+                      {/* Pixels & GTM Detection */}
+                      {(lead.has_pixel || lead.has_gtm) && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {lead.has_pixel && (
+                            <span className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">
+                              <Check size={10} /> FACEBOOK PIXEL
+                            </span>
+                          )}
+                          {lead.has_gtm && (
+                            <span className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold bg-green-50 text-green-600 border border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
+                              <Check size={10} /> GOOGLE TAG MANAGER
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Redes Sociais */}
+                      {(lead.instagram || lead.facebook || lead.linkedin || lead.tiktok || lead.youtube) && (
+                        <div className="space-y-2 pt-2">
+                          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Presença Digital</h3>
+                          <div className="grid grid-cols-2 gap-2">
+                            {lead.instagram && (
+                              <a href={lead.instagram} target="_blank" rel="noopener noreferrer" 
+                                 className="flex items-center gap-2 p-2 bg-pink-50 dark:bg-pink-900/20 text-pink-700 dark:text-pink-400 rounded-lg text-xs font-medium hover:bg-pink-100 transition-colors">
+                                <span className="w-5 h-5 flex items-center justify-center">📸</span>
+                                Instagram
+                              </a>
+                            )}
+                            {lead.facebook && (
+                              <a href={lead.facebook} target="_blank" rel="noopener noreferrer"
+                                 className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors">
+                                <span className="w-5 h-5 flex items-center justify-center">👤</span>
+                                Facebook
+                              </a>
+                            )}
+                            {lead.linkedin && (
+                              <a href={lead.linkedin} target="_blank" rel="noopener noreferrer"
+                                 className="flex items-center gap-2 p-2 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 rounded-lg text-xs font-medium hover:bg-sky-100 transition-colors">
+                                <span className="w-5 h-5 flex items-center justify-center">💼</span>
+                                LinkedIn
+                              </a>
+                            )}
+                            {lead.tiktok && (
+                              <a href={lead.tiktok} target="_blank" rel="noopener noreferrer"
+                                 className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors">
+                                <span className="w-5 h-5 flex items-center justify-center">🎵</span>
+                                TikTok
+                              </a>
+                            )}
+                            {lead.youtube && (
+                              <a href={lead.youtube} target="_blank" rel="noopener noreferrer"
+                                 className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors">
+                                <span className="w-5 h-5 flex items-center justify-center">📺</span>
+                                YouTube
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dados Adicionais */}
+                      {(lead.cnpj || lead.nicho) && (
+                        <div className="space-y-2 pt-2">
+                          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Dados do Negócio</h3>
+                          <div className="flex flex-wrap gap-2">
+                            {lead.cnpj && (
+                              <div className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-[11px] font-mono text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+                                <span className="text-gray-400 mr-1">CNPJ:</span> {lead.cnpj}
+                              </div>
+                            )}
+                            {lead.nicho && (
+                              <div className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-[11px] font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+                                <span className="text-gray-400 mr-1">Nicho:</span> {lead.nicho}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Resumo do Negócio */}
+                      {lead.resumo && (
+                        <div className="space-y-2 pt-2">
+                          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Resumo do Sherlock</h3>
+                          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl">
+                            <p className="text-xs text-amber-900 dark:text-amber-300 leading-relaxed italic">
+                              "{lead.resumo}"
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}

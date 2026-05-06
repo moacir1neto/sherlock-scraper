@@ -26,11 +26,11 @@ type InstanceProxy struct {
 }
 
 type InstanceWebhook struct {
-	Url         string            `json:"url,omitempty"`
-	Secret      string            `json:"secret,omitempty"` // HMAC-SHA256 key for X-Webhook-Signature (not returned in GET when set)
-	SecretUpdate *string         `json:"-"`                // optional update: when non-nil, repo sets Secret to *SecretUpdate (used when client sends "secret")
-	ByEvents   *bool             `json:"byEvents,omitempty"`
-	Base64     *bool             `json:"base64,omitempty"`
-	Headers    map[string]string `json:"headers,omitempty"`
-	Events     []string          `json:"events,omitempty"`
+	Url          string            `json:"url,omitempty"`
+	Secret       string            `json:"secret,omitempty"` // HMAC-SHA256 key for X-Webhook-Signature (not returned in GET when set)
+	SecretUpdate *string           `json:"-"`                // optional update: when non-nil, repo sets Secret to *SecretUpdate (used when client sends "secret")
+	ByEvents     *bool             `json:"byEvents,omitempty"`
+	Base64       *bool             `json:"base64,omitempty"`
+	Headers      map[string]string `json:"headers,omitempty"`
+	Events       []string          `json:"events,omitempty"`
 }

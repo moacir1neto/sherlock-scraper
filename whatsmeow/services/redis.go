@@ -27,18 +27,18 @@ func Redis() *redis.Client {
 
 func NewRedis() (*redis.Client, error) {
 	opt := &redis.Options{
-		Addr:     env.Env.RedisURL,
-		Password: env.Env.RedisPassword,
+		Addr:     env.Get().RedisURL,
+		Password: env.Get().RedisPassword,
 		DB:       0,
 	}
 
-	if env.Env.RedisTLS {
+	if env.Get().RedisTLS {
 		opt.TLSConfig = &tls.Config{}
 	}
 
 	client := redis.NewClient(opt)
 	if err := client.Ping(context.Background()).Err(); err != nil {
-		zap.L().Panic("failed to connect to redis", zap.Error(err), zap.Any("env", env.Env))
+		zap.L().Panic("failed to connect to redis", zap.Error(err), zap.Any("env", env.Get()))
 	}
 
 	return client, nil

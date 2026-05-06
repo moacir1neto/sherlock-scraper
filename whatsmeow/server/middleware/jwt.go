@@ -17,7 +17,7 @@ func JWTAuth(next echo.HandlerFunc) echo.HandlerFunc {
 			zap.String("path", c.Request().URL.Path),
 			zap.String("remote_addr", c.Request().RemoteAddr),
 		)
-		
+
 		authHeader := c.Request().Header.Get("Authorization")
 		if authHeader == "" {
 			zap.L().Warn("Missing authorization header",
@@ -63,16 +63,16 @@ func JWTAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		// Handle CompanyID as pointer - convert to string if not nil
 		if claims.CompanyID != nil && *claims.CompanyID != "" {
 			c.Set("company_id", *claims.CompanyID)
-			zap.L().Info("CompanyID set from JWT", 
-				zap.String("company_id", *claims.CompanyID), 
+			zap.L().Info("CompanyID set from JWT",
+				zap.String("company_id", *claims.CompanyID),
 				zap.String("user_id", claims.UserID),
 				zap.String("user_email", claims.Email),
 				zap.String("user_role", claims.Role),
 			)
 		} else {
 			c.Set("company_id", "")
-			zap.L().Warn("CompanyID is nil or empty in JWT", 
-				zap.String("user_id", claims.UserID), 
+			zap.L().Warn("CompanyID is nil or empty in JWT",
+				zap.String("user_id", claims.UserID),
 				zap.String("role", claims.Role),
 				zap.String("email", claims.Email),
 			)
@@ -81,4 +81,3 @@ func JWTAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		return next(c)
 	}
 }
-

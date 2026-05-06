@@ -11,12 +11,12 @@ import (
 
 // Kanban returns columns (tags with kanban_enabled) and chats per tag for the Kanban board.
 type Kanban struct {
-	tagRepo       interfaces.TagRepository
-	chatTagRepo   interfaces.ChatTagRepository
-	chatRepo      interfaces.ChatRepository
-	instanceRepo  interfaces.InstanceRepository
-	instanceUser  interfaces.InstanceUserRepository
-	sectorUser    interfaces.SectorUserRepository
+	tagRepo      interfaces.TagRepository
+	chatTagRepo  interfaces.ChatTagRepository
+	chatRepo     interfaces.ChatRepository
+	instanceRepo interfaces.InstanceRepository
+	instanceUser interfaces.InstanceUserRepository
+	sectorUser   interfaces.SectorUserRepository
 }
 
 // NewKanban creates a Kanban controller.
@@ -40,7 +40,7 @@ func NewKanban(
 
 // KanbanColumn is one column (tag) with its chats.
 type KanbanColumn struct {
-	Tag   models.Tag   `json:"tag"`
+	Tag   models.Tag    `json:"tag"`
 	Chats []models.Chat `json:"chats"`
 }
 

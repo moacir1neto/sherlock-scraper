@@ -216,6 +216,9 @@ export interface Lead {
   tiktok?: string;
   youtube?: string;
   cnpj?: string;
+  has_pixel?: boolean;
+  has_gtm?: boolean;
+  deep_data?: any;
   ai_analysis?: string; // JSON string do dossiê (parsear antes de usar)
   created_at: string;
   updated_at: string;
