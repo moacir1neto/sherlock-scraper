@@ -1,11 +1,9 @@
 # Roadmap: Sherlock & WhatsMiau Evolution
 
-## Fase 1: Segurança e Hardening (Concluída)
-Foco em saneamento de credenciais e validação rigorosa de ambiente.
+## Milestone v1.0.0 (Concluída) ✅
+- **[v1.0.0-ROADMAP.md](milestones/v1.0.0-ROADMAP.md)**: Segurança, Hardening e Sistema de Notificações de Negócio.
 
-- [x] **Segurança e Qualidade**
-    - Saneamento de JWT e Tokens Internos [CORE-01]
-    - Validação de ambiente Fail-Fast [ENV-01]
+---
 
 ## Fase 2: Infraestrutura e Resiliência
 Foco em estabilidade operacional, observabilidade e robustez do scraper.
@@ -29,19 +27,29 @@ Foco em enriquecimento de leads e capacidades cognitivas da IA.
 - [ ] **AI & Memory**
     - Melhorias em Memória e Agentes [AI-02]
 
+- [ ] **AI & Memory**
+    - Melhorias em Memória e Agentes [AI-02]
+
 ---
 ## Traceability Matrix
 
-| Req ID  | Phase | Status |
-|---------|-------|--------|
-| CORE-01 | 1     | ✅      |
-| ENV-01  | 1     | ✅      |
-| INFRA-01| 2     | ⏳      |
-| INFRA-02| 2     | ⏳      |
-| SCR-01  | 2     | ⏳      |
-| INFRA-05| 2     | ⏳      |
-| INFRA-03| 2     | ⏳      |
-| INFRA-04| 2     | ⏳      |
-| DOS-01  | 3     | ⏳      |
-| DOS-02  | 3     | ⏳      |
-| AI-02   | 3     | ⏳      |
+| Req ID   | Phase | Status |
+|----------|-------|--------|
+| CORE-01  | 1     | ✅      |
+| ENV-01   | 1     | ✅      |
+| INFRA-01 | 2     | ⏳      |
+| INFRA-02 | 2     | ⏳      |
+| SCR-01   | 2     | ⏳      |
+| INFRA-05 | 2     | ⏳      |
+| INFRA-03 | 2     | ⏳      |
+| INFRA-04 | 2     | ⏳      |
+| DOS-01   | 3     | ⏳      |
+| DOS-02   | 3     | ⏳      |
+| AI-02    | 3     | ⏳      |
+| NOTIF-01 | 4     | ✅      |
+| NOTIF-02 | 4     | ✅      |
+| NOTIF-03 | 4     | ⏩      |
+| NOTIF-04 | 4     | ⏩      |
+| NOTIF-05 | 4     | ✅      |
+| NOTIF-06 | 4     | ✅      |
+
