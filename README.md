@@ -228,70 +228,6 @@ animation: {
 
 ---
 
-## 🚀 Instalação e Execução
-
-### 1. Clone o repositório
-
-```bash
-git clone https://github.com/moacir1neto/sherlock-scraper.git
-cd sherlock-scraper
-```
-
-### 2. Configure as variáveis de ambiente
-
-```bash
-cp .env.example .env
-```
-
-Edite o `.env` na raiz e em `backend/.env`:
-
-```env
-# .env (raiz) — Chaves de API externas
-GEMINI_API_KEY=sua_chave_gemini_aqui
-GOOGLE_PLACES_API_KEY=sua_chave_google_places_aqui
-```
-
-```env
-# backend/.env — Integração WhatsMiau
-WHATSMIau_API_URL=http://whatsmiau-api:8080
-WHATSMIau_API_TOKEN=seu_token_de_api_aqui
-INTERNAL_API_TOKEN=seu_token_interno_aqui
-```
-
-### 3. Suba todos os serviços
-
-```bash
-docker compose up -d --build
-```
-
-Serviços disponíveis após inicialização:
-
-| Serviço | URL |
-|---------|-----|
-| WhatsMiau UI (Painel Principal) | http://localhost:3031 |
-| Sherlock Admin Frontend | http://localhost:5173 |
-| Sherlock API (Go/Fiber) | http://localhost:3005 |
-| WhatsMiau API (Go/whatsmeow) | http://localhost:8081 |
-| Sherlock Scraper (Python) | http://localhost:8000 |
-| PostgreSQL | localhost:5434 |
-| Redis | localhost:6379 |
-
-### 4. Gere as credenciais de administrador
-
-```bash
-# Cria usuário super admin interativo (produção)
-docker compose exec api go run cmd/seed/main.go
-
-# Ou use os scripts de conveniência (whatsmeow/)
-./whatsmeow/create-dev-users.sh   # dev: superadmin, admin, user (senha: admin123)
-./whatsmeow/create-super-admin.sh # produção: define nome, email e senha
-```
-
-### 5. Acesse o painel
-
-Abra **http://localhost:3031** e faça login com as credenciais criadas.
-
----
 
 ## 📁 Estrutura de Diretórios
 
@@ -465,15 +401,6 @@ Principais grupos de endpoints da Sherlock API:
 
 ---
 
-## 🤝 Contribuição
-
-Contribuições são bem-vindas! Siga o processo abaixo:
-
-1. Faça um fork do repositório
-2. Crie uma branch descritiva: `git checkout -b feat/minha-feature`
-3. Implemente seguindo os princípios **SOLID**, **DRY** e **Clean Code**
-4. Escreva testes para as alterações críticas
-5. Abra um Pull Request com descrição clara do problema e solução
 
 ### Padrões do Projeto
 
@@ -499,7 +426,6 @@ Distribuído sob a licença **MIT**. Veja [`LICENSE`](LICENSE) para detalhes.
 
 <div align="center">
 
-Feito com ❤️ pelo time **WhatsMiau + Sherlock**
 
 [![Go](https://img.shields.io/badge/Powered_by-Go-00ADD8?style=flat&logo=go)](https://golang.org)
 [![React](https://img.shields.io/badge/UI-React_18-61DAFB?style=flat&logo=react)](https://reactjs.org)
