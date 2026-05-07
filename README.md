@@ -340,26 +340,27 @@ Explore a interface premium do Sherlock & WhatsMiau, projetada com foco em UX/UI
 ### 🧠 Inteligência & Gestão de Leads
 | Listagem de Leads | Dossiê IA | Kanban do Funil |
 |:---:|:---:|:---:|
-| ![Listagem de Leads](/docs/screenshots/leads-list.png) | ![Dossiê IA](/docs/screenshots/lead-dossier.png) | ![Kanban](/docs/screenshots/leads-kanban.png) |
+| ![Listagem de Leads](imagens_painel/listagemleads.png) | ![Dossiê IA](imagens_painel/modallead.png) | ![Kanban](imagens_painel/kanbanleads.png) |
 | *Cards com glassmorphism e filtros avançados* | *Score de maturidade, icebreakers e pitches* | *Board drag-and-drop para gestão de funil* |
 
 ### 💬 Operação & Comunicação
 | Chat Multicanal | Configuração de IA | Disparo em Massa |
 |:---:|:---:|:---:|
-| ![Chat](/docs/screenshots/chat.png) | ![Configurações IA](/docs/screenshots/ai-settings.png) | ![Disparo](/docs/screenshots/broadcast-modal.png) |
+| ![Chat](imagens_painel/chat.png) | ![Configurações IA](imagens_painel/configuracoesIA.png) | ![Disparo](imagens_painel/modaldisparo.png) |
 | *Interface fluida com histórico completo* | *Ajuste de tom de voz e prompt do agente* | *Automação de alcance com contexto de IA* |
 
 ### 📊 Monitoramento & Infraestrutura
 | Dashboard de Métricas | Gestão de Instâncias | API Playground |
 |:---:|:---:|:---:|
-| ![Dashboard](/docs/screenshots/dashboard.png) | ![Instâncias](/docs/screenshots/instances.png) | ![API](/docs/screenshots/api-playground.png) |
+| ![Dashboard](imagens_painel/dashboard.png) | ![Instâncias](imagens_painel/instancias.png) | ![API](imagens_painel/apyplayground.png) |
 | *Analytics em tempo real via Chart.js* | *Controle multi-instância via QR Code* | *Documentação interativa e testes de API* |
 
 ### 🛠️ Automações & Scraping
 | Lista de Scraping | Sucesso no Disparo | QR Code da Instância |
 |:---:|:---:|:---:|
-| ![Scraper](/docs/screenshots/scraper-list.png) | ![Sucesso](/docs/screenshots/broadcast-success.png) | ![QR Code](/docs/screenshots/instance-qrcode.png) |
+| ![Scraper](imagens_painel/listascraper.png) | ![Sucesso](imagens_painel/modaldisparosucesso.png) | ![QR Code](imagens_painel/qrcodestancia.png) |
 | *Gestão de fontes e histórico de extrações* | *Confirmação de entrega e métricas de envio* | *Pareamento rápido via WhatsApp Web* |
+
 
 ---
 
@@ -399,15 +400,6 @@ Principais grupos de endpoints da Sherlock API:
 
 ---
 
-## 🤝 Contribuição
-
-Contribuições são bem-vindas! Siga o processo abaixo:
-
-1. Faça um fork do repositório
-2. Crie uma branch descritiva: `git checkout -b feat/minha-feature`
-3. Implemente seguindo os princípios **SOLID**, **DRY** e **Clean Code**
-4. Escreva testes para as alterações críticas
-5. Abra um Pull Request com descrição clara do problema e solução
 
 ### Padrões do Projeto
 
@@ -433,7 +425,6 @@ Distribuído sob a licença **MIT**. Veja [`LICENSE`](LICENSE) para detalhes.
 
 <div align="center">
 
-Feito com ❤️ pelo time **WhatsMiau + Sherlock**
 
 [![Go](https://img.shields.io/badge/Powered_by-Go-00ADD8?style=flat&logo=go)](https://golang.org)
 [![React](https://img.shields.io/badge/UI-React_18-61DAFB?style=flat&logo=react)](https://reactjs.org)
