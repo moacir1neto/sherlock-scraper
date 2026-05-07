@@ -1,0 +1,86 @@
+: connected
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 4","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":4}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 1","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":1}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 7","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":7}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 6","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":6}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 2","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":2}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 3","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":3}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 5","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":5}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 8","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":8}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 9","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":9}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Burst Test 10","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"burst":10}}
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+: heartbeat
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Teste Wave 3 Robustez","scheduled_at":"2026-05-09T22:51:28Z"}
+
+data: {"version":1,"type":"MEETING_CANCELED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"-","scheduled_at":"2026-05-09T22:51:28Z","metadata":{"event_id":"fd0498c7-5d00-4c96-8cb3-de715d05015a"}}
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Restart Test","scheduled_at":"2026-05-13T22:51:41Z"}
+

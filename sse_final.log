@@ -1,0 +1,4 @@
+: connected
+
+data: {"version":1,"type":"MEETING_SCHEDULED","company_id":"00000000-0000-0000-0000-000000000001","lead_id":"fe144680-7717-46bc-85e2-df860e828d52","lead_name":"Teste Final Wave 2","scheduled_at":"2026-05-15T10:00:00Z","metadata":{"final_test":true}}
+
