@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Lead, KanbanStatus, ScrapingJob, CreateLeadPayload } from '@/types';
+import { Lead, KanbanStatus, ScrapingJob, CreateLeadPayload, BusinessEvent } from '@/types';
 
 const API_URL = () => import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 const getToken = () => localStorage.getItem('token');
@@ -290,6 +290,18 @@ export function useLeads() {
     }
   }, []);
 
+  const fetchLeadEvents = useCallback(async (leadId: string) => {
+    try {
+      const res = await axios.get(`${API_URL()}/protected/leads/${leadId}/events`, {
+        headers: authHeaders(),
+      });
+      return res.data.events as BusinessEvent[];
+    } catch {
+      toast.error('Falha ao carregar histórico do lead');
+      return [];
+    }
+  }, []);
+
   return {
     leads,
     scrapeJobs,
@@ -306,6 +318,7 @@ export function useLeads() {
     analyzeLeadsBulk,
     bulkSendLeads,
     enrichCNPJ,
+    fetchLeadEvents,
     setLeads
   };
 }

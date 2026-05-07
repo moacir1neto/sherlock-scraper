@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import { BulkCampaignProvider } from '@/contexts/BulkCampaignContext';
 import CampaignProgressBadge from '@/components/leads/CampaignProgressBadge';
+import NotificationBell from './NotificationBell';
 
 const DashboardLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -80,8 +81,10 @@ const DashboardLayout: React.FC = () => {
         
         {/* Header */}
         <header className="h-20 flex items-center justify-end px-8 border-b border-glass-border bg-black/20 backdrop-blur-sm z-10 shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
+          <div className="flex items-center gap-6">
+            <NotificationBell />
+            <div className="flex items-center gap-4">
+              <div className="text-right hidden sm:block">
               <p className="text-sm font-medium">{user?.email || 'Admin User'}</p>
               <p className="text-xs text-gray-500">Premium Member</p>
             </div>

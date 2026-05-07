@@ -20,6 +20,13 @@ import (
 // eventos de movimentação de Kanban. Deve ser idêntico ao definido em
 // backend/internal/sse/redis_broadcaster.go.
 const KanbanMovedChannel = "sherlock:leads:kanban_moved"
+const NotificationsChannel = "sherlock:notifications"
+
+// redisEvent encapsula a origem e o conteúdo de um evento do Redis.
+type redisEvent struct {
+	Channel string
+	Payload string
+}
 
 // sherlockKanbanEvent é o payload recebido do Sherlock via Redis.
 // Deve ser compatível com o kanbanUpdatedEvent do Sherlock.
@@ -151,7 +158,7 @@ func (h *LeadSSE) Stream(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// --- Subscrição Redis ---
-	pubsub := h.redis.Subscribe(ctx, KanbanMovedChannel)
+	pubsub := h.redis.Subscribe(ctx, KanbanMovedChannel, NotificationsChannel)
 	defer func() {
 		if err := pubsub.Close(); err != nil && ctx.Err() == nil {
 			zap.L().Warn("[LeadSSE] erro ao fechar pubsub", zap.Error(err))
@@ -168,7 +175,7 @@ func (h *LeadSSE) Stream(c echo.Context) error {
 	)
 
 	// Goroutine receptora: ReceiveMessage é bloqueante e não conflita com Channel().
-	msgCh := make(chan string, 8)
+	msgCh := make(chan redisEvent, 16)
 	go func() {
 		for {
 			msg, err := pubsub.ReceiveMessage(ctx)
@@ -177,7 +184,7 @@ func (h *LeadSSE) Stream(c echo.Context) error {
 				return
 			}
 			select {
-			case msgCh <- msg.Payload:
+			case msgCh <- redisEvent{Channel: msg.Channel, Payload: msg.Payload}:
 			default:
 				// Buffer cheio — descarta sem bloquear o broadcast.
 			}
@@ -196,13 +203,20 @@ func (h *LeadSSE) Stream(c echo.Context) error {
 			zap.L().Info("[LeadSSE] cliente desconectado", zap.String("user_id", claims.UserID))
 			return nil
 
-		case payload, ok := <-msgCh:
+		case evt, ok := <-msgCh:
 			if !ok {
 				return nil
 			}
-			// Processa o evento: atualiza DB local e re-emite com UUID local.
-			if localPayload := h.processEvent(payload, companyID); localPayload != "" {
-				fmt.Fprintf(c.Response().Writer, "data: %s\n\n", localPayload)
+
+			var finalPayload string
+			if evt.Channel == NotificationsChannel {
+				finalPayload = h.processNotification(evt.Payload, companyID)
+			} else {
+				finalPayload = h.processEvent(evt.Payload, companyID)
+			}
+
+			if finalPayload != "" {
+				fmt.Fprintf(c.Response().Writer, "data: %s\n\n", finalPayload)
 				c.Response().Flush()
 			}
 
@@ -308,3 +322,21 @@ func (h *LeadSSE) processEvent(payload, companyID string) string {
 	}
 	return string(data)
 }
+
+// processNotification valida se a notificação pertence à empresa e a retorna pura.
+func (h *LeadSSE) processNotification(payload, companyID string) string {
+	var evt struct {
+		CompanyID string `json:"company_id"`
+	}
+	if err := json.Unmarshal([]byte(payload), &evt); err != nil {
+		return ""
+	}
+
+	// Filtro Multi-tenant: só envia se a notificação for para esta empresa
+	if evt.CompanyID != companyID {
+		return ""
+	}
+
+	return payload
+}
+

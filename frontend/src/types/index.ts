@@ -130,3 +130,32 @@ export interface PipelineSummary {
   lead_count: number;
   created_at: string;
 }
+
+export type BusinessEventType = 'MEETING_SCHEDULED' | 'MEETING_CANCELED' | 'MEETING_REMINDER' | 'FOLLOWUP_DUE';
+
+export interface BusinessEvent {
+  id: string;
+  lead_id: string;
+  type: BusinessEventType;
+  status: string;
+  scheduled_at: string;
+  payload: {
+    version: number;
+    lead_id: string;
+    lead_name: string;
+    scheduled_at: string;
+    metadata?: Record<string, any>;
+  };
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  type: BusinessEventType | 'lead_kanban_updated';
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  leadId?: string;
+  data?: any;
+}

@@ -12,5 +12,6 @@ type AISettings struct {
 	TomDeVoz          string    `json:"tom_de_voz"`
 	AgentEnabled      bool      `json:"agent_enabled"`
 	AgentSystemPrompt string    `json:"agent_system_prompt"`
+	RescheduleLimit   int       `json:"reschedule_limit"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
