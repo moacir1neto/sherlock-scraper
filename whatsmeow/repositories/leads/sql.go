@@ -405,3 +405,17 @@ func (r *SQLLead) FindByPhone(ctx context.Context, companyID string, variants []
 	}
 	return &l, nil
 }
+
+func (r *SQLRepository) IncrementRescheduleCount(ctx context.Context, id, companyID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE leads SET reschedule_count = reschedule_count + 1, updated_at = CURRENT_TIMESTAMP
+		 WHERE id = $1 AND company_id = $2`,
+		id, companyID,
+	)
+	return err
+}
+
+func (r *SQLRepository) Delete(ctx context.Context, id, companyID string) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM leads WHERE id = $1 AND company_id = $2", id, companyID)
+	return err
+}

@@ -333,22 +333,37 @@ sherlock-scraper/
 
 ---
 
-## 🖼️ Capturas de Tela
+## 🖼️ Galeria do Sistema
 
-Telas pendentes de captura — salve em `docs/screenshots/` e descomente:
+Explore a interface premium do Sherlock & WhatsMiau, projetada com foco em UX/UI de alto nível e inteligência operacional.
 
-- [ ] **Lista de Leads** — glassmorphism cards, filtros, badges de status e botão de dossiê IA
-  <!-- ![Lista de Leads](/docs/screenshots/leads-list.png) -->
-- [ ] **Drawer Dossiê IA** — LeadDetailsModal expandido (3 colunas: score maturidade, icebreakers, pitches)
-  <!-- ![Dossiê IA](/docs/screenshots/lead-dossier.png) -->
-- [ ] **Dashboard** — cards glassmorphism, gráficos Chart.js, métricas em tempo real
-  <!-- ![Dashboard](/docs/screenshots/dashboard.png) -->
-- [ ] **Chat** — interface multicanal com painel de contato retrátil
-  <!-- ![Chat](/docs/screenshots/chat-contact-panel.png) -->
-- [ ] **Kanban** — board drag-and-drop com colunas de funil
-  <!-- ![Kanban](/docs/screenshots/leads-kanban.png) -->
+### 🧠 Inteligência & Gestão de Leads
+| Listagem de Leads | Dossiê IA | Kanban do Funil |
+|:---:|:---:|:---:|
+| ![Listagem de Leads](/docs/screenshots/leads-list.png) | ![Dossiê IA](/docs/screenshots/lead-dossier.png) | ![Kanban](/docs/screenshots/leads-kanban.png) |
+| *Cards com glassmorphism e filtros avançados* | *Score de maturidade, icebreakers e pitches* | *Board drag-and-drop para gestão de funil* |
+
+### 💬 Operação & Comunicação
+| Chat Multicanal | Configuração de IA | Disparo em Massa |
+|:---:|:---:|:---:|
+| ![Chat](/docs/screenshots/chat.png) | ![Configurações IA](/docs/screenshots/ai-settings.png) | ![Disparo](/docs/screenshots/broadcast-modal.png) |
+| *Interface fluida com histórico completo* | *Ajuste de tom de voz e prompt do agente* | *Automação de alcance com contexto de IA* |
+
+### 📊 Monitoramento & Infraestrutura
+| Dashboard de Métricas | Gestão de Instâncias | API Playground |
+|:---:|:---:|:---:|
+| ![Dashboard](/docs/screenshots/dashboard.png) | ![Instâncias](/docs/screenshots/instances.png) | ![API](/docs/screenshots/api-playground.png) |
+| *Analytics em tempo real via Chart.js* | *Controle multi-instância via QR Code* | *Documentação interativa e testes de API* |
+
+### 🛠️ Automações & Scraping
+| Lista de Scraping | Sucesso no Disparo | QR Code da Instância |
+|:---:|:---:|:---:|
+| ![Scraper](/docs/screenshots/scraper-list.png) | ![Sucesso](/docs/screenshots/broadcast-success.png) | ![QR Code](/docs/screenshots/instance-qrcode.png) |
+| *Gestão de fontes e histórico de extrações* | *Confirmação de entrega e métricas de envio* | *Pareamento rápido via WhatsApp Web* |
 
 ---
+
+
 
 ## 🔌 API
 

@@ -18,9 +18,11 @@ import {
   Minimize2,
   Brain,
   Mail,
+  History
 } from 'lucide-react';
 import { Lead, KanbanStatus } from '@/types';
 import TabInteligencia from '../pipeline/LeadDetails/TabInteligencia';
+import TabAtividades from './TabAtividades';
 
 // ──────────────────────────────────────────────
 // Types
@@ -34,7 +36,7 @@ interface LeadDetailsModalProps {
   onAnalyzeLead?: (leadId: string, skill?: string) => Promise<any>;
 }
 
-type TabType = 'ia' | 'geral' | 'notas';
+type TabType = 'ia' | 'geral' | 'notas' | 'atividades';
 
 // ──────────────────────────────────────────────
 // Status Config
@@ -319,6 +321,17 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead,
                     <Mail size={14} />
                     Notas
                   </button>
+                  <button
+                    onClick={() => setActiveTab('atividades')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                      activeTab === 'atividades' 
+                        ? 'bg-blue-500/15 text-blue-400 border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
+                        : 'text-gray-500 border-transparent hover:text-gray-300'
+                    }`}
+                  >
+                    <History size={14} />
+                    Atividades
+                  </button>
                 </div>
               </div>
 
@@ -461,6 +474,18 @@ const LeadDetailsModal = ({ lead, isOpen, onClose, onStatusChange, onUpdateLead,
                           />
                         </div>
                       </div>
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'atividades' && (
+                    <motion.div
+                      key="tab-atividades"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="h-full"
+                    >
+                      <TabAtividades leadId={lead.ID} />
                     </motion.div>
                   )}
                 </AnimatePresence>

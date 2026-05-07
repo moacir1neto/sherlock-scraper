@@ -600,3 +600,11 @@ func (s *Whatsmiau) SendPresence(ctx context.Context, instanceID string, remoteJ
 	state := types.ChatPresence(presence)
 	return client.SendChatPresence(ctx, jid, state, types.ChatPresenceMediaText)
 }
+
+func (s *Whatsmiau) IsConnected(instanceID string) bool {
+	client, ok := s.clients.Load(instanceID)
+	if !ok {
+		return false
+	}
+	return client.IsConnected()
+}

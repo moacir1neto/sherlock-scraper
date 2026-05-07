@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/verbeux-ai/whatsmiau/env"
@@ -13,6 +14,7 @@ import (
 	"github.com/verbeux-ai/whatsmiau/repositories/instances"
 	"github.com/verbeux-ai/whatsmiau/repositories/leads"
 	"github.com/verbeux-ai/whatsmiau/repositories/messages"
+	"github.com/verbeux-ai/whatsmiau/repositories/notifications"
 	"github.com/verbeux-ai/whatsmiau/repositories/scheduled_messages"
 	"github.com/verbeux-ai/whatsmiau/server/routes"
 	"github.com/verbeux-ai/whatsmiau/services"
@@ -96,6 +98,42 @@ func main() {
 			zap.L().Info("LeadEventPublisher (Redis) inicializado")
 
 			services.RunChatWorkers(ch, chatRepo, messageRepo, hub, kanbanSvc, salesAgent, publisher, systemLogHub)
+
+			// --- Automação Comercial & Notificações (Wave 5.1) ---
+			asynqOpts := asynq.RedisClientOpt{
+				Addr:     env.Get().RedisURL,
+				Password: env.Get().RedisPassword,
+				DB:       0,
+			}
+			asynqClient := asynq.NewClient(asynqOpts)
+			asynqServer := asynq.NewServer(asynqOpts, asynq.Config{
+				Concurrency: 5,
+				Queues: map[string]int{
+					"critical": 6,
+					"default":  3,
+				},
+			})
+
+			notifRepo := notifications.NewSQL(db)
+			templateRepo := notifications.NewTemplateSQL(db)
+			refinerSvc := services.NewNotificationRefinerService(salesAgent)
+			notifWorker := services.NewNotificationWorker(notifRepo, templateRepo, refinerSvc, leadRepo, instancesRepo, messageRepo, whatsmiau.Get())
+			
+			// Registro do handler de notificações no Asynq
+			mux := asynq.NewServeMux()
+			mux.HandleFunc(services.TypeNotificationDelivery, notifWorker.ProcessTask)
+
+			// Inicia o servidor Asynq em background
+			go func() {
+				if err := asynqServer.Run(mux); err != nil {
+					zap.L().Fatal("falha ao rodar asynq server", zap.Error(err))
+				}
+			}()
+
+			// Inicia o subscriber Redis para capturar notificações do Sherlock
+			notifSub := services.NewNotificationSubscriber(services.Redis(), asynqClient)
+			go notifSub.Start(context.Background())
+			zap.L().Info("Pipeline de Notificações ativado (Redis -> Asynq -> WhatsApp)")
 		}
 	}
 
