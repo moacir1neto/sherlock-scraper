@@ -414,8 +414,3 @@ func (r *SQLLead) IncrementRescheduleCount(ctx context.Context, id, companyID st
 	)
 	return err
 }
-
-func (r *SQLLead) Delete(ctx context.Context, id, companyID string) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM leads WHERE id = $1 AND company_id = $2", id, companyID)
-	return err
-}

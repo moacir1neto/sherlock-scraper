@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"time"
 
@@ -81,8 +82,10 @@ func main() {
 
 			// Super Vendedor: inicializar o agente de vendas autônomo
 			var salesAgent *services.SalesAgentService
-			if db, err := services.DB(); err == nil {
-				salesAgent = services.NewSalesAgentService(db, instancesRepo, whatsmiau.Get(), handoffHub, leadRepo, messageRepo, hub)
+			var appDB *sql.DB
+			if sqlDB, err := services.DB(); err == nil {
+				appDB = sqlDB
+				salesAgent = services.NewSalesAgentService(appDB, instancesRepo, whatsmiau.Get(), handoffHub, leadRepo, messageRepo, hub)
 				if env.Get().GeminiAPIKey == "" {
 					zap.L().Warn("Super Vendedor: GEMINI_API_KEY não configurada — agente inicializado mas respostas automáticas estão desativadas")
 				} else {
@@ -114,8 +117,8 @@ func main() {
 				},
 			})
 
-			notifRepo := notifications.NewSQL(db)
-			templateRepo := notifications.NewTemplateSQL(db)
+			notifRepo := notifications.NewSQL(appDB)
+			templateRepo := notifications.NewTemplateSQL(appDB)
 			refinerSvc := services.NewNotificationRefinerService(salesAgent)
 			notifWorker := services.NewNotificationWorker(notifRepo, templateRepo, refinerSvc, leadRepo, instancesRepo, messageRepo, whatsmiau.Get())
 			
