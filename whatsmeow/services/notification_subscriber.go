@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/hibiken/asynq"

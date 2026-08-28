@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/verbeux-ai/whatsmiau/interfaces"
 	"github.com/verbeux-ai/whatsmiau/lib/whatsmiau"
 	"github.com/verbeux-ai/whatsmiau/models"
+	"github.com/verbeux-ai/whatsmiau/utils"
 	"go.mau.fi/whatsmeow/types"
 	"go.uber.org/zap"
 )
@@ -164,11 +164,9 @@ func (w *NotificationWorker) loadChatHistory(ctx context.Context, phone string) 
 	// Nota: Como não temos o instance_id aqui facilmente, buscamos por remote_jid globalmente ou ignoramos se for complexo
 	// Para o MVP, buscamos apenas as mensagens vinculadas a esse remote_jid
 	remoteJID := phone + "@s.whatsapp.net"
+	zap.L().Debug("Carregando histórico para notificação", zap.String("remote_jid", remoteJID))
 	
 	// Buscamos as últimas 10 mensagens (simplificado para o worker)
-	// Em um sistema real, teríamos um repositório específico para buscar mensagens por remoteJID
-	// Aqui simulamos via QueryRow/Select se o repo não suportar.
-	// Por agora, retornamos vazio para não quebrar, mas a estrutura está pronta.
 	return nil, nil 
 }
 

@@ -28,7 +28,7 @@ const allCols = `id, company_id, COALESCE(scrape_id,'') as scrape_id, source_id,
 	COALESCE(linkedin,'') as linkedin, COALESCE(tiktok,'') as tiktok,
 	COALESCE(youtube,'') as youtube, COALESCE(cnpj,'') as cnpj,
 	COALESCE(ai_analysis,'') as ai_analysis, deep_data, has_pixel, has_gtm,
-	created_at, updated_at`
+	reschedule_count, created_at, updated_at`
 
 func scanLead(s interface {
 	Scan(...any) error
@@ -42,7 +42,7 @@ func scanLead(s interface {
 		&l.Nicho, &l.Resumo, &l.TipoTelefone, &l.LinkWhatsapp,
 		&l.Instagram, &l.Facebook, &l.LinkedIn, &l.TikTok,
 		&l.YouTube, &l.CNPJ, &l.AIAnalysis, &l.DeepData, &l.HasPixel, &l.HasGTM,
-		&l.CreatedAt, &l.UpdatedAt,
+		&l.RescheduleCount, &l.CreatedAt, &l.UpdatedAt,
 	)
 }
 
@@ -406,16 +406,11 @@ func (r *SQLLead) FindByPhone(ctx context.Context, companyID string, variants []
 	return &l, nil
 }
 
-func (r *SQLRepository) IncrementRescheduleCount(ctx context.Context, id, companyID string) error {
+func (r *SQLLead) IncrementRescheduleCount(ctx context.Context, id, companyID string) error {
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE leads SET reschedule_count = reschedule_count + 1, updated_at = CURRENT_TIMESTAMP
 		 WHERE id = $1 AND company_id = $2`,
 		id, companyID,
 	)
-	return err
-}
-
-func (r *SQLRepository) Delete(ctx context.Context, id, companyID string) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM leads WHERE id = $1 AND company_id = $2", id, companyID)
 	return err
 }
