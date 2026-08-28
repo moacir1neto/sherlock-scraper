@@ -102,7 +102,11 @@ def run(playwright):
     print("="*50)
     
     termo_busca = f"{nicho} em {cidade}"
-    nome_arquivo = f"leads_{nicho.replace(' ', '_')}_{cidade.replace(' ', '_')}.csv"
+    import os
+    if not os.path.exists("leads_exports"):
+        os.makedirs("leads_exports")
+        
+    nome_arquivo = os.path.join("leads_exports", f"leads_{nicho.replace(' ', '_')}_{cidade.replace(' ', '_')}.csv")
 
     browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
     context = browser.new_context(viewport={'width': 1280, 'height': 720}, locale='pt-BR')

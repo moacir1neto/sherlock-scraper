@@ -35,6 +35,9 @@ type Lead struct {
 	CNPJ         string          `json:"cnpj" db:"cnpj"`
 	AIAnalysis   string          `json:"ai_analysis" db:"ai_analysis"` // JSON string do dossiê IA
 	DeepData     json.RawMessage `json:"deep_data" db:"deep_data"`
+	HasPixel     bool            `json:"has_pixel" db:"has_pixel"`
+	HasGTM       bool            `json:"has_gtm" db:"has_gtm"`
+	RescheduleCount int          `json:"reschedule_count" db:"reschedule_count"`
 	CreatedAt    time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time       `json:"updated_at" db:"updated_at"`
 }

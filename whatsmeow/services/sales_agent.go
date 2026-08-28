@@ -26,6 +26,10 @@ type AgentResponse struct {
 	AgendouReuniao    bool   `json:"agendou_reuniao"`
 	IniciarNegociacao bool   `json:"iniciar_negociacao"`
 	FecharNegocio     bool   `json:"fechar_negocio"`
+	
+	// Wave 3: Intent Routing
+	Intencao     string `json:"intencao"`      // CONFIRM, RESCHEDULE, CANCEL, QUESTION, FRUSTRATION
+	NovoHorario  string `json:"novo_horario"`  // Sugestão da IA ou do Lead
 }
 
 // SalesAgentService processa mensagens recebidas e decide se responde automaticamente
@@ -131,6 +135,25 @@ func (s *SalesAgentService) ProcessIncoming(ctx context.Context, chatID, instanc
 		return fmt.Errorf("ai call: %w", err)
 	}
 
+	// Wave 3: Handle Reschedule Intent & Guardrails
+	if agentResp.Intencao == "RESCHEDULE" && lead != nil {
+		zap.L().Info("[SalesAgent] intenção de reagendamento detectada", zap.String("lead", lead.Name))
+		s.leadRepo.IncrementRescheduleCount(ctx, lead.ID, companyID)
+		lead.RescheduleCount++
+
+		// Se atingir o limite, forçamos o acionamento humano
+		if settings.RescheduleLimit > 0 && lead.RescheduleCount >= settings.RescheduleLimit {
+			zap.L().Warn("[SalesAgent] limite de reagendamento atingido", zap.String("lead", lead.ID), zap.Int("count", lead.RescheduleCount))
+			agentResp.AcionarHumano = true
+			agentResp.Resposta = "Percebi que ainda estamos tentando ajustar o melhor horário. Vou pedir para um de nossos consultores te ligar agora para resolvermos isso rapidinho, pode ser?"
+		}
+	}
+	
+	if agentResp.Intencao == "FRUSTRATION" {
+		zap.L().Warn("[SalesAgent] lead frustrado detectado", zap.String("lead", lead.Name))
+		agentResp.AcionarHumano = true
+	}
+
 	// 6. Executar ação
 	if agentResp.AgendouReuniao {
 		agentResp.AcionarHumano = true
@@ -233,13 +256,14 @@ func (s *SalesAgentService) loadAgentSettings(ctx context.Context, companyID str
 	var st models.AISettings
 	err := s.db.QueryRowContext(ctx,
 		`SELECT company_id, company_name, nicho, oferta, tom_de_voz,
-		 COALESCE(agent_enabled, false), COALESCE(agent_system_prompt, '')
+		 COALESCE(agent_enabled, false), COALESCE(agent_system_prompt, ''),
+		 COALESCE(reschedule_limit, 3)
 		 FROM company_ai_settings WHERE company_id = $1`,
 		companyID,
 	).Scan(&st.CompanyID, &st.CompanyName, &st.Nicho, &st.Oferta, &st.TomDeVoz,
-		&st.AgentEnabled, &st.AgentSystemPrompt)
+		&st.AgentEnabled, &st.AgentSystemPrompt, &st.RescheduleLimit)
 	if err == sql.ErrNoRows {
-		return &models.AISettings{CompanyID: companyID}, nil
+		return &models.AISettings{CompanyID: companyID, RescheduleLimit: 3}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -301,11 +325,13 @@ func (s *SalesAgentService) findLeadByPhone(ctx context.Context, companyID, phon
 	// Tenta correspondência exata ou sufixo (DDI opcional)
 	var lead models.Lead
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, name, COALESCE(ai_analysis, ''), COALESCE(kanban_status, 'prospeccao') FROM leads
+		`SELECT id, name, COALESCE(ai_analysis, ''), COALESCE(kanban_status, 'prospeccao'),
+		 COALESCE(reschedule_count, 0)
+		 FROM leads
 		 WHERE company_id = $1 AND phone LIKE '%' || $2
 		 LIMIT 1`,
 		companyID, phone,
-	).Scan(&lead.ID, &lead.Name, &lead.AIAnalysis, &lead.KanbanStatus)
+	).Scan(&lead.ID, &lead.Name, &lead.AIAnalysis, &lead.KanbanStatus, &lead.RescheduleCount)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -325,9 +351,17 @@ func (s *SalesAgentService) buildPrompt(settings *models.AISettings, history []m
 	sb.WriteString("Vá direto ao ponto — faça uma pergunta curta.\n")
 	sb.WriteString("Se o lead demonstrar interesse: \"Agendamos uma reunião rápida amanhã?\"\n")
 	sb.WriteString("Se o lead responder \"sim\", \"quero\", \"vamos\" ou perguntar \"que horas?\"/\"quando?\": SUGIRA um horário específico. Ex: \"Amanhã às 10h ou 15h. Qual prefere?\"\n")
-	sb.WriteString("Se o lead aceitar um horário específico (ex: \"10h\", \"pode ser 15h\"): CONFIRME a reunião e retorne SOMENTE o JSON com agendou_reuniao:true e acionar_humano:true. NÃO envie mensagem de texto.\n")
+	sb.WriteString("Se o lead aceitar um horário específico (ex: \"10h\", \"pode ser 15h\"): CONFIRME a reunião e retorne SOMENTE o JSON com intencao:\"CONFIRM\", agendou_reuniao:true e acionar_humano:true. NÃO envie mensagem de texto.\n")
+	
+	// Wave 3: Rescheduling Instructions
+	sb.WriteString("Se o lead quiser MUDAR o horário (ex: \"posso às 15h?\", \"amanhã fica melhor\"): \n")
+	sb.WriteString("- Classifique como intencao:\"RESCHEDULE\".\n")
+	sb.WriteString("- Sugira 2 horários alternativos baseados na vontade do lead.\n")
+	sb.WriteString("- Coloque o horário sugerido em novo_horario.\n")
+	
 	sb.WriteString("Se perguntar preço: \"Na reunião explico tudo. Amanhã às 10h?\"\n")
-	sb.WriteString("Se disser \"não\" ou \"depois\": \"Sem problema. Deixo meu contato?\"\n\n")
+	sb.WriteString("Se disser \"não\" ou \"depois\": \"Sem problema. Deixo meu contato?\"\n")
+	sb.WriteString("Se o lead estiver bravo ou frustrado: Classifique como intencao:\"FRUSTRATION\" e acionar_humano:true.\n\n")
 
 	sb.WriteString("=== CONTEXTO DA EMPRESA (VENDEDOR) ===\n")
 	sb.WriteString(fmt.Sprintf("Empresa: %s\n", settings.CompanyName))
@@ -365,7 +399,7 @@ func (s *SalesAgentService) buildPrompt(settings *models.AISettings, history []m
 	sb.WriteString("=== INSTRUÇÃO FINAL ===\n")
 	sb.WriteString("Gere o JSON da sua resposta seguindo ESTRITAMENTE as regras acima.\n")
 	sb.WriteString("Responda APENAS com JSON válido, sem texto adicional ou formatação markdown (sem ```json):\n")
-	sb.WriteString(`{"resposta": "<sua resposta>", "acionar_humano": <true|false>, "agendou_reuniao": <true|false>}`)
+	sb.WriteString(`{"resposta": "<sua resposta>", "acionar_humano": <true|false>, "agendou_reuniao": <true|false>, "intencao": "<CONFIRM|RESCHEDULE|CANCEL|QUESTION|FRUSTRATION>", "novo_horario": "<horario se houver>"}`)
 
 	return sb.String()
 }
@@ -426,8 +460,10 @@ func (s *SalesAgentService) callGemini(ctx context.Context, prompt string) (*Age
 					"agendou_reuniao":    {Type: "BOOLEAN"},
 					"iniciar_negociacao": {Type: "BOOLEAN"},
 					"fechar_negocio":     {Type: "BOOLEAN"},
+					"intencao":           {Type: "STRING"},
+					"novo_horario":       {Type: "STRING"},
 				},
-				Required: []string{"resposta", "acionar_humano", "agendou_reuniao", "iniciar_negociacao", "fechar_negocio"},
+				Required: []string{"resposta", "acionar_humano", "agendou_reuniao", "iniciar_negociacao", "fechar_negocio", "intencao"},
 			},
 		},
 	}

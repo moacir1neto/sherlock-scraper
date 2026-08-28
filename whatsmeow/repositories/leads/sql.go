@@ -27,8 +27,8 @@ const allCols = `id, company_id, COALESCE(scrape_id,'') as scrape_id, source_id,
 	COALESCE(instagram,'') as instagram, COALESCE(facebook,'') as facebook,
 	COALESCE(linkedin,'') as linkedin, COALESCE(tiktok,'') as tiktok,
 	COALESCE(youtube,'') as youtube, COALESCE(cnpj,'') as cnpj,
-	COALESCE(ai_analysis,'') as ai_analysis, deep_data,
-	created_at, updated_at`
+	COALESCE(ai_analysis,'') as ai_analysis, deep_data, has_pixel, has_gtm,
+	reschedule_count, created_at, updated_at`
 
 func scanLead(s interface {
 	Scan(...any) error
@@ -41,8 +41,8 @@ func scanLead(s interface {
 		&l.EstimatedValue, &l.Tags,
 		&l.Nicho, &l.Resumo, &l.TipoTelefone, &l.LinkWhatsapp,
 		&l.Instagram, &l.Facebook, &l.LinkedIn, &l.TikTok,
-		&l.YouTube, &l.CNPJ, &l.AIAnalysis, &l.DeepData,
-		&l.CreatedAt, &l.UpdatedAt,
+		&l.YouTube, &l.CNPJ, &l.AIAnalysis, &l.DeepData, &l.HasPixel, &l.HasGTM,
+		&l.RescheduleCount, &l.CreatedAt, &l.UpdatedAt,
 	)
 }
 
@@ -72,15 +72,15 @@ func (r *SQLLead) Create(ctx context.Context, lead *models.Lead) error {
 		(id, company_id, scrape_id, source_id, name, phone, address, website, email, rating, reviews,
 		 kanban_status, enrichment_status, notes, estimated_value, tags,
 		 nicho, resumo, tipo_telefone, link_whatsapp, instagram, facebook, linkedin, tiktok, youtube, cnpj,
-		 ai_analysis, deep_data, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`
+		 ai_analysis, deep_data, has_pixel, has_gtm, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)`
 	_, err := r.db.ExecContext(ctx, query,
 		lead.ID, lead.CompanyID, lead.ScrapeID, lead.SourceID,
 		lead.Name, lead.Phone, lead.Address, lead.Website, lead.Email, lead.Rating, lead.Reviews,
 		lead.KanbanStatus, lead.EnrichmentStatus, lead.Notes, lead.EstimatedValue, lead.Tags,
 		lead.Nicho, lead.Resumo, lead.TipoTelefone, lead.LinkWhatsapp,
 		lead.Instagram, lead.Facebook, lead.LinkedIn, lead.TikTok, lead.YouTube, lead.CNPJ,
-		lead.AIAnalysis, lead.DeepData, lead.CreatedAt, lead.UpdatedAt,
+		lead.AIAnalysis, lead.DeepData, lead.HasPixel, lead.HasGTM, lead.CreatedAt, lead.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("create lead: %w", err)
@@ -100,8 +100,8 @@ func (r *SQLLead) BulkCreate(ctx context.Context, leads []*models.Lead) error {
 		(id, company_id, scrape_id, source_id, name, phone, address, website, email, rating, reviews,
 		 kanban_status, enrichment_status, notes, estimated_value, tags,
 		 nicho, resumo, tipo_telefone, link_whatsapp, instagram, facebook, linkedin, tiktok, youtube, cnpj,
-		 ai_analysis, deep_data, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`
+		 ai_analysis, deep_data, has_pixel, has_gtm, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)`
 
 	for _, lead := range leads {
 		if lead.ID == "" {
@@ -116,7 +116,7 @@ func (r *SQLLead) BulkCreate(ctx context.Context, leads []*models.Lead) error {
 			lead.KanbanStatus, lead.EnrichmentStatus, lead.Notes, lead.EstimatedValue, lead.Tags,
 			lead.Nicho, lead.Resumo, lead.TipoTelefone, lead.LinkWhatsapp,
 			lead.Instagram, lead.Facebook, lead.LinkedIn, lead.TikTok, lead.YouTube, lead.CNPJ,
-			lead.AIAnalysis, lead.DeepData, lead.CreatedAt, lead.UpdatedAt,
+			lead.AIAnalysis, lead.DeepData, lead.HasPixel, lead.HasGTM, lead.CreatedAt, lead.UpdatedAt,
 		); err != nil {
 			return fmt.Errorf("bulk create lead %q: %w", lead.Name, err)
 		}
@@ -131,13 +131,19 @@ func (r *SQLLead) Update(ctx context.Context, lead *models.Lead) error {
 		SET name=$1, phone=$2, address=$3, website=$4, email=$5,
 		    kanban_status=$6, enrichment_status=$7, notes=$8,
 		    estimated_value=$9, tags=$10, link_whatsapp=$11, 
-		    ai_analysis=$12, deep_data=$13, updated_at=$14
-		WHERE id=$15 AND company_id=$16`
+		    ai_analysis=$12, deep_data=$13, has_pixel=$14, has_gtm=$15,
+			instagram=$16, facebook=$17, linkedin=$18, tiktok=$19, youtube=$20,
+			cnpj=$21, nicho=$22, resumo=$23, tipo_telefone=$24, rating=$25, reviews=$26,
+			updated_at=$27
+		WHERE id=$28 AND company_id=$29`
 	res, err := r.db.ExecContext(ctx, query,
 		lead.Name, lead.Phone, lead.Address, lead.Website, lead.Email,
 		lead.KanbanStatus, lead.EnrichmentStatus, lead.Notes,
 		lead.EstimatedValue, lead.Tags, lead.LinkWhatsapp,
-		lead.AIAnalysis, lead.DeepData, lead.UpdatedAt,
+		lead.AIAnalysis, lead.DeepData, lead.HasPixel, lead.HasGTM,
+		lead.Instagram, lead.Facebook, lead.LinkedIn, lead.TikTok, lead.YouTube,
+		lead.CNPJ, lead.Nicho, lead.Resumo, lead.TipoTelefone, lead.Rating, lead.Reviews,
+		lead.UpdatedAt,
 		lead.ID, lead.CompanyID,
 	)
 	if err != nil {
@@ -289,6 +295,32 @@ func (r *SQLLead) Delete(ctx context.Context, id, companyID string) error {
 	return nil
 }
 
+// FindByScrapeIDAndName busca o lead mais recente dentro de um scrape pelo nome exato.
+// Lookup principal do push-sync: mais preciso que busca por telefone pois o
+// scrape_id garante escopo e evita colisões entre empresas homônimas.
+func (r *SQLLead) FindByScrapeIDAndName(ctx context.Context, scrapeID, name string) (*models.Lead, error) {
+	scrapeID = strings.TrimSpace(scrapeID)
+	name = strings.TrimSpace(name)
+	if scrapeID == "" || name == "" {
+		return nil, nil
+	}
+	query := fmt.Sprintf(`SELECT %s FROM leads
+		WHERE scrape_id=$1
+		  AND name ILIKE $2
+		ORDER BY created_at DESC
+		LIMIT 1`, allCols)
+
+	var l models.Lead
+	err := scanLead(r.db.QueryRowContext(ctx, query, scrapeID, name), &l)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find lead by scrape+name: %w", err)
+	}
+	return &l, nil
+}
+
 // FindByName busca o lead mais recente cujo nome contenha a string fornecida.
 // Usa ILIKE para match case-insensitive. Retorna nil sem erro se não encontrado.
 func (r *SQLLead) FindByName(ctx context.Context, companyID string, name string) (*models.Lead, error) {
@@ -326,23 +358,42 @@ func (r *SQLLead) FindByPhone(ctx context.Context, companyID string, variants []
 		return nil, nil
 	}
 
-	// Constrói placeholders: $2, $3, $4, ...
-	placeholders := make([]string, len(variants))
-	args := make([]interface{}, 0, len(variants)+1)
-	args = append(args, companyID)
-	for i, v := range variants {
-		placeholders[i] = fmt.Sprintf("$%d", i+2)
-		args = append(args, v)
-	}
+	var query string
+	var args []interface{}
 
-	query := fmt.Sprintf(`SELECT %s FROM leads
-		WHERE company_id=$1
-		  AND regexp_replace(phone, '[^0-9]', '', 'g') IN (%s)
-		ORDER BY created_at DESC
-		LIMIT 1`,
-		allCols,
-		strings.Join(placeholders, ","),
-	)
+	if companyID != "" {
+		// Constrói placeholders: $2, $3, $4, ...
+		placeholders := make([]string, len(variants))
+		args = make([]interface{}, 0, len(variants)+1)
+		args = append(args, companyID)
+		for i, v := range variants {
+			placeholders[i] = fmt.Sprintf("$%d", i+2)
+			args = append(args, v)
+		}
+		query = fmt.Sprintf(`SELECT %s FROM leads
+			WHERE company_id=$1
+			  AND regexp_replace(phone, '[^0-9]', '', 'g') IN (%s)
+			ORDER BY created_at DESC
+			LIMIT 1`,
+			allCols,
+			strings.Join(placeholders, ","),
+		)
+	} else {
+		// Busca global (uso interno): sem filtro de empresa
+		placeholders := make([]string, len(variants))
+		args = make([]interface{}, 0, len(variants))
+		for i, v := range variants {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args = append(args, v)
+		}
+		query = fmt.Sprintf(`SELECT %s FROM leads
+			WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN (%s)
+			ORDER BY created_at DESC
+			LIMIT 1`,
+			allCols,
+			strings.Join(placeholders, ","),
+		)
+	}
 
 	var l models.Lead
 	err := scanLead(r.db.QueryRowContext(ctx, query, args...), &l)
@@ -353,4 +404,13 @@ func (r *SQLLead) FindByPhone(ctx context.Context, companyID string, variants []
 		return nil, fmt.Errorf("find lead by phone: %w", err)
 	}
 	return &l, nil
+}
+
+func (r *SQLLead) IncrementRescheduleCount(ctx context.Context, id, companyID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE leads SET reschedule_count = reschedule_count + 1, updated_at = CURRENT_TIMESTAMP
+		 WHERE id = $1 AND company_id = $2`,
+		id, companyID,
+	)
+	return err
 }

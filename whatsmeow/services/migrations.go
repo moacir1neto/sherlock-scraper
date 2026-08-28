@@ -692,10 +692,18 @@ func RunMigrations() error {
 	addLeadCol("cnpj", "VARCHAR(20) DEFAULT ''")
 	addLeadCol("ai_analysis", "TEXT DEFAULT NULL")
 	addLeadCol("deep_data", "JSONB DEFAULT NULL")
+	addLeadCol("has_pixel", "BOOLEAN DEFAULT FALSE")
+	addLeadCol("has_gtm", "BOOLEAN DEFAULT FALSE")
 	// Índice para buscar leads por campanha
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_leads_scrape ON leads(scrape_id)`); err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
 			zap.L().Warn("leads migration: create idx_leads_scrape", zap.Error(err))
+		}
+	}
+	// Índice composto para lookup do push-sync (scrape_id + name)
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_leads_scrape_name ON leads(scrape_id, name)`); err != nil {
+		if !strings.Contains(err.Error(), "already exists") {
+			zap.L().Warn("leads migration: create idx_leads_scrape_name", zap.Error(err))
 		}
 	}
 
@@ -778,6 +786,105 @@ func RunMigrations() error {
 		}
 	}
 	addChatsAIPaused()
+
+	// Notificações e Tracking de Entrega (Wave 5.1)
+	notificationsTable := `
+	CREATE TABLE IF NOT EXISTS notifications (
+		id VARCHAR(36) PRIMARY KEY,
+		company_id VARCHAR(36) NOT NULL,
+		lead_id VARCHAR(36) NOT NULL,
+		type VARCHAR(64) NOT NULL,
+		payload TEXT NOT NULL,
+		status VARCHAR(32) NOT NULL DEFAULT 'pending',
+		trace_id VARCHAR(100),
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_notifications_lead ON notifications(lead_id);
+	CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
+	`
+	if env.Get().DBDialect == "postgres" {
+		notificationsTable = `
+		CREATE TABLE IF NOT EXISTS notifications (
+			id VARCHAR(36) PRIMARY KEY,
+			company_id VARCHAR(36) NOT NULL,
+			lead_id VARCHAR(36) NOT NULL,
+			type VARCHAR(64) NOT NULL,
+			payload JSONB NOT NULL,
+			status VARCHAR(32) NOT NULL DEFAULT 'pending',
+			trace_id VARCHAR(100),
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_notifications_lead ON notifications(lead_id);
+		CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
+		`
+	}
+	if _, err := db.Exec(notificationsTable); err != nil {
+		return fmt.Errorf("failed to create notifications table: %w", err)
+	}
+
+	// Templates de Notificação (Wave 5.2)
+	templatesTable := `
+	CREATE TABLE IF NOT EXISTS notification_templates (
+		id VARCHAR(36) PRIMARY KEY,
+		company_id VARCHAR(36) NOT NULL,
+		type VARCHAR(64) NOT NULL,
+		content TEXT NOT NULL,
+		version INTEGER NOT NULL DEFAULT 1,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(company_id, type)
+	);
+	`
+	if env.Get().DBDialect == "postgres" {
+		templatesTable = `
+		CREATE TABLE IF NOT EXISTS notification_templates (
+			id VARCHAR(36) PRIMARY KEY,
+			company_id VARCHAR(36) NOT NULL,
+			type VARCHAR(64) NOT NULL,
+			content TEXT NOT NULL,
+			version INTEGER NOT NULL DEFAULT 1,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(company_id, type)
+		);
+		`
+	}
+	if _, err := db.Exec(templatesTable); err != nil {
+		return fmt.Errorf("failed to create notification_templates table: %w", err)
+	}
+
+	// Super Vendedor: Guardrails de Reagendamento (Wave 5.3)
+	addLeadReschedule := func() {
+		var q string
+		if env.Get().DBDialect == "postgres" {
+			q = "ALTER TABLE leads ADD COLUMN IF NOT EXISTS reschedule_count INTEGER NOT NULL DEFAULT 0"
+		} else {
+			q = "ALTER TABLE leads ADD COLUMN reschedule_count INTEGER NOT NULL DEFAULT 0"
+		}
+		if _, err := db.Exec(q); err != nil {
+			if !strings.Contains(err.Error(), "already exists") && !strings.Contains(err.Error(), "duplicate column") {
+				zap.L().Warn("leads migration: add reschedule_count", zap.Error(err))
+			}
+		}
+	}
+	addLeadReschedule()
+
+	addAISettingsRescheduleLimit := func() {
+		var q string
+		if env.Get().DBDialect == "postgres" {
+			q = "ALTER TABLE company_ai_settings ADD COLUMN IF NOT EXISTS reschedule_limit INTEGER NOT NULL DEFAULT 3"
+		} else {
+			q = "ALTER TABLE company_ai_settings ADD COLUMN reschedule_limit INTEGER NOT NULL DEFAULT 3"
+		}
+		if _, err := db.Exec(q); err != nil {
+			if !strings.Contains(err.Error(), "already exists") && !strings.Contains(err.Error(), "duplicate column") {
+				zap.L().Warn("ai_settings migration: add reschedule_limit", zap.Error(err))
+			}
+		}
+	}
+	addAISettingsRescheduleLimit()
 
 	zap.L().Info("Migrations completed successfully")
 	return nil

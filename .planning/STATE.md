@@ -1,21 +1,22 @@
 # Estado do Projeto - Sherlock & WhatsMiau
 
-## Milestone: Evolução da Inteligência e Prospecção
-- [x] Mapeamento Profundo do Codebase
-- [x] Inicialização do Ciclo de Evolução (GSD New Project)
-- [x] Fase 1: Contexto e Decisões Capturadas
-- [x] Fase 1: Segurança e Validação de Ambiente (Foco Restrito)
-- [ ] Fase 2: Resiliência do Scraper e Enriquecimento
-- [ ] Fase 3: Dossiês Profundos e Autonomia
+## Milestone v1.1: Inteligência Comercial e Automações 🚀
+- [ ] Início da Milestone v1.1
+- [/] Fase 5: Automações Comerciais e WhatsApp (PLANEJADA)
+- [ ] Fase 6: Inteligência e Dossiês Profundos
+- [ ] Fase 7: Confiabilidade Operacional e Resiliência
 
 ## Últimas Atividades
-- Mapeamento completo de STACK, ARCHITECTURE, CONVENTIONS e CONCERNS.
-- Definição de requisitos focados no Super Vendedor AI, Sherlock Scraper e Dossiês.
-- Configuração do modo YOLO para execução ágil.
+- Milestone v1.0.0 concluída (Sistema de Notificações Base via Asynq/SSE).
+- Escopo da v1.1 definido (Automações, Inteligência e Resiliência).
+- Requisitos detalhados e estruturados no ROADMAP.
+
+## Foco Atual
+- **Aguardando início do planejamento da Fase 5**.
+- O sistema já roda com agendamentos de notificações robustos no backend, mas falta conectar o "último milha": disparar essas mensagens via WhatsApp WhatsMiau com templates dinâmicos refianados pela IA.
 
 ## Bloqueios / Pendências
-- Necessidade de validar o funcionamento do `INTERNAL_API_TOKEN` após remoção de fallbacks (Fase 1).
-- Monitorar limites de rate-limit do Gemini durante testes de massa de dossiês.
+- Nenhuma pendência imediata. O caminho está livre para planejamento da Fase 5.
 
 ## Referência de Planejamento
 - PROJECT: [.planning/PROJECT.md](.planning/PROJECT.md)

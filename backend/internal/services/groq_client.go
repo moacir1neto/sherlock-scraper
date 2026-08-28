@@ -89,6 +89,23 @@ func callGroq(ctx context.Context, prompt string, temperature float64) (string, 
 }
 
 func groqGenerateLeadStrategy(input LeadAnalysisInput, settings domain.CompanySetting, skill string) (*LeadAnalysisOutput, error) {
+	// Early exit: todos comentários positivos → sem gap real
+	if skill == "raiox" {
+		log.Printf("🔍 [%s] pre-LLM check (groq): comments=%d nota=%s",
+			input.Empresa, len(input.ComentariosRecentes), input.NotaGoogle)
+		if len(input.ComentariosRecentes) > 0 {
+			onlyPositive := hasOnlyPositiveComments(input.ComentariosRecentes)
+			log.Printf("🔍 [%s] hasOnlyPositiveComments=%v", input.Empresa, onlyPositive)
+			if onlyPositive {
+				log.Printf("✅ [%s] Apenas comentários positivos — forçando gap nulo", input.Empresa)
+				return &LeadAnalysisOutput{
+					SkillUsed:  skill,
+					GapCritico: "Nenhum gap crítico evidente — operação validada pelos clientes",
+				}, nil
+			}
+		}
+	}
+
 	systemPrompt := buildSystemPrompt(settings, skill)
 
 	var dataSummary string
@@ -149,7 +166,15 @@ func groqGenerateLeadStrategy(input LeadAnalysisInput, settings domain.CompanySe
 	}
 
 	out.SkillUsed = skill
-	log.Printf("GAP FINAL RETORNADO: %s", out.GapCritico)
+
+	// Fallback forçado: nunca retornar gap inválido
+	if skill == "raiox" && gapNeedsRegen(out.GapCritico, hasComments) {
+		log.Printf("🚨 [Groq] FORÇANDO SAFE FALLBACK GAP — gap inválido após todos os retries: %q", out.GapCritico)
+		out.GapCritico = safeFallbackGap
+	}
+
+	log.Printf("GAP FINAL DECIDIDO empresa=%s gap=%q hasComments=%v comments=%d",
+		input.Empresa, out.GapCritico, hasComments, len(input.ComentariosRecentes))
 	log.Printf("✅ Groq análise concluída (skill: %s): Score %d/10", skill, out.ScoreMaturidade)
 	return &out, nil
 }

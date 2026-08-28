@@ -90,8 +90,9 @@ func extractPhones(html string) []string {
 func extractOtherSocialLinks(html string, links map[string]string) {
 	patterns := map[string]string{
 		"linkedin": `https?://(?:www\.)?linkedin\.com/(?:company|in)/[a-zA-Z0-9._-]+`,
-		"whatsapp": `https?://(?:api|web|wa)\.whatsapp\.com/send\?phone=\d+`,
-		"youtube":  `https?://(?:www\.)?youtube\.com/(?:channel|user|c)/[a-zA-Z0-9._-]+`,
+		"whatsapp": `https?://(?:(?:api|web|wa)\.whatsapp\.com/send\?phone=\d+|wa\.me/\d+)`,
+		"youtube":  `https?://(?:www\.)?youtube\.com/(?:channel|user|c|@)[a-zA-Z0-9._-]+`,
+		"tiktok":   `https?://(?:www\.)?tiktok\.com/@[a-zA-Z0-9._-]+`,
 	}
 
 	for key, pattern := range patterns {

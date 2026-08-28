@@ -114,9 +114,20 @@ func (s *Sherlock) runExtraction(scrapeID, companyID string, request dto.Extract
 			Phone:            l.Phone,
 			Address:          l.Address,
 			Website:          l.Website,
+			Email:            l.Email,
+			Instagram:        l.Instagram,
+			Facebook:         l.Facebook,
+			LinkedIn:         l.LinkedIn,
+			TikTok:           l.TikTok,
+			YouTube:          l.YouTube,
+			TipoTelefone:     l.TipoTelefone,
+			LinkWhatsapp:     l.LinkWhatsapp,
 			Rating:           rating,
 			Reviews:          reviews,
 			Nicho:            request.Keyword,
+			CNPJ:             l.CNPJ,
+			HasPixel:         l.HasPixel,
+			HasGTM:           l.HasGTM,
 			KanbanStatus:     "prospeccao",
 			EnrichmentStatus: "CAPTURADO",
 			DeepData:         l.DeepData,
@@ -144,6 +155,120 @@ func (s *Sherlock) runExtraction(scrapeID, companyID string, request dto.Extract
 		zap.String("scrape_id", scrapeID),
 		zap.Int("leads_saved", len(batch)),
 	)
+}
+
+// SyncLead processa atualizações de leads enviadas pelo Sherlock (push sync).
+// Estratégia de lookup em cascata:
+//  1. scrape_id + name  (lookup principal — preciso e sem dependência de telefone)
+//  2. phone variants    (fallback quando não há scrape_id ou name não casa)
+//
+// Proteção anti-overwrite: campos vazios no payload não sobrescrevem dados existentes.
+func (s *Sherlock) SyncLead(ctx echo.Context) error {
+	var req struct {
+		ScrapeID string           `json:"scrape_id"`
+		Lead     dto.SherlockLead `json:"lead"`
+	}
+	if err := ctx.Bind(&req); err != nil {
+		zap.L().Warn("sync_lead: failed to bind", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "failed to bind request body")
+	}
+
+	if req.Lead.Name == "" {
+		return utils.HTTPFail(ctx, http.StatusBadRequest, nil, "lead.name is required")
+	}
+
+	c := ctx.Request().Context()
+	var lead *models.Lead
+	var err error
+
+	// Lookup 1: scrape_id + name (lookup principal)
+	if req.ScrapeID != "" {
+		lead, err = s.leadRepo.FindByScrapeIDAndName(c, req.ScrapeID, req.Lead.Name)
+		if err != nil {
+			zap.L().Error("sync_lead: lookup by scrape+name failed",
+				zap.String("scrape_id", req.ScrapeID),
+				zap.String("name", req.Lead.Name),
+				zap.Error(err),
+			)
+			return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "lookup failed")
+		}
+	}
+
+	// Lookup 2: phone variants (fallback)
+	if lead == nil && req.Lead.Phone != "" {
+		lead, err = s.leadRepo.FindByPhone(c, "", []string{req.Lead.Phone})
+		if err != nil {
+			zap.L().Error("sync_lead: lookup by phone failed",
+				zap.String("phone", req.Lead.Phone),
+				zap.Error(err),
+			)
+			return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "lookup failed")
+		}
+	}
+
+	if lead == nil {
+		zap.L().Warn("sync_lead: lead not found",
+			zap.String("scrape_id", req.ScrapeID),
+			zap.String("name", req.Lead.Name),
+			zap.String("phone", req.Lead.Phone),
+		)
+		return utils.HTTPFail(ctx, http.StatusNotFound, nil, "lead not found for synchronization")
+	}
+
+	// Impede overwrite: só atualiza campos não-vazios recebidos
+	applyIfNotEmpty := func(dest *string, src string) {
+		if src != "" {
+			*dest = src
+		}
+	}
+
+	applyIfNotEmpty(&lead.Email, req.Lead.Email)
+	applyIfNotEmpty(&lead.Instagram, req.Lead.Instagram)
+	applyIfNotEmpty(&lead.Facebook, req.Lead.Facebook)
+	applyIfNotEmpty(&lead.LinkedIn, req.Lead.LinkedIn)
+	applyIfNotEmpty(&lead.TikTok, req.Lead.TikTok)
+	applyIfNotEmpty(&lead.YouTube, req.Lead.YouTube)
+	applyIfNotEmpty(&lead.CNPJ, req.Lead.CNPJ)
+	applyIfNotEmpty(&lead.Nicho, req.Lead.Nicho)
+	applyIfNotEmpty(&lead.TipoTelefone, req.Lead.TipoTelefone)
+	applyIfNotEmpty(&lead.LinkWhatsapp, req.Lead.LinkWhatsapp)
+	applyIfNotEmpty(&lead.Resumo, req.Lead.Resumo)
+
+	// Booleans: sempre aplica (false é valor legítimo)
+	lead.HasPixel = req.Lead.HasPixel
+	lead.HasGTM = req.Lead.HasGTM
+
+	// JSON: só substitui se não-nil e não-vazio
+	if len(req.Lead.DeepData) > 0 {
+		lead.DeepData = req.Lead.DeepData
+	}
+
+	// Numéricos: só atualiza se vieram com valor positivo
+	if r := parseRating(req.Lead.Rating); r > 0 {
+		lead.Rating = r
+	}
+	if rv := parseReviews(req.Lead.Reviews); rv > 0 {
+		lead.Reviews = rv
+	}
+
+	lead.EnrichmentStatus = "ENRIQUECIDO"
+	lead.UpdatedAt = time.Now()
+
+	if err := s.leadRepo.Update(c, lead); err != nil {
+		zap.L().Error("sync_lead: update failed",
+			zap.String("lead_id", lead.ID),
+			zap.String("name", lead.Name),
+			zap.Error(err),
+		)
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to update lead")
+	}
+
+	zap.L().Info("lead synced successfully",
+		zap.String("lead_id", lead.ID),
+		zap.String("scrape_id", req.ScrapeID),
+		zap.String("name", lead.Name),
+	)
+	return ctx.JSON(http.StatusOK, map[string]string{"status": "synced"})
 }
 
 // ListScrapes retorna todas as campanhas de raspagem da empresa.

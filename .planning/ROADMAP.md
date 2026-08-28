@@ -1,49 +1,52 @@
 # Roadmap: Sherlock & WhatsMiau Evolution
 
-## Fase 1: Inteligência e Estabilidade Core
-Foco em tornar o agente de vendas mais robusto e sanear vulnerabilidades críticas de segurança identificadas no mapeamento.
+## Milestone v1.0.0 (Concluída) ✅
+- **[v1.0.0-ROADMAP.md](milestones/v1.0.0-ROADMAP.md)**: Segurança, Hardening e Sistema de Notificações de Negócio.
 
-- [ ] **AI & Handoff**
-    - Refinar Structured Output do Gemini [AI-01]
-    - Sistema de interrupção de IA por sentimento [AI-03]
-- [ ] **Segurança e Qualidade**
-    - Saneamento de JWT e Tokens Internos [CORE-01]
-    - Testes unitários para Automação Kanban [CORE-02]
+---
 
-## Fase 2: Resiliência do Scraper e Enriquecimento
-Foco em aumentar a taxa de sucesso da coleta de dados e iniciar o fluxo de dossiês.
+## Milestone v1.1: Inteligência Comercial e Automações 🚀
 
-- [ ] **Sherlock Evolution**
-    - Rotação de Headers e User-Agents [SCR-01]
-    - Webhooks de conclusão de tarefa [SCR-04]
-- [ ] **Dossier Foundation**
-    - Armazenamento estruturado de Dossiês (Markdown) [DOS-03]
-    - Gatilho automático de geração pós-importação [DOS-01]
+## Fase 5: Automações Comerciais e WhatsApp
+Transformando alertas internos em engajamento real. O CRM age como SDR.
+- [ ] Implementar Templates Híbridos (Fixos + IA) [WAPP-01]
+- [ ] Habilitar Reagendamento Automático (Cenários Simples) [WAPP-02]
+- [ ] Safety Guardrails & Handoff Humano [WAPP-03]
+- [ ] Memória Conversacional [WAPP-04]
 
-## Fase 3: Dossiês Profundos e Autonomia
-Foco em dar "profundidade" ao conhecimento do agente sobre o lead.
+**Plans:** 4 plans
+- [ ] 05-01-PLAN.md — Foundations: pkg/llm constant, event/task/intent constants, ConversationTurn + WhatsAppDelivery domain entities, AutoMigrate
+- [ ] 05-02-PLAN.md — GORM repositories + WhatsApp send Asynq task with whatsapp queue, RetryDelayFunc, EventService integration
+- [ ] 05-03-PLAN.md — Hybrid template service, intent classifier, reply task with five-branch routing, InternalAuth-gated webhook
+- [ ] 05-04-PLAN.md — Conversation memory (Redis + PostgreSQL two-tier), guardrails (antispam, max reschedule, forced handoff)
 
-- [ ] **Advanced Dossiers**
-    - Integração com Google Search para pesquisa web [DOS-02]
-    - Injeção contextual de dossiê no prompt da IA [AI-04]
-- [ ] **UX & Memória**
-    - Memória de curto prazo para chats [AI-02]
-    - Busca multi-localização no scraper [SCR-02]
+## Fase 6: Inteligência e Dossiês Profundos
+Municiando o Super Vendedor com contexto de alto valor.
+- [ ] Automação de Trigger do Dossiê [DOS-01]
+- [ ] Pesquisa Web Integrada (Sinais, Techs, Notícias) [DOS-02]
+- [ ] Estratégia de Cache e Custo [DOS-03]
+- [ ] Injeção de Contexto no Prompt de Vendas [DOS-04]
+
+## Fase 7: Confiabilidade Operacional e Resiliência
+Garantindo a entrega de eventos assíncronos sem falhas ocultas.
+- [ ] Configuração de Retry Policies e DLQ [INFRA-01]
+- [ ] Tracing e Correlation IDs [INFRA-02]
+- [ ] Deduplicação de Tasks [INFRA-03]
+- [ ] Logs Estruturados Auditáveis [INFRA-04]
 
 ---
 ## Traceability Matrix
-
-| Req ID | Phase | Plan | Status |
-|--------|-------|------|--------|
-| AI-01  | 1     | -    | ⏳      |
-| AI-03  | 1     | -    | ⏳      |
-| CORE-01| 1     | -    | ⏳      |
-| CORE-02| 1     | -    | ⏳      |
-| SCR-01 | 2     | -    | ⏳      |
-| SCR-04 | 2     | -    | ⏳      |
-| DOS-01 | 2     | -    | ⏳      |
-| DOS-03 | 2     | -    | ⏳      |
-| DOS-02 | 3     | -    | ⏳      |
-| AI-04  | 3     | -    | ⏳      |
-| AI-02  | 3     | -    | ⏳      |
-| SCR-02 | 3     | -    | ⏳      |
+| Req ID   | Phase | Status |
+|----------|-------|--------|
+| WAPP-01  | 5     | ⏳      |
+| WAPP-02  | 5     | ⏳      |
+| WAPP-03  | 5     | ⏳      |
+| WAPP-04  | 5     | ⏳      |
+| DOS-01   | 6     | ⏳      |
+| DOS-02   | 6     | ⏳      |
+| DOS-03   | 6     | ⏳      |
+| DOS-04   | 6     | ⏳      |
+| INFRA-01 | 7     | ⏳      |
+| INFRA-02 | 7     | ⏳      |
+| INFRA-03 | 7     | ⏳      |
+| INFRA-04 | 7     | ⏳      |

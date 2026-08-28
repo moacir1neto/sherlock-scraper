@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/config"
+	"github.com/digitalcombo/sherlock-scraper/backend/pkg/events"
 	"github.com/hibiken/asynq"
 )
 
@@ -55,6 +56,7 @@ func StartServer() {
 	mux.HandleFunc(TaskTypeBulkMessage, HandleBulkMessageTask)
 	mux.HandleFunc(TaskTypeDossierAnalyze, HandleDossierAnalyzeTask)
 	mux.HandleFunc(TaskTypeEnrichCNPJ, HandleEnrichCNPJTask)
+	mux.HandleFunc(events.TaskMeetingReminder, HandleMeetingReminderTask)
 
 	log.Printf("Asynq servers initialized pointing to %s (Main Concurrency: 5, CNPJ Concurrency: 2)", redisAddr)
 

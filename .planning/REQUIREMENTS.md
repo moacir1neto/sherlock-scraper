@@ -1,39 +1,29 @@
-# Requirements: Sherlock & WhatsMiau Evolution
+# Requirements: Milestone v1.1 (Inteligência Comercial e Automações)
 
-## v1 Requirements (Foco: Evolução)
+## 🎯 Objetivo da Meta
+Transformar o Sherlock em um CRM operacional maduro, atuando como um SDR autônomo e motor de automação comercial com alta confiabilidade operacional e contexto orientado a eventos.
 
-### AI Agent (Super Vendedor)
-- [ ] **AI-01**: Refinar structured output do Gemini para garantir 100% de conformidade com o schema JSON.
-- [ ] **AI-02**: Implementar sistema de "Memória de Curto Prazo" para o agente não repetir perguntas já respondidas no mesmo chat.
-- [ ] **AI-03**: Adicionar suporte a gatilhos de "Interrupção de IA" quando o lead demonstra frustração ou pede falar com humano explicitamente.
-- [ ] **AI-04**: Melhorar o prompt de sistema para incluir dados específicos do dossiê do lead de forma contextual.
+## Requisitos Escopados
 
-### Scraper (Sherlock)
-- [ ] **SCR-01**: Implementar rotação de User-Agents e Headers dinâmicos para evitar bloqueios.
-- [ ] **SCR-02**: Adicionar suporte a busca por múltiplas localizações em uma única tarefa de scraping.
-- [ ] **SCR-03**: Melhorar o parser de dados de redes sociais (Instagram/LinkedIn) coletados durante o scraping.
-- [ ] **SCR-04**: Implementar webhook de conclusão de tarefa para notificar o CRM imediatamente.
+### 🤖 Automação WhatsApp & AI SDR (Fase 5)
+- [ ] **WAPP-01**: Implementar sistema de templates híbridos para notificações (Estrutura base fixa + Variáveis dinâmicas + Refinamento de tom/contexto via IA).
+- [ ] **WAPP-02**: Habilitar reagendamento automático pelo "Super Vendedor AI" para cenários simples (conflitos de agenda, remarcação de horário).
+- [ ] **WAPP-03**: Implementar "Safety Guardrails" para o AI SDR: limites de tentativas de reagendamento e regras de handoff imediato para humano em caso de fricção ou ambiguidade.
+- [ ] **WAPP-04**: Integrar memória conversacional para garantir que a IA mantenha o contexto histórico do lead durante interações assíncronas.
 
-### Dossiês e Enriquecimento
-- [ ] **DOS-01**: Automatizar a geração do dossiê assim que o lead é importado no CRM.
-- [ ] **DOS-02**: Integrar pesquisa web (Google Search) no fluxo de geração de dossiês via Gemini.
-- [ ] **DOS-03**: Salvar o dossiê em formato Markdown estruturado no banco de dados para fácil leitura pelo agente de IA.
+### 🧠 Inteligência e Dossiês (Fase 6)
+- [ ] **DOS-01**: Acionar a geração do Dossiê de Inteligência automaticamente após a conclusão do ciclo de enriquecimento do lead.
+- [ ] **DOS-02**: Integrar pesquisa web (Google Search) no fluxo do dossiê via Gemini para extrair: notícias recentes, presença digital, stack tecnológico e sinais comerciais.
+- [ ] **DOS-03**: Implementar sistema de cache robusto para os dados de enriquecimento e pesquisa web visando controle de custos das APIs (LLM/Search).
+- [ ] **DOS-04**: Otimizar o prompt de sistema do agente de vendas para injetar os dados do Dossiê como contexto estratégico ativo.
 
-### Core & Qualidade (Suporte às features)
-- [ ] **CORE-01**: Refatorar a gestão de tokens e secrets para carregar estritamente de variáveis de ambiente com validação estrita (fail-fast).
-- [ ] **CORE-02**: Implementar testes unitários e de integração para a lógica de transição de status do Kanban e automações críticas.
-- [ ] **CORE-03**: Otimizar o pooling de conexões Redis e implementar estratégias de retry/idempotência no Asynq.
-- [ ] **CORE-04**: Implementar sistema de migrações versionadas (Goose ou Golang-Migrate) para PostgreSQL.
-- [ ] **CORE-05**: Padronizar observabilidade com logs estruturados (JSON) e tracing de erros para processos assíncronos.
+### 🛡️ Confiabilidade Operacional e Resiliência (Fase 7)
+- [ ] **INFRA-01**: Configurar Retry Policies robustas e Dead Letter Queues (DLQ) no Asynq para proteção contra falhas de rede/APIs de terceiros.
+- [ ] **INFRA-02**: Implementar Tracing de eventos de negócio ponta a ponta (SSE -> Redis -> WhatsApp) com Correlation IDs (`trace_id`).
+- [ ] **INFRA-03**: Garantir a deduplicação de tarefas assíncronas (ex: múltiplos clicks de geração de dossiê não devem criar múltiplas tarefas simultâneas).
+- [ ] **INFRA-04**: Consolidar logs estruturados em JSON focados em auditoria e troubleshooting de fluxos críticos.
 
-## v2 Requirements (Deferred)
-- [ ] Suporte a múltiplos modelos de LLM (Claude/GPT-4) chaveáveis por empresa.
-- [ ] Scraping de dados financeiros (faturamento presumido) via APIs de terceiros.
-- [ ] Dashboard analítico de performance da IA (taxa de conversão/agendamento).
-
-## Out of Scope
-- Integração nativa com Zapier/Make nesta fase.
-- Interface de construção de fluxos (Drag & Drop Flow Builder).
-
-## Traceability
-*(Fills during roadmap creation)*
+## 🚫 Out of Scope (Para esta meta)
+- Dashboard visual complexo para gestão de filas (adiado para v1.2+).
+- Automação via fluxos no-code (tipo Zapier).
+- Integração de agentes de voz.

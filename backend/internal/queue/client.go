@@ -8,6 +8,7 @@ import (
 )
 
 var Client *asynq.Client
+var Inspector *asynq.Inspector
 
 // InitClient initializes the Asynq client
 func InitClient() {
@@ -17,7 +18,8 @@ func InitClient() {
 	}
 
 	Client = asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
-	log.Printf("Asynq client initialized pointing to %s", redisAddr)
+	Inspector = asynq.NewInspector(asynq.RedisClientOpt{Addr: redisAddr})
+	log.Printf("Asynq client & inspector initialized pointing to %s", redisAddr)
 }
 
 // CloseClient closes the Asynq client

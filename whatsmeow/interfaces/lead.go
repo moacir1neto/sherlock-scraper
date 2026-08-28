@@ -24,4 +24,9 @@ type LeadRepository interface {
 	// (case-insensitive). Usado como fallback quando o telefone não casa.
 	// Retorna nil sem erro se nenhum lead for encontrado.
 	FindByName(ctx context.Context, companyID string, name string) (*models.Lead, error)
+	// FindByScrapeIDAndName busca lead por scrape_id + nome exato (case-insensitive).
+	// Lookup principal do push-sync. Retorna nil sem erro se não encontrado.
+	FindByScrapeIDAndName(ctx context.Context, scrapeID, name string) (*models.Lead, error)
+	// IncrementRescheduleCount aumenta o contador de reagendamentos do lead.
+	IncrementRescheduleCount(ctx context.Context, id, companyID string) error
 }

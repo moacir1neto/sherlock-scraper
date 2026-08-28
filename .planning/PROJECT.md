@@ -18,6 +18,7 @@ Automatizar o ciclo completo de prospecção — da descoberta do lead ao agenda
 - ✓ Agente de Vendas AI integrado (Gemini/Structured Output) — existing
 - ✓ Sistema de Real-time via SSE e WebSockets — existing
 - ✓ Enriquecimento de dados via CNPJ — existing
+- ✓ Sistema de Notificações de Negócio (Agendamentos/Lembretes) — Phase 4
 
 ### Active
 
@@ -49,22 +50,17 @@ O projeto está em uma fase madura de arquitetura (Go/React), mas necessita de e
 | Uso de Redis/Asynq | Garantir processamento assíncrono de tarefas pesadas (scraping/AI). | ✓ Good |
 | Gemini para Sales Agent | Structured output nativo e custo-benefício para automação de chat. | ✓ Good |
 
+## Current State (v1.0.0) ✅
+- **Versão Atual**: 1.0.0
+- **Destaque**: Sistema de Notificações de Negócio e Scheduler Asynq integrados.
+- **Segurança**: Ambiente saneado e JWT validado.
+
+## Next Milestone Goals (v1.1) 🚀
+- **WhatsApp Automation**: Concluir o disparo real de notificações via WhatsMiau.
+- **Resilience**: Implementar Circuit Breaker e DLQ nas filas do Scraper.
+- **Intelligence**: Iniciar os Dossiês Profundos (Deep Research).
+
 ## Evolution
 
-This document evolves at phase transitions and milestone boundaries.
-
-**After each phase transition** (via `/gsd-transition`):
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
-
-**After each milestone** (via `/gsd-complete-milestone`):
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
-
 ---
-*Last updated: 2026-05-01 after initialization*
+*Last updated: 2026-05-06 after Phase 4 completion*

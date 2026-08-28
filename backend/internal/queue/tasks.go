@@ -382,6 +382,22 @@ func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
 
 	g1, _ := errgroup.WithContext(enrichCtx)
 
+	// Quando o Google Maps coloca uma URL social no campo "website", corrige para o campo certo.
+	if lead.Site != "" {
+		siteLower := strings.ToLower(lead.Site)
+		switch {
+		case strings.Contains(siteLower, "instagram.com") && lead.Instagram == "":
+			lead.Instagram = lead.Site
+			lead.Site = ""
+		case strings.Contains(siteLower, "facebook.com") && lead.Facebook == "":
+			lead.Facebook = lead.Site
+			lead.Site = ""
+		case strings.Contains(siteLower, "tiktok.com") && lead.TikTok == "":
+			lead.TikTok = lead.Site
+			lead.Site = ""
+		}
+	}
+
 	hasWebsite := lead.Site != "" && strings.HasPrefix(strings.ToLower(lead.Site), "http")
 	if hasWebsite {
 		g1.Go(func() error {
@@ -420,6 +436,26 @@ func performLeadEnrichment(ctx context.Context, lead *domain.Lead) error {
 		if result.WebsiteData.Facebook != "" && lead.Facebook == "" {
 			lead.Facebook = result.WebsiteData.Facebook
 			logger.FromContext(ctx).Info("facebook_encontrado", zap.String("facebook", lead.Facebook))
+		}
+		if lead.Email == "" && len(result.WebsiteData.Emails) > 0 {
+			lead.Email = result.WebsiteData.Emails[0]
+			logger.FromContext(ctx).Info("email_encontrado", zap.String("email", lead.Email))
+		}
+		if lead.Telefone == "" && len(result.WebsiteData.Phones) > 0 {
+			lead.Telefone = result.WebsiteData.Phones[0]
+			logger.FromContext(ctx).Info("telefone_encontrado", zap.String("telefone", lead.Telefone))
+		}
+		if lead.LinkedIn == "" {
+			if v, ok := result.WebsiteData.SocialLinks["linkedin"]; ok && v != "" {
+				lead.LinkedIn = v
+				logger.FromContext(ctx).Info("linkedin_encontrado", zap.String("linkedin", lead.LinkedIn))
+			}
+		}
+		if lead.TikTok == "" {
+			if v, ok := result.WebsiteData.SocialLinks["tiktok"]; ok && v != "" {
+				lead.TikTok = v
+				logger.FromContext(ctx).Info("tiktok_encontrado", zap.String("tiktok", lead.TikTok))
+			}
 		}
 		lead.TemPixel = result.WebsiteData.TemPixel
 		lead.TemGTM = result.WebsiteData.TemGTM
@@ -720,6 +756,13 @@ func HandleEnrichLeadTask(ctx context.Context, t *asynq.Task) error {
 		}
 	}
 
+	// Notifica o Whatsmiau sobre o enriquecimento do lead (Push Sync — best-effort)
+	if lead.ScrapingJobID != nil {
+		if err := syncLeadToWhatsMiau(ctx, &lead); err != nil {
+			l.Warn("sync_lead_failed", zap.Error(err))
+		}
+	}
+
 	if enrichErr != nil {
 		return enrichErr
 	}
@@ -772,6 +815,14 @@ func HandleEnrichCNPJTask(ctx context.Context, t *asynq.Task) error {
 	}
 
 	l.Info("cnpj_salvo", zap.String("empresa", payload.CompanyName), zap.String("cnpj", resp.Dados.CNPJ))
+
+	// Notifica o Whatsmiau sobre a atualização do CNPJ (Push Sync — best-effort)
+	if err := database.DB.First(&lead, "id = ?", payload.LeadID).Error; err == nil && lead.ScrapingJobID != nil {
+		if syncErr := syncLeadToWhatsMiau(ctx, &lead); syncErr != nil {
+			l.Warn("sync_lead_cnpj_failed", zap.Error(syncErr))
+		}
+	}
+
 	return nil
 }
 
@@ -1165,3 +1216,83 @@ func ScoreLead(lead domain.Lead) int {
 
 	return score
 }
+
+// syncLeadToWhatsMiau envia um push de atualização para o Whatsmiau via webhook interno.
+// Retorna error para que o caller possa decidir como tratar — sync é best-effort,
+// mas falhas devem ser visíveis nos logs (não silenciadas).
+func syncLeadToWhatsMiau(ctx context.Context, lead *domain.Lead) error {
+	apiURL := config.Get().WhatsmeowURL
+	if apiURL == "" {
+		apiURL = "http://whatsmiau-api:8080"
+	}
+
+	if lead.ScrapingJobID == nil {
+		logger.FromContext(ctx).Warn("sync_lead_skipped: no scraping_job_id")
+		return nil
+	}
+
+	endpoint := fmt.Sprintf("%s/v1/admin/sherlock/sync", apiURL)
+
+	payload := map[string]interface{}{
+		"scrape_id": lead.ScrapingJobID.String(),
+		"lead": map[string]interface{}{
+			"name":          strings.TrimSpace(lead.Empresa),
+			"phone":         lead.Telefone,
+			"email":         lead.Email,
+			"instagram":     lead.Instagram,
+			"facebook":      lead.Facebook,
+			"linkedin":      lead.LinkedIn,
+			"tiktok":        lead.TikTok,
+			"youtube":       lead.YouTube,
+			"cnpj":          lead.CNPJ,
+			"has_pixel":     lead.TemPixel,
+			"has_gtm":       lead.TemGTM,
+			"deep_data":     json.RawMessage(lead.DeepData),
+			"nicho":         lead.Nicho,
+			"rating":        lead.Rating,
+			"reviews":       lead.QtdAvaliacoes,
+			"tipo_telefone": lead.TipoTelefone,
+			"link_whatsapp": lead.LinkWhatsapp,
+			"resumo":        lead.ResumoNegocio,
+		},
+	}
+
+	jsonBody, err := json.Marshal(payload)
+	if err != nil {
+		logger.FromContext(ctx).Error("sync_lead: marshal payload failed", zap.Error(err))
+		return fmt.Errorf("sync_lead: marshal payload: %w", err)
+	}
+	req, err := http.NewRequest("PATCH", endpoint, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		logger.FromContext(ctx).Error("sync_lead: create request failed", zap.Error(err))
+		return fmt.Errorf("sync_lead: create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if apiToken := config.Get().WhatsmeowAPIToken; apiToken != "" {
+		req.Header.Set("apikey", apiToken)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.FromContext(ctx).Error("sync_lead: request failed", zap.Error(err))
+		return fmt.Errorf("sync_lead: connection error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		logger.FromContext(ctx).Error("sync_lead: whatsmiau returned error",
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)),
+			zap.String("endpoint", endpoint),
+			zap.String("empresa", lead.Empresa),
+		)
+		return fmt.Errorf("sync_lead: HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	logger.FromContext(ctx).Info("sync_lead: success", zap.String("empresa", lead.Empresa))
+	return nil
+}
+

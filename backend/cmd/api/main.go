@@ -13,6 +13,7 @@ import (
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/repositories"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/services"
 	"github.com/digitalcombo/sherlock-scraper/backend/internal/sse"
+	"github.com/digitalcombo/sherlock-scraper/backend/internal/infrastructure/scheduler"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
@@ -143,6 +144,16 @@ func main() {
 	// Settings Routes
 	protected.Get("/settings", settingHandler.GetSettings)
 	protected.Put("/settings", settingHandler.UpdateSettings)
+
+	// Business Events & Notifications (Ondas 2 e 3)
+	eventRepo := repositories.NewBusinessEventRepository(database.DB)
+	eventPublisher := sse.NewRedisPublisher()
+	asynqSched := scheduler.NewAsynqScheduler(queue.Client, queue.Inspector)
+	eventService := services.NewEventService(eventRepo, eventPublisher, asynqSched)
+	eventHandler := handlers.NewEventHandler(eventService)
+	protected.Post("/events/meeting", eventHandler.CreateMeeting)
+	protected.Delete("/events/:id", eventHandler.CancelEvent)
+	protected.Get("/leads/:id/events", eventHandler.GetLeadEvents)
 
 	// Scrape Routes
 	protected.Post("/scrape", scrapeHandler.Start)
