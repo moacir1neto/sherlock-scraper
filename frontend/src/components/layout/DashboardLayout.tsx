@@ -92,6 +92,7 @@ const DashboardLayout: React.FC = () => {
               {user?.email ? user.email.charAt(0).toUpperCase() : 'A'}
             </div>
           </div>
+        </div>
         </header>
 
         {/* Page Content */}
